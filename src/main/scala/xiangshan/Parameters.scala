@@ -19,7 +19,7 @@ package xiangshan
 import chipsalliance.rocketchip.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
-import xiangshan.backend.exu._
+import xiangshan.backend.execute.exublock.ExuParameters
 import xiangshan.backend.dispatch.DispatchParameters
 import xiangshan.cache.DCacheParameters
 import xiangshan.cache.prefetch._
@@ -131,31 +131,21 @@ case class XSCoreParameters
   FtqSize: Int = 64,
   EnableLoadFastWakeUp: Boolean = true, // NOTE: not supported now, make it false
   IssQueSize: Int = 16,
-  NRPhyRegs: Int = 192,
+  NRPhyRegs: Int = 128,
   LoadQueueSize: Int = 80,
   LoadQueueNWriteBanks: Int = 8,
   StoreQueueSize: Int = 64,
   StoreQueueNWriteBanks: Int = 8,
-  RobSize: Int = 256,
+  RobSize: Int = 160,
   dpParams: DispatchParameters = DispatchParameters(
     IntDqSize = 16,
     FpDqSize = 16,
-    LsDqSize = 16,
-    IntDqDeqWidth = 4,
-    FpDqDeqWidth = 4,
-    LsDqDeqWidth = 4
+    LsDqSize = 16
   ),
-  exuParameters: ExuParameters = ExuParameters(
-    JmpCnt = 1,
-    AluCnt = 4,
-    MulCnt = 0,
-    MduCnt = 2,
-    FmacCnt = 4,
-    FmiscCnt = 2,
-    FmiscDivSqrtCnt = 0,
-    LduCnt = 2,
-    StuCnt = 2
-  ),
+  intRsDepth:Int = 32,
+  fpRsDepth:Int = 32,
+  memRsDepth:Int = 48,
+  exuParameters: ExuParameters = ExuParameters(),
   prefetcher: Option[PrefetcherParams] = Some(SMSParams()),
   LoadPipelineWidth: Int = 2,
   StorePipelineWidth: Int = 2,
@@ -245,18 +235,6 @@ case class XSCoreParameters
 ){
   val allHistLens = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
   val HistoryLength = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
-
-  val loadExuConfigs = Seq.fill(exuParameters.LduCnt)(LdExeUnitCfg)
-  val storeExuConfigs = Seq.fill(exuParameters.StuCnt)(StaExeUnitCfg) ++ Seq.fill(exuParameters.StuCnt)(StdExeUnitCfg)
-
-  val intExuConfigs = (Seq.fill(exuParameters.AluCnt)(AluExeUnitCfg) ++
-    Seq.fill(exuParameters.MduCnt)(MulDivExeUnitCfg) :+ JumpCSRExeUnitCfg)
-
-  val fpExuConfigs =
-    Seq.fill(exuParameters.FmacCnt)(FmacExeUnitCfg) ++
-      Seq.fill(exuParameters.FmiscCnt)(FmiscExeUnitCfg)
-
-  val exuConfigs: Seq[ExuConfig] = intExuConfigs ++ fpExuConfigs ++ loadExuConfigs ++ storeExuConfigs
 }
 
 case object DebugOptionsKey extends Field[DebugOptions]
@@ -356,8 +334,6 @@ trait HasXSParameter {
       Set[FoldedHistoryInfo]((UbtbGHRLength, log2Ceil(UbtbSize)))
     ).toList
 
-
-
   val CacheLineSize = coreParams.CacheLineSize
   val CacheLineHalfWord = CacheLineSize / 16
   val ExtHistoryLength = HistoryLength + 64
@@ -378,11 +354,6 @@ trait HasXSParameter {
   val StoreQueueNWriteBanks = coreParams.StoreQueueNWriteBanks
   val dpParams = coreParams.dpParams
   val exuParameters = coreParams.exuParameters
-  val NRMemReadPorts = exuParameters.LduCnt + 2 * exuParameters.StuCnt
-  val NRIntReadPorts = 2 * exuParameters.AluCnt + NRMemReadPorts
-  val NRIntWritePorts = exuParameters.AluCnt + exuParameters.MduCnt + exuParameters.LduCnt
-  val NRFpReadPorts = 3 * exuParameters.FmacCnt + exuParameters.StuCnt
-  val NRFpWritePorts = exuParameters.FpExuCnt + exuParameters.LduCnt
   val LoadPipelineWidth = coreParams.LoadPipelineWidth
   val StorePipelineWidth = coreParams.StorePipelineWidth
   val StoreBufferSize = coreParams.StoreBufferSize
@@ -404,11 +375,6 @@ trait HasXSParameter {
   val btlbParams = coreParams.btlbParameters
   val l2tlbParams = coreParams.l2tlbParameters
   val NumPerfCounters = coreParams.NumPerfCounters
-
-  val NumRs = (exuParameters.JmpCnt+1)/2 + (exuParameters.AluCnt+1)/2 + (exuParameters.MulCnt+1)/2 +
-              (exuParameters.MduCnt+1)/2 + (exuParameters.FmacCnt+1)/2 +  + (exuParameters.FmiscCnt+1)/2 +
-              (exuParameters.FmiscDivSqrtCnt+1)/2 + (exuParameters.LduCnt+1)/2 +
-              ((exuParameters.StuCnt+1)/2) + ((exuParameters.StuCnt+1)/2)
 
   val instBytes = if (HasCExtension) 2 else 4
   val instOffsetBits = log2Ceil(instBytes)
@@ -439,14 +405,9 @@ trait HasXSParameter {
   val LFSTWidth = 4
   val StoreSetEnable = true // LWT will be disabled if SS is enabled
 
-  val loadExuConfigs = coreParams.loadExuConfigs
-  val storeExuConfigs = coreParams.storeExuConfigs
+  val loadUnitNum = coreParams.exuParameters.LduCnt
 
-  val intExuConfigs = coreParams.intExuConfigs
-
-  val fpExuConfigs = coreParams.fpExuConfigs
-
-  val exuConfigs = coreParams.exuConfigs
+  val LpvLength = 5
 
   val PCntIncrStep: Int = 6
   val numPCntHc: Int = 25

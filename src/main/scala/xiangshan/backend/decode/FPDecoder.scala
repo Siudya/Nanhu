@@ -21,8 +21,9 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.rocket.DecodeLogic
 import freechips.rocketchip.rocket.Instructions._
-import xiangshan.backend.fu.fpu.FPU
-import xiangshan.{FPUCtrlSignals, XSModule}
+import xiangshan.backend.execute.fu.fpu.FPUCtrlSignals
+import xiangshan.backend.execute.fu.fpu.FPU
+import xiangshan.XSModule
 
 class FPDecoder(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle() {

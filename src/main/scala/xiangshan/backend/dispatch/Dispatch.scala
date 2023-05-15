@@ -31,10 +31,7 @@ case class DispatchParameters
 (
   IntDqSize: Int,
   FpDqSize: Int,
-  LsDqSize: Int,
-  IntDqDeqWidth: Int,
-  FpDqDeqWidth: Int,
-  LsDqDeqWidth: Int
+  LsDqSize: Int
 )
 
 // read rob and enqueue

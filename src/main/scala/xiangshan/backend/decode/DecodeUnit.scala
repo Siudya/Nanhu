@@ -19,12 +19,18 @@ package xiangshan.backend.decode
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.{SignExt, ZeroExt, LookupTree}
+import xs.utils.{LookupTree, SignExt, ZeroExt}
 import freechips.rocketchip.util.uintToBitPat
 import utils._
 import xiangshan.ExceptionNO.illegalInstr
 import xiangshan._
 import freechips.rocketchip.rocket.Instructions._
+import xiangshan.backend.execute.fu.alu.ALUOpType
+import xiangshan.backend.execute.fu.bku.BKUOpType
+import xiangshan.backend.execute.fu.csr.CSROpType
+import xiangshan.backend.execute.fu.fence.FenceOpType
+import xiangshan.backend.execute.fu.jmp.JumpOpType
+import xiangshan.backend.execute.fu.mdu.MDUOpType
 
 /**
  * Abstract trait giving defaults and other relevant values to different Decode constants/
@@ -583,8 +589,8 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
     X64Decode.table ++
     XSTrapDecode.table ++
     BDecode.table ++
-    CBODecode.table ++
-    SvinvalDecode.table
+    CBODecode.table
+//    ++ SvinvalDecode.table
   // assertion for LUI: only LUI should be assigned `selImm === SelImm.IMM_U && fuType === FuType.alu`
   val luiMatch = (t: Seq[BitPat]) => t(3).value == FuType.alu.litValue && t.reverse.head.value == SelImm.IMM_U.litValue
   val luiTable = decode_table.filter(t => luiMatch(t._2)).map(_._1).distinct

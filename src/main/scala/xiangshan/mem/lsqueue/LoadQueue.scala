@@ -23,7 +23,7 @@ import chisel3.ExcitingUtils
 import utils._
 import xs.utils._
 import xiangshan._
-import xiangshan.backend.fu.fpu.FPU
+import xiangshan.backend.execute.fu.fpu.FPU
 import xiangshan.backend.rob.RobLsqIO
 import xiangshan.cache._
 import xiangshan.frontend.FtqPtr

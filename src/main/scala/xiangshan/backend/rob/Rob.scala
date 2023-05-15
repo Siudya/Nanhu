@@ -20,10 +20,10 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import difftest._
+import xiangshan.backend.execute.exu.ExuConfig
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utils._
 import xiangshan._
-import xiangshan.backend.exu.ExuConfig
 import xiangshan.frontend.FtqPtr
 import xs.utils._
 

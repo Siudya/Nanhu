@@ -195,11 +195,11 @@ class FtqToICacheIO(implicit p: Parameters) extends XSBundle with HasCircularQue
 }
 
 trait HasBackendRedirectInfo extends HasXSParameter {
-  def numRedirectPcRead = exuParameters.JmpCnt + exuParameters.AluCnt + 1
+  def numRedirectPcRead = exuParameters.AluJmpCnt + exuParameters.AluMulCnt + 1
   def isLoadReplay(r: Valid[Redirect]) = r.bits.flushItself()
 }
 
-class FtqToCtrlIO(implicit p: Parameters) extends XSBundle with HasBackendRedirectInfo {
+class FtqToCtrlIO(implicit p: Parameters) extends XSBundle {
   // write to backend pc mem
   val pc_mem_wen = Output(Bool())
   val pc_mem_waddr = Output(UInt(log2Ceil(FtqSize).W))
@@ -210,7 +210,7 @@ class FtqToCtrlIO(implicit p: Parameters) extends XSBundle with HasBackendRedire
 }
 
 
-class FTBEntryGen(implicit p: Parameters) extends XSModule with HasBackendRedirectInfo with HasBPUParameter {
+class FTBEntryGen(implicit p: Parameters) extends XSModule with HasBPUParameter {
   val io = IO(new Bundle {
     val start_addr = Input(UInt(VAddrBits.W))
     val old_entry = Input(new FTBEntry)
@@ -393,7 +393,7 @@ class FTBEntryGen(implicit p: Parameters) extends XSModule with HasBackendRedire
   io.is_br_full := hit && is_new_br && may_have_to_replace
 }
 
-class FtqPcMemWrapper(numOtherReads: Int)(implicit p: Parameters) extends XSModule with HasBackendRedirectInfo {
+class FtqPcMemWrapper(numOtherReads: Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle {
     val ifuPtr_w       = Input(new FtqPtr)
     val ifuPtrPlus1_w  = Input(new FtqPtr)
@@ -436,7 +436,7 @@ class FtqPcMemWrapper(numOtherReads: Int)(implicit p: Parameters) extends XSModu
 }
 
 class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper
-  with HasBackendRedirectInfo with BPUUtils with HasBPUConst with HasPerfEvents
+  with BPUUtils with HasBPUConst with HasPerfEvents
   with HasICacheParameters{
   val io = IO(new Bundle {
     val fromBpu = Flipped(new BpuToFtqIO)
@@ -1451,7 +1451,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   val perfEvents = Seq(
     ("bpu_s2_redirect        ", bpu_s2_redirect                                                             ),
     ("bpu_s3_redirect        ", bpu_s3_redirect                                                             ),
-    ("bpu_to_ftq_stall       ", enq.valid && ~enq.ready                                                     ),
+    ("bpu_to_ftq_stall       ", enq.valid && !enq.ready                                                     ),
     ("mispredictRedirect     ", perf_redirect.valid && RedirectLevel.flushAfter === perf_redirect.bits.level),
     ("replayRedirect         ", perf_redirect.valid && RedirectLevel.flushItself(perf_redirect.bits.level)  ),
     ("predecodeRedirect      ", fromIfuRedirect.valid                                                       ),

@@ -1,56 +1,54 @@
-/***************************************************************************************
-* Copyright (c) 2020-2021 Institute of Computing Technology, Chinese Academy of Sciences
-* Copyright (c) 2020-2021 Peng Cheng Laboratory
-*
-* XiangShan is licensed under Mulan PSL v2.
-* You can use this software according to the terms and conditions of the Mulan PSL v2.
-* You may obtain a copy of Mulan PSL v2 at:
-*          http://license.coscl.org.cn/MulanPSL2
-*
-* THIS SOFTWARE IS PROVIDED ON AN "AS IS" BASIS, WITHOUT WARRANTIES OF ANY KIND,
-* EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO NON-INFRINGEMENT,
-* MERCHANTABILITY OR FIT FOR A PARTICULAR PURPOSE.
-*
-* See the Mulan PSL v2 for more details.
-***************************************************************************************/
-
 package xiangshan.backend.issue
-
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
-import xiangshan._
-import utils._
-
-class WakeupQueue(number: Int)(implicit p: Parameters) extends XSModule {
-  val io = IO(new Bundle {
-    val in  = Flipped(ValidIO(new MicroOp))
-    val out = ValidIO(new MicroOp)
-    val redirect = Flipped(ValidIO(new Redirect))
+import xiangshan.{Redirect, SrcType, XSModule}
+import xs.utils.Assertion.xs_assert
+import xs.utils.LogicShiftRight
+class WakeupQueue(latency:Int)(implicit p: Parameters) extends XSModule{
+  val io = IO(new Bundle{
+    val redirect = Input(Valid(new Redirect))
+    val in = Input(Valid(new WakeUpInfo))
+    val out = Output(Valid(new WakeUpInfo))
+    val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
   })
-  if (number < 0) {
-    io.out.valid := false.B
-    io.out.bits := DontCare
-  } else if(number == 0) {
-    io.in <> io.out
-    io.out.valid := io.in.valid
-    // NOTE: no delay bypass don't care redirect
-  } else {
-    val queue = Seq.fill(number)(RegInit(0.U.asTypeOf(new Bundle{
-      val valid = Bool()
-      val bits = new MicroOp
-    })))
-    queue(0).valid := io.in.valid && !io.in.bits.robIdx.needFlush(io.redirect)
-    queue(0).bits  := io.in.bits
-    (0 until (number-1)).map{i =>
-      queue(i+1) := queue(i)
-      queue(i+1).valid := queue(i).valid && !queue(i).bits.robIdx.needFlush(io.redirect)
+  require(latency > 0)
+  private def DelayInput(in:Valid[WakeUpInfo], l:Int): Valid[WakeUpInfo] = {
+    val res = Wire(Valid(new WakeUpInfo))
+    val realIn = if(l == 1) in else DelayInput(in, l - 1)
+    val resValidReg = RegNext(realIn.valid, false.B)
+    val resDataReg = RegEnable(realIn.bits, realIn.valid)
+    val shouldBeFlushed = resDataReg.robPtr.needFlush(io.redirect)
+    val shouldBeCanceled = resDataReg.lpv.zip(io.earlyWakeUpCancel).map({ case (l, c) => l(0) && c }).reduce(_ || _)
+    res.valid := resValidReg && !shouldBeCanceled && !shouldBeFlushed
+    res.bits := resDataReg
+    res.bits.lpv.zip(resDataReg.lpv).foreach({case(a,b) => a := LogicShiftRight(b, 1)})
+    res
+  }
+  io.out := DelayInput(io.in, latency)
+  xs_assert(Mux(io.out.valid, !io.out.bits.robPtr.needFlush(io.redirect), true.B))
+}
+
+object WakeupQueue {
+  def apply(in:DecoupledIO[SelectResp], latency:Int, redirect:Valid[Redirect], cancel:Vec[Bool], p: Parameters):Valid[WakeUpInfo] = {
+    val res = Wire(Valid(new WakeUpInfo()(p)))
+    if(latency > 0) {
+      val wakeupQueue = Module(new WakeupQueue(latency)(p))
+      wakeupQueue.io.in.valid := in.fire
+      wakeupQueue.io.earlyWakeUpCancel := cancel
+      wakeupQueue.io.in.bits.lpv := in.bits.info.lpv
+      wakeupQueue.io.in.bits.robPtr := in.bits.info.robPtr
+      wakeupQueue.io.in.bits.pdest := in.bits.info.pdest
+      wakeupQueue.io.in.bits.destType := Mux(in.bits.info.fpWen, SrcType.fp, Mux(in.bits.info.rfWen, SrcType.reg, SrcType.default))
+      wakeupQueue.io.redirect := redirect
+      res := wakeupQueue.io.out
+    } else {
+      res.valid := in.fire
+      res.bits.lpv := in.bits.info.lpv
+      res.bits.robPtr := in.bits.info.robPtr
+      res.bits.pdest := in.bits.info.pdest
+      res.bits.destType := Mux(in.bits.info.fpWen, SrcType.fp, Mux(in.bits.info.rfWen, SrcType.reg, SrcType.default))
     }
-    io.out.valid := queue(number-1).valid
-    io.out.bits := queue(number-1).bits
-    for (i <- 0 until number) {
-      XSDebug(queue(i).valid, p"BPQue(${i.U}): pc:${Hexadecimal(queue(i).bits.cf.pc)} robIdx:${queue(i).bits.robIdx}" +
-        p" pdest:${queue(i).bits.pdest} rfWen:${queue(i).bits.ctrl.rfWen} fpWen${queue(i).bits.ctrl.fpWen}\n")
-    }
+    res
   }
 }

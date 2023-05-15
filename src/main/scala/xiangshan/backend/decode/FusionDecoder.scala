@@ -22,6 +22,8 @@ import chisel3.util._
 import freechips.rocketchip.rocket.Instructions
 import utils._
 import xiangshan._
+import xiangshan.backend.execute.fu.alu.ALUOpType
+import xiangshan.backend.execute.fu.mdu.MDUOpType
 
 abstract class BaseFusionCase(pair: Seq[Valid[UInt]])(implicit p: Parameters)
   extends DecodeUnitConstants {
