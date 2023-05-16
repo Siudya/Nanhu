@@ -392,6 +392,7 @@ class Alu(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.isCsr := false.B
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
+  redirectOut.flushPipe := uop.ctrl.flushPipe
 
   io.in.ready := io.out.ready
   io.out.valid := io.in.valid

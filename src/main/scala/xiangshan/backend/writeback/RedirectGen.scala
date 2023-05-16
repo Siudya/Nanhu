@@ -19,7 +19,7 @@ object RedirectGen{
   private def getRedirect(exuOut: Valid[ExuOutput], p:Parameters): ValidIO[Redirect] = {
     val redirect = Wire(Valid(new Redirect()(p)))
     val ri = exuOut.bits.redirect
-    redirect.valid := exuOut.valid && (ri.cfiUpdate.isMisPred || ri.isCsr || ri.isLoadStore || ri.isLoadLoad)
+    redirect.valid := exuOut.valid && (ri.cfiUpdate.isMisPred || ri.isCsr || ri.isLoadStore || ri.isLoadLoad || ri.flushPipe)
     redirect.bits := exuOut.bits.redirect
     redirect
   }

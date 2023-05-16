@@ -20,8 +20,8 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.ExceptionNO.illegalInstr
-import xiangshan.XSBundle
-import xiangshan.backend.execute.fu.FunctionUnit
+import xiangshan.{RedirectLevel, XSBundle}
+import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit}
 import xs.utils.Assertion.xs_assert
 
 class FenceToSbuffer extends Bundle {
@@ -43,7 +43,7 @@ class SfenceBundle(implicit p: Parameters) extends XSBundle {
   }
 }
 
-class Fence(implicit p: Parameters) extends FunctionUnit {
+class Fence(implicit p: Parameters) extends FUWithRedirect {
 
   val sfence = IO(Output(new SfenceBundle))
   val fencei = IO(Output(Bool()))
@@ -93,6 +93,20 @@ class Fence(implicit p: Parameters) extends FunctionUnit {
   io.out.bits.data := DontCare
   io.out.bits.uop := uop
   io.out.bits.uop.cf.exceptionVec(illegalInstr) := func === FenceOpType.sfence && disableSfence
+
+  redirectOutValid := io.out.valid && uop.ctrl.flushPipe
+  redirectOut := DontCare
+  redirectOut.level := RedirectLevel.flushAfter
+  redirectOut.robIdx := uop.robIdx
+  redirectOut.ftqIdx := uop.cf.ftqPtr
+  redirectOut.ftqOffset := uop.cf.ftqOffset
+  redirectOut.cfiUpdate.predTaken := false.B
+  redirectOut.cfiUpdate.taken := false.B
+  redirectOut.cfiUpdate.isMisPred := false.B
+  redirectOut.isCsr := false.B
+  redirectOut.isLoadLoad := false.B
+  redirectOut.isLoadStore := false.B
+  redirectOut.flushPipe := uop.ctrl.flushPipe
 
   xs_assert(!(io.out.valid && io.out.bits.uop.ctrl.rfWen))
 }

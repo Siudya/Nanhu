@@ -98,10 +98,12 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.writebackFromMou <> mou.writebackFromMou
 
   writebackPort.bits.fflags := DontCare
-  writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, jmp.redirectOut)
-  writebackPort.bits.redirectValid := jmp.redirectOutValid | csr.redirectOutValid
+  private val redirectValids = VecInit(Seq(csr.redirectOutValid, jmp.redirectOutValid, fence.redirectOutValid))
+  private val redirectBits = Seq(csr.redirectOut, jmp.redirectOut, fence.redirectOut)
+  writebackPort.bits.redirect := Mux1H(redirectValids, redirectBits)
+  writebackPort.bits.redirectValid := redirectValids.reduce(_ || _)
 
-
+  xs_assert(PopCount(redirectValids.asUInt) === 1.U || PopCount(redirectValids.asUInt) === 0.U)
   //TODO: this signals should connect to csr
   fence.disableSfence := DontCare
 }

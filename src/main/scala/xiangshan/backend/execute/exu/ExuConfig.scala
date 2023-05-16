@@ -72,6 +72,8 @@ case class ExuConfig
   val isVecType = ExuType.vecTypes.contains(exuType)
   val bypassIntRegfile = ExuType.bypassIntList.contains(exuType)
   val bypassFpRegfile = ExuType.bypassFpList.contains(exuType)
+  val trigger: Boolean = fuConfigs.map(_.trigger).reduce(_ || _)
+  val hasException: Boolean = exceptionOut.nonEmpty || trigger
 
   override def toString = s"\n\t${name}: intSrcNum: ${intSrcNum} fpSrcNum: ${fpSrcNum} Type: ${ExuType.typeToString(exuType)} " +
     "\n\t\t Functions Units: " + fuConfigs.map(_.toString + " ").reduce(_++_)

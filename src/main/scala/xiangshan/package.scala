@@ -19,6 +19,8 @@ import chisel3.util._
 import chipsalliance.rocketchip.config.Parameters
 import freechips.rocketchip.tile.XLen
 import xiangshan.ExceptionNO._
+import xiangshan.backend.execute.exu.ExuConfig
+import xiangshan.backend.execute.fu.FuConfig
 import xiangshan.backend.fu._
 
 package object xiangshan {

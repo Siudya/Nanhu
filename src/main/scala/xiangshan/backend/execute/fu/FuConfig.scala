@@ -16,7 +16,9 @@ case class FuConfig
   writeFflags: Boolean,
   latency: Int,
   hasRedirect: Boolean,
-  exceptionOut: Seq[Int] = Seq(),
+  trigger: Boolean,
+  exceptionOut: Seq[Int] = Seq()
+
 ) {
   def srcCnt: Int = math.max(numIntSrc, numFpSrc)
   override def toString = name
@@ -34,6 +36,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = 0,
+    trigger = false,
     hasRedirect = true
   )
   val mulCfg = FuConfig(
@@ -47,6 +50,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
+    trigger = false,
     hasRedirect = false
   )
   val bkuCfg = FuConfig(
@@ -60,6 +64,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
+    trigger = false,
     hasRedirect = false
   )
   val divCfg = FuConfig(
@@ -73,6 +78,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
+    trigger = false,
     hasRedirect = false
   )
   val jmpCfg = FuConfig(
@@ -86,6 +92,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = 0,
+    trigger = false,
     hasRedirect = true
   )
   val fenceCfg = FuConfig(
@@ -99,7 +106,8 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
-    hasRedirect = false,
+    hasRedirect = true,
+    trigger = false,
     exceptionOut = Seq(illegalInstr)
   )
   val csrCfg = FuConfig(
@@ -113,7 +121,8 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
-    hasRedirect = false,
+    hasRedirect = true,
+    trigger = false,
     exceptionOut = Seq(illegalInstr, breakPoint, ecallU, ecallS, ecallM)
   )
   val i2fCfg = FuConfig(
@@ -127,6 +136,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = true,
     latency = 2,
+    trigger = false,
     hasRedirect = false
   )
   val fmacCfg = FuConfig(
@@ -140,6 +150,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = true,
     latency = Int.MaxValue,
+    trigger = false,
     hasRedirect = false
   )
 
@@ -154,6 +165,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = true,
     latency = 2,
+    trigger = false,
     hasRedirect = false
   )
 
@@ -168,6 +180,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = true,
     latency = 2,
+    trigger = false,
     hasRedirect = false
   )
 
@@ -182,6 +195,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = true,
     latency = Int.MaxValue,
+    trigger = false,
     hasRedirect = false
   )
 
@@ -197,6 +211,7 @@ object FuConfigs{
     writeFflags = false,
     latency = Int.MaxValue,
     hasRedirect = true,
+    trigger = true,
     exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault),
   )
 
@@ -212,6 +227,7 @@ object FuConfigs{
     writeFflags = false,
     latency = Int.MaxValue,
     hasRedirect = true,
+    trigger = true,
     exceptionOut = Seq(storeAddrMisaligned, storeAccessFault, storePageFault)
   )
 
@@ -226,6 +242,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
+    trigger = false,
     hasRedirect = false
   )
 
@@ -240,6 +257,7 @@ object FuConfigs{
     writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
+    trigger = true,
     hasRedirect = false,
     exceptionOut = lduCfg.exceptionOut ++ staCfg.exceptionOut
   )

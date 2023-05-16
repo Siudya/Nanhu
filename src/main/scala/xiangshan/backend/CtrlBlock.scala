@@ -66,6 +66,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     // from int block
     val redirectIn = Input(Valid(new Redirect))
     val memPredUpdate = Input(new MemPredUpdateReq)
+    val stIn = Vec(exuParameters.StuCnt, Flipped(ValidIO(new ExuInput)))
     val robio = new Bundle {
       // to int block
       val toCSR = new RobCSRIO
@@ -95,17 +96,17 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   private val fpDeq = fpDispatch._1
   private val lsDeq = lsDispatch._1
 
-  val decode = Module(new DecodeStage)
-  val fusionDecoder = Module(new FusionDecoder)
-  val rat = Module(new RenameTableWrapper)
-  val ssit = Module(new SSIT)
-  val waittable = Module(new WaitTable)
-  val rename = Module(new Rename)
-  val dispatch = Module(new Dispatch)
-  val intDq = Module(new DispatchQueue(dpParams.IntDqSize, RenameWidth, intDispatch._2.bankNum))
-  val fpDq = Module(new DispatchQueue(dpParams.FpDqSize, RenameWidth, fpDispatch._2.bankNum))
-  val lsDq = Module(new DispatchQueue(dpParams.LsDqSize, RenameWidth, lsDispatch._2.bankNum))
-  val rob = outer.rob.module
+  private val decode = Module(new DecodeStage)
+  private val fusionDecoder = Module(new FusionDecoder)
+  private val rat = Module(new RenameTableWrapper)
+  private val ssit = Module(new SSIT)
+  private val waittable = Module(new WaitTable)
+  private val rename = Module(new Rename)
+  private val dispatch = Module(new Dispatch)
+  private val intDq = Module(new DispatchQueue(dpParams.IntDqSize, RenameWidth, intDispatch._2.bankNum))
+  private val fpDq = Module(new DispatchQueue(dpParams.FpDqSize, RenameWidth, fpDispatch._2.bankNum))
+  private val lsDq = Module(new DispatchQueue(dpParams.LsDqSize, RenameWidth, lsDispatch._2.bankNum))
+  private val rob = outer.rob.module
 
   for (i <- 0 until CommitWidth) {
     // why flushOut: instructions with flushPipe are not commited to frontend
@@ -114,31 +115,12 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     io.frontend.toFtq.rob_commits(i).valid := RegNext(is_commit)
     io.frontend.toFtq.rob_commits(i).bits := RegEnable(rob.io.commits.info(i), is_commit)
   }
-  io.frontend.toFtq.redirect.valid := frontendFlushValid || redirectGen.io.io.redirectIn.valid
-  io.frontend.toFtq.redirect.bits := Mux(frontendFlushValid, frontendFlushBits, redirectGen.io.io.redirectIn.bits)
-  // Be careful here:
-  // T0: flushRedirect.valid, exception.valid
-  // T1: csr.redirect.valid
-  // T2: csr.exception.valid
-  // T3: csr.trapTarget
-  // T4: ctrlBlock.trapTarget
-  // T5: io.frontend.toFtq.stage2Redirect.valid
-  val pc_from_csr = io.robio.toCSR.isXRet || DelayN(rob.io.exception.valid, 4)
-  val rob_flush_pc = RegEnable(Mux(flushRedirect.bits.flushItself(),
-    flushPC, // replay inst
-    flushPC + 4.U // flush pipe
-  ), flushRedirect.valid)
-  val flushTarget = Mux(pc_from_csr, io.robio.toCSR.trapTarget, rob_flush_pc)
-  when (frontendFlushValid) {
-    io.frontend.toFtq.redirect.bits.level := RedirectLevel.flush
-    io.frontend.toFtq.redirect.bits.cfiUpdate.target := RegNext(flushTarget)
-  }
-
+  io.frontend.toFtq.redirect := io.redirectIn
 
   val pendingRedirect = RegInit(false.B)
   when (io.redirectIn.valid) {
     pendingRedirect := true.B
-  }.elsewhen (RegNext(io.frontend.toFtq.redirect.valid)) {
+  }.elsewhen (RegNext(io.frontend.toFtq.redirect.valid, false.B)) {
     pendingRedirect := false.B
   }
 
@@ -150,9 +132,9 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val RobFlushPending = RegInit(false.B); val robFlush_bubble_cycles = RegInit(false.B) // frontend_bound->fetch_lantency->stage2_redirect->robflush_bubble
     val LdReplayPending = RegInit(false.B); val ldReplay_bubble_cycles = RegInit(false.B) // frontend_bound->fetch_lantency->stage2_redirect->ldReplay_bubble
     
-    when(redirectGen.io.isMisspreRedirect) { MissPredPending := true.B }
-    when(flushRedirect.valid)              { RobFlushPending := true.B }
-    when(redirectGen.io.loadReplay.valid)  { LdReplayPending := true.B }
+    when(io.redirectIn.valid && io.redirectIn.bits.cfiUpdate.isMisPred) { MissPredPending := true.B }
+    when(io.redirectIn.valid && io.redirectIn.bits.isCsr)  { RobFlushPending := true.B }
+    when(io.redirectIn.valid && io.redirectIn.bits.isLoadLoad)  { LdReplayPending := true.B }
     
     when (RegNext(io.frontend.toFtq.redirect.valid)) {
       when(pendingRedirect) {                             stage2_redirect_cycles := true.B }
@@ -200,17 +182,17 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   waittable.io.csrCtrl := RegNext(io.csrCtrl)
 
   // LFST lookup and update
-  val lfst = Module(new LFST)
+  private val lfst = Module(new LFST)
   lfst.io.redirect := Pipe(io.redirectIn)
-  lfst.io.storeIssue <> RegNext(io.stIn)
+  lfst.io.storeIssue.zip(io.stIn).foreach({case(a, b) => a := Pipe(b)})
   lfst.io.csrCtrl <> RegNext(io.csrCtrl)
   lfst.io.dispatch <> dispatch.io.lfst
 
   rat.io.robCommits := rob.io.commits
   rat.io.intRenamePorts := rename.io.intRenamePorts
   rat.io.fpRenamePorts := rename.io.fpRenamePorts
-  rat.io.debug_int_rat <> io.debug_int_rat
-  rat.io.debug_fp_rat <> io.debug_fp_rat
+  io.debug_int_rat := rat.io.debug_int_rat
+  io.debug_fp_rat := rat.io.debug_fp_rat
 
   // pipeline between decode and rename
   for (i <- 0 until RenameWidth) {
@@ -258,8 +240,8 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   }
 
   rename.io.redirect := io.redirectIn
-  rename.io.robCommits <> rob.io.commits
-  rename.io.ssit <> ssit.io.rdata
+  rename.io.robCommits := rob.io.commits
+  rename.io.ssit := ssit.io.rdata
 
   // pipeline between rename and dispatch
   for (i <- 0 until RenameWidth) {
@@ -283,55 +265,6 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   fpDeq <> fpDq.io.deq
   lsDeq <> lsDq.io.deq
 
-  for (dp2 <- outer.dispatch2.map(_.module.io)) {
-    dp2.redirect := redirectForExu
-    if (dp2.readFpState.isDefined) {
-      dp2.readFpState.get := DontCare
-    }
-    if (dp2.readIntState.isDefined) {
-      dp2.readIntState.get := DontCare
-    }
-    if (dp2.enqLsq.isDefined) {
-      val lsqCtrl = Module(new LsqEnqCtrl)
-      lsqCtrl.io.redirect <> redirectForExu
-      lsqCtrl.io.enq <> dp2.enqLsq.get
-      lsqCtrl.io.lcommit := rob.io.lsq.lcommit
-      lsqCtrl.io.scommit := io.sqDeq
-      lsqCtrl.io.lqCancelCnt := io.lqCancelCnt
-      lsqCtrl.io.sqCancelCnt := io.sqCancelCnt
-      io.enqLsq <> lsqCtrl.io.enqLsq
-    }
-  }
-  for ((dp2In, i) <- outer.dispatch2.flatMap(_.module.io.in).zipWithIndex) {
-    dp2In.valid := dpqOut(i).valid
-    dp2In.bits := dpqOut(i).bits
-    // override ready here to avoid cross-module loop path
-    dpqOut(i).ready := dp2In.ready
-  }
-  for ((dp2Out, i) <- outer.dispatch2.flatMap(_.module.io.out).zipWithIndex) {
-    dp2Out.ready := io.rsReady(i)
-  }
-
-  val pingpong = RegInit(false.B)
-  pingpong := !pingpong
-  pcMem.io.raddr(0) := intDq.io.deqNext(0).cf.ftqPtr.value
-  pcMem.io.raddr(1) := intDq.io.deqNext(2).cf.ftqPtr.value
-  val jumpPcRead0 = pcMem.io.rdata(0).getPc(RegNext(intDq.io.deqNext(0).cf.ftqOffset))
-  val jumpPcRead1 = pcMem.io.rdata(1).getPc(RegNext(intDq.io.deqNext(2).cf.ftqOffset))
-  io.jumpPc := Mux(pingpong && (exuParameters.AluCnt > 2).B, jumpPcRead1, jumpPcRead0)
-  val jalrTargetReadPtr = Mux(pingpong && (exuParameters.AluCnt > 2).B,
-    io.dispatch(2).bits.cf.ftqPtr,
-    io.dispatch(0).bits.cf.ftqPtr)
-  pcMem.io.raddr(4) := (jalrTargetReadPtr + 1.U).value
-  val jalrTargetRead = pcMem.io.rdata(4).startAddr
-  val read_from_newest_entry = RegNext(jalrTargetReadPtr) === RegNext(io.frontend.fromFtq.newest_entry_ptr)
-  io.jalr_target := Mux(read_from_newest_entry, RegNext(io.frontend.fromFtq.newest_entry_target), jalrTargetRead)
-  for(i <- 0 until exuParameters.LduCnt){
-    // load s0 -> get rdata (s1) -> reg next (s2) -> output (s2)
-    pcMem.io.raddr(i + 5) := io.ld_pc_read(i).ptr.value
-    io.ld_pc_read(i).data := pcMem.io.rdata(i + 5).getPc(RegNext(io.ld_pc_read(i).offset))
-  }
-
   rob.io.hartId := io.hartId
   io.cpu_halt := DelayN(rob.io.cpu_halt, 5)
   rob.io.redirect := io.redirectIn
@@ -354,23 +287,15 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   io.perfInfo.ctrlInfo.fpdqFull := RegNext(fpDq.io.dqFull)
   io.perfInfo.ctrlInfo.lsdqFull := RegNext(lsDq.io.dqFull)
 
-  val pfevent = Module(new PFEvent)
+  private val pfevent = Module(new PFEvent)
   pfevent.io.distribute_csr := RegNext(io.csrCtrl.distribute_csr)
-  val csrevents = pfevent.io.hpmevent.slice(8,16)
+  private val csrevents = pfevent.io.hpmevent.slice(8,16)
 
-  val perfinfo = IO(new Bundle(){
-    val perfEventsRs      = Input(Vec(NumRs, new PerfEvent))
-    val perfEventsEu0     = Input(Vec(6, new PerfEvent))
-    val perfEventsEu1     = Input(Vec(6, new PerfEvent))
-  })
-
-  val perfFromUnits = Seq(decode, rename, dispatch, intDq, fpDq, lsDq, rob).flatMap(_.getPerfEvents)
-  val perfFromIO    = perfinfo.perfEventsEu0.map(x => ("perfEventsEu0", x.value)) ++
-                        perfinfo.perfEventsEu1.map(x => ("perfEventsEu1", x.value)) ++
-                        perfinfo.perfEventsRs.map(x => ("perfEventsRs", x.value))
-  val perfBlock     = Seq()
+  private val perfFromUnits = Seq(decode, rename, dispatch, intDq, fpDq, lsDq, rob).flatMap(_.getPerfEvents)
+  private val perfFromIO    = Seq()
+  private val perfBlock     = Seq()
   // let index = 0 be no event
-  val allPerfEvents = Seq(("noEvent", 0.U)) ++ perfFromUnits ++ perfFromIO ++ perfBlock
+  private val allPerfEvents = Seq(("noEvent", 0.U)) ++ perfFromUnits ++ perfFromIO ++ perfBlock
 
   if (printEventCoding) {
     for (((name, inc), i) <- allPerfEvents.zipWithIndex) {
@@ -378,7 +303,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     }
   }
 
-  val allPerfInc = allPerfEvents.map(_._2.asTypeOf(new PerfEvent))
-  val perfEvents = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
+  private val allPerfInc = allPerfEvents.map(_._2.asTypeOf(new PerfEvent))
+  private val perfEvents = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
   generatePerfEvent()
 }

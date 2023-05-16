@@ -24,7 +24,7 @@ import freechips.rocketchip.util._
 import utils._
 import xiangshan.ExceptionNO._
 import xiangshan._
-import xiangshan.backend.execute.fu.{FunctionUnit, PMAMethod, PMPEntry, PMPMethod}
+import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit, PMAMethod, PMPEntry, PMPMethod}
 import xiangshan.cache._
 import xs.utils.MaskedRegMap.WritableMask
 import xs.utils._
@@ -111,7 +111,7 @@ class CSRFileIO(implicit p: Parameters) extends XSBundle {
   val distributedUpdate = Vec(2, Flipped(new DistributedCSRUpdateReq))
 }
 
-class CSR(implicit p: Parameters) extends FunctionUnit with HasCSRConst with PMPMethod with PMAMethod with HasTriggerConst
+class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with PMPMethod with PMAMethod with HasTriggerConst
   with SdtrigExt with DebugCSR
 {
   val csrio = IO(new CSRFileIO)
@@ -1073,6 +1073,27 @@ class CSR(implicit p: Parameters) extends FunctionUnit with HasCSRConst with PMP
       ((hasDebugTrap && !debugMode) || ebreakEnterParkLoop) -> debugTrapTarget
     )),
     isXRetFlag || csrio.exception.valid)
+
+  private val trapTarget = MuxCase(pcFromXtvec, Seq(
+    (isXRetFlag && !illegalXret) -> retTargetReg,
+    ((hasDebugTrap && !debugMode) || ebreakEnterParkLoop) -> debugTrapTarget
+  ))
+  private val exceptionValid = isXRetFlag || csrio.exception.valid
+  private val flushPipeValid = io.in.valid && flushPipe
+  redirectOutValid := RegNext(exceptionValid, false.B) || flushPipeValid
+  redirectOut := DontCare
+  redirectOut.level := RedirectLevel.flushAfter
+  redirectOut.robIdx := Mux(flushPipeValid, io.in.bits.uop.robIdx, RegEnable(csrio.exception.bits.uop.robIdx, exceptionValid)))
+  redirectOut.ftqIdx := Mux(flushPipeValid, io.in.bits.uop.cf.ftqPtr, RegEnable(csrio.exception.bits.uop.cf.ftqPtr, exceptionValid))
+  redirectOut.ftqOffset := Mux(flushPipeValid, io.in.bits.uop.cf.ftqOffset, RegEnable(csrio.exception.bits.uop.cf.ftqOffset, exceptionValid))
+  redirectOut.cfiUpdate.predTaken := false.B
+  redirectOut.cfiUpdate.taken := false.B
+  redirectOut.cfiUpdate.isMisPred := false.B
+  redirectOut.cfiUpdate.target := RegEnable(trapTarget, exceptionValid)
+  redirectOut.isCsr := true.B
+  redirectOut.isLoadLoad := false.B
+  redirectOut.isLoadStore := false.B
+  redirectOut.flushPipe := flushPipe
 
   when (hasExceptionIntr) {
     val mstatusOld = WireInit(mstatus.asTypeOf(new MstatusStruct))
