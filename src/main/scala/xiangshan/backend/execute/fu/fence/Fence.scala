@@ -29,15 +29,13 @@ class FenceToSbuffer extends Bundle {
   val sbIsEmpty = Input(Bool())
 }
 
-class SfenceBundle(implicit p: Parameters) extends XSBundle {
-  val valid = Bool()
-  val bits = new Bundle {
-    val rs1 = Bool()
-    val rs2 = Bool()
-    val addr = UInt(VAddrBits.W)
-    val asid = UInt(AsidLength.W)
-  }
-
+sealed class SfenceBundleBits(implicit p: Parameters) extends XSBundle {
+  val rs1 = Bool()
+  val rs2 = Bool()
+  val addr = UInt(VAddrBits.W)
+  val asid = UInt(AsidLength.W)
+}
+class SfenceBundle(implicit p: Parameters) extends Valid(new SfenceBundleBits) {
   override def toPrintable: Printable = {
     p"valid:0x${Hexadecimal(valid)} rs1:${bits.rs1} rs2:${bits.rs2} addr:${Hexadecimal(bits.addr)}"
   }
@@ -103,10 +101,10 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.cfiUpdate.predTaken := false.B
   redirectOut.cfiUpdate.taken := false.B
   redirectOut.cfiUpdate.isMisPred := false.B
-  redirectOut.isCsr := false.B
+  redirectOut.isException := false.B
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
-  redirectOut.flushPipe := uop.ctrl.flushPipe
+  redirectOut.isFlushPipe := uop.ctrl.flushPipe
 
   xs_assert(!(io.out.valid && io.out.bits.uop.ctrl.rfWen))
 }

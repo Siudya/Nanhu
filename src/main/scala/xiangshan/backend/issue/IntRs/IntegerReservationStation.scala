@@ -3,10 +3,11 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.experimental.prefix
 import chisel3.util._
-import xiangshan.{FuType, HasXSParameter, MicroOp, Redirect, SrcType, XSCoreParamsKey}
+import xiangshan.{FuType, HasXSParameter, MicroOp, Redirect, SrcState, SrcType, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.ExuType
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
 import xiangshan.backend.issue._
+import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
 import xs.utils.Assertion.xs_assert
 
@@ -53,6 +54,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     val specWakeup = Output(Vec(aluIssuePortNum + mulIssuePortNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
   })
   require(outer.dispatchNode.in.length == 1)
   private val enq = outer.dispatchNode.in.map(_._1).head
@@ -69,15 +71,22 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     wkp.bits.destType := Mux(elm.bits.uop.ctrl.rfWen, SrcType.reg, SrcType.default)
     wkp
   }))
+  private val wakeupWidth = (wakeupSignals ++ internalWakeupSignals).length
   private val rsBankSeq = Seq.tabulate(param.bankNum)( _ => {
-    val mod = Module(new IntegerReservationBank(entriesNumPerBank, issueWidth, (wakeupSignals ++ internalWakeupSignals).length, loadUnitNum))
+    val mod = Module(new IntegerReservationBank(entriesNumPerBank, issueWidth, wakeupWidth, loadUnitNum))
     mod.io.redirect := io.redirect
-    mod.io.wakeup := wakeupSignals ++ internalWakeupSignals
+    mod.io.wakeup.zip(wakeupSignals ++ internalWakeupSignals).foreach({case(a, b) => a := b})
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("IntegerAllocateNetwork")))
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupWidth))
+  integerBusyTable.io.allocPregs := io.integerAllocPregs
+  integerBusyTable.io.wbPregs.zip(wakeupSignals ++ internalWakeupSignals).foreach({case(bt, wb) =>
+    bt.valid := wb.valid && wb.bits.destType === SrcType.reg
+    bt.bits := wb.bits.pdest
+  })
 
   private val aluExuCfg = aluIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.alu).head
   private val mulExuCfg = mulIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.mul).head
@@ -101,10 +110,18 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     sn.io.redirect := io.redirect
   })
 
+  private var busyTableReadIdx = 0
   allocateNetwork.io.enqFromDispatch.zip(enq).foreach({case(sink, source) =>
+    val rport0 = integerBusyTable.io.read(busyTableReadIdx)
+    val rport1 = integerBusyTable.io.read(busyTableReadIdx + 1)
+    rport0.req := source.bits.psrc(0)
+    rport1.req := source.bits.psrc(1)
     sink.valid := source.valid
     sink.bits := source.bits
+    sink.bits.srcState(0) := Mux(source.bits.ctrl.srcType(0) === SrcType.reg, rport0.resp, SrcState.rdy)
+    sink.bits.srcState(1) := Mux(source.bits.ctrl.srcType(1) === SrcType.reg, rport1.resp, SrcState.rdy)
     source.ready := sink.ready
+    busyTableReadIdx = busyTableReadIdx + 2
     xs_assert(Mux(source.valid, FuType.integerTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })
 

@@ -90,8 +90,6 @@ class CSRFileIO(implicit p: Parameters) extends XSBundle {
   // from rob
   val exception = Flipped(ValidIO(new ExceptionInfo))
   // to ROB
-  val isXRet = Output(Bool())
-  val trapTarget = Output(UInt(VAddrBits.W))
   val interrupt = Output(Bool())
   val wfi_event = Output(Bool())
   // from LSQ
@@ -708,10 +706,10 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   val permitted = Mux(addrInPerfCnt, perfcntPermitted, modePermitted) && accessPermitted
 
   MaskedRegMap.generate(mapping, addr, rdata, wen && permitted, wdata)
-  io.out.bits.data := rdata
-  io.out.bits.uop := io.in.bits.uop
-  io.out.bits.uop.cf := cfOut
-  io.out.bits.uop.ctrl.flushPipe := flushPipe
+  io.out.bits.data := RegEnable(rdata, valid)
+  io.out.bits.uop := RegEnable(io.in.bits.uop, valid)
+  io.out.bits.uop.cf := RegEnable(cfOut, valid)
+  io.out.bits.uop.ctrl.flushPipe := RegEnable(flushPipe, valid)
 
   // send distribute csr a w signal
   csrio.customCtrl.distribute_csr.w.valid := wen && permitted
@@ -885,7 +883,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   }
 
   io.in.ready := true.B
-  io.out.valid := valid
+  io.out.valid := RegNext(valid, false.B)
 
   // In this situation, hart will enter debug mode instead of handling a breakpoint exception simply.
   // Ebreak block instructions backwards, so it's ok to not keep extra info to distinguish between breakpoint
@@ -1046,13 +1044,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   val clearTval = !updateTval || hasIntr
 
   // ctrl block will use theses later for flush
+  // waiting for rob exception signals
   val isXRetFlag = RegInit(false.B)
-  when (DelayN(io.redirectIn.valid, 5)) {
+  when (io.redirectIn.valid && io.redirectIn.bits.isException) {
     isXRetFlag := false.B
   }.elsewhen (isXRet) {
     isXRetFlag := true.B
   }
-  csrio.isXRet := isXRetFlag
   private val retTargetReg = RegEnable(retTarget, isXRet && !illegalRetTarget)
   private val illegalXret = RegEnable(illegalMret || illegalSret || illegalSModeSret, isXRet)
 
@@ -1067,12 +1065,6 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   // XRet sends redirect instead of Flush and isXRetFlag is true.B before redirect.valid.
   // ROB sends exception at T0 while CSR receives at T2.
   // We add a RegNext here and trapTarget is valid at T3.
-  csrio.trapTarget := RegEnable(
-    MuxCase(pcFromXtvec, Seq(
-      (isXRetFlag && !illegalXret) -> retTargetReg,
-      ((hasDebugTrap && !debugMode) || ebreakEnterParkLoop) -> debugTrapTarget
-    )),
-    isXRetFlag || csrio.exception.valid)
 
   private val trapTarget = MuxCase(pcFromXtvec, Seq(
     (isXRetFlag && !illegalXret) -> retTargetReg,
@@ -1080,20 +1072,21 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   ))
   private val exceptionValid = isXRetFlag || csrio.exception.valid
   private val flushPipeValid = io.in.valid && flushPipe
-  redirectOutValid := RegNext(exceptionValid, false.B) || flushPipeValid
+  private val exceptionValidReg = RegNext(exceptionValid, false.B)
+  redirectOutValid := exceptionValidReg || flushPipeValid
   redirectOut := DontCare
-  redirectOut.level := RedirectLevel.flushAfter
-  redirectOut.robIdx := Mux(flushPipeValid, io.in.bits.uop.robIdx, RegEnable(csrio.exception.bits.uop.robIdx, exceptionValid)))
-  redirectOut.ftqIdx := Mux(flushPipeValid, io.in.bits.uop.cf.ftqPtr, RegEnable(csrio.exception.bits.uop.cf.ftqPtr, exceptionValid))
-  redirectOut.ftqOffset := Mux(flushPipeValid, io.in.bits.uop.cf.ftqOffset, RegEnable(csrio.exception.bits.uop.cf.ftqOffset, exceptionValid))
+  redirectOut.level := Mux(exceptionValidReg, RedirectLevel.flush, RedirectLevel.flushAfter)
+  redirectOut.robIdx := Mux(exceptionValidReg, RegEnable(csrio.exception.bits.uop.robIdx, exceptionValid), io.in.bits.uop.robIdx)
+  redirectOut.ftqIdx := Mux(exceptionValidReg, RegEnable(csrio.exception.bits.uop.cf.ftqPtr, exceptionValid), io.in.bits.uop.cf.ftqPtr)
+  redirectOut.ftqOffset := Mux(exceptionValidReg, RegEnable(csrio.exception.bits.uop.cf.ftqOffset, exceptionValid), io.in.bits.uop.cf.ftqOffset)
   redirectOut.cfiUpdate.predTaken := false.B
   redirectOut.cfiUpdate.taken := false.B
   redirectOut.cfiUpdate.isMisPred := false.B
   redirectOut.cfiUpdate.target := RegEnable(trapTarget, exceptionValid)
-  redirectOut.isCsr := true.B
+  redirectOut.isException := exceptionValidReg
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
-  redirectOut.flushPipe := flushPipe
+  redirectOut.isFlushPipe := flushPipeValid
 
   when (hasExceptionIntr) {
     val mstatusOld = WireInit(mstatus.asTypeOf(new MstatusStruct))

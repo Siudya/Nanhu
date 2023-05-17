@@ -223,7 +223,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
   //Start of dequeue and redirect
   private val shouldBeFlushed = io.entry.valid & io.entry.bits.robIdx.needFlush(io.redirect)
   private val miscUpdateEnDequeueOrRedirect =
-    (io.entry.bits.stdState === EntryState.s_issued && io.entry.bits.staLoadState === EntryState.s_issued) || shouldBeFlushed
+    (staLoadStateNext === EntryState.s_issued && stdStateNext === EntryState.s_issued) || shouldBeFlushed
   when(miscUpdateEnDequeueOrRedirect) {
     miscNext.valid := false.B
   }

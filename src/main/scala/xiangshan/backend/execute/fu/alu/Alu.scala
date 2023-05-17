@@ -389,10 +389,10 @@ class Alu(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.cfiUpdate.isMisPred := dataModule.io.mispredict
   redirectOut.cfiUpdate.taken := dataModule.io.taken
   redirectOut.cfiUpdate.predTaken := uop.cf.pred_taken
-  redirectOut.isCsr := false.B
+  redirectOut.isException := false.B
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
-  redirectOut.flushPipe := uop.ctrl.flushPipe
+  redirectOut.isFlushPipe := uop.ctrl.flushPipe
 
   io.in.ready := io.out.ready
   io.out.valid := io.in.valid

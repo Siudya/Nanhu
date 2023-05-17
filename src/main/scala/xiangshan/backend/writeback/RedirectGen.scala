@@ -19,7 +19,7 @@ object RedirectGen{
   private def getRedirect(exuOut: Valid[ExuOutput], p:Parameters): ValidIO[Redirect] = {
     val redirect = Wire(Valid(new Redirect()(p)))
     val ri = exuOut.bits.redirect
-    redirect.valid := exuOut.valid && (ri.cfiUpdate.isMisPred || ri.isCsr || ri.isLoadStore || ri.isLoadLoad || ri.flushPipe)
+    redirect.valid := exuOut.bits.redirectValid && (ri.cfiUpdate.isMisPred || ri.isException || ri.isLoadStore || ri.isLoadLoad || ri.isFlushPipe)
     redirect.bits := exuOut.bits.redirect
     redirect
   }
@@ -94,7 +94,7 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   private val redirectTarget = WireInit(snpc)
   when(s1_isMemReg){
     redirectTarget := s1_pcReadReg
-  }.elsewhen(s1_redirectBitsReg.isCsr){
+  }.elsewhen(s1_redirectBitsReg.isException){
     redirectTarget := s1_jmpTargetReg
   }.elsewhen(s1_redirectBitsReg.cfiUpdate.taken){
     redirectTarget := Mux(s1_isJmpReg, s1_jmpTargetReg, branchTarget)

@@ -3,11 +3,12 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.experimental.prefix
 import chisel3.util._
-import xiangshan.{FuType, HasXSParameter, MicroOp, Redirect, SrcType, XSCoreParamsKey}
+import xiangshan.{FuType, HasXSParameter, MicroOp, Redirect, SrcState, SrcType, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.ExuType
 import xiangshan.backend.execute.fu.FuConfigs
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
 import xiangshan.backend.issue._
+import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.rob.RobPtr
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
 import xs.utils.Assertion.xs_assert
@@ -54,6 +55,8 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     val specWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.specWakeUpNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Output(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
+    val floatingAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
   })
   require(outer.dispatchNode.in.length == 1)
   private val enq = outer.dispatchNode.in.map(_._1).head
@@ -64,7 +67,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     wkp.bits.pdest := elm.bits.uop.pdest
     wkp.bits.robPtr := elm.bits.uop.robIdx
     wkp.bits.lpv := 0.U.asTypeOf(wkp.bits.lpv)
-    wkp.bits.destType := Mux(elm.bits.uop.ctrl.rfWen, SrcType.reg, SrcType.default)
+    wkp.bits.destType := Mux(elm.bits.uop.ctrl.rfWen, SrcType.reg, Mux(elm.bits.uop.ctrl.fpWen, SrcType.fp, SrcType.default))
     wkp
   }))
 
@@ -80,6 +83,21 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     mod
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemoryAllocateNetwork")))
+
+  private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf)
+  private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf)
+  private val floatingBusyTable = Module(new BusyTable(param.bankNum, wakeupFp.length))
+  floatingBusyTable.io.allocPregs := io.floatingAllocPregs
+  floatingBusyTable.io.wbPregs.zip(wakeupFp.map(_._1)).foreach({ case (bt, wb) =>
+    bt.valid := wb.valid && wb.bits.destType === SrcType.fp
+    bt.bits := wb.bits.pdest
+  })
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.specWakeup.length))
+  integerBusyTable.io.allocPregs := io.integerAllocPregs
+  integerBusyTable.io.wbPregs.zip(wakeupInt.map(_._1) ++ io.specWakeup).foreach({ case (bt, wb) =>
+    bt.valid := wb.valid && wb.bits.destType === SrcType.reg
+    bt.bits := wb.bits.pdest
+  })
 
   private val staExuCfg = staIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.sta).head
   private val stdExuCfg = stdIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.std).head
@@ -104,9 +122,21 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   })
   lduSelectNetwork.io.redirect := io.redirect
 
+  private val fpBusyTableReadIdx = 0
+  private val intBusyTableReadIdx = 0
   allocateNetwork.io.enqFromDispatch.zip(enq).foreach({case(sink, source) =>
+    val fread = floatingBusyTable.io.read(fpBusyTableReadIdx)
+    val iread0 = integerBusyTable.io.read(intBusyTableReadIdx)
+    val iread1 = integerBusyTable.io.read(intBusyTableReadIdx + 1)
+    val type0 = source.bits.ctrl.srcType(0)
+    val type1 = source.bits.ctrl.srcType(1)
+    fread := source.bits.psrc(1)
+    iread0 := source.bits.psrc(0)
+    iread1 := source.bits.psrc(1)
     sink.valid := source.valid
     sink.bits := source.bits
+    sink.bits.srcState(0) := Mux(type0 === SrcType.reg, iread0.resp, SrcState.rdy)
+    sink.bits.srcState(1) := Mux(type1 === SrcType.reg, iread1.resp, Mux(type1 === SrcType.fp, fread.resp, SrcState.rdy))
     source.ready := sink.ready
     xs_assert(Mux(source.valid, FuType.memoryTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })

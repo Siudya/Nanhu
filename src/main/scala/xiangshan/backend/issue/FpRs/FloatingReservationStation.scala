@@ -10,6 +10,7 @@ import xiangshan.backend.issue._
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
 import xiangshan._
 import xiangshan.backend.execute.fu.fpu.FMAMidResult
+import xiangshan.backend.rename.BusyTable
 import xs.utils.Assertion.xs_assert
 
 class FloatingReservationStation(implicit p: Parameters) extends LazyModule with HasXSParameter {
@@ -47,9 +48,11 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     val redirect = Input(Valid(new Redirect))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val floatingAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
   })
   require(outer.dispatchNode.in.length == 1)
   private val enq = outer.dispatchNode.in.map(_._1).head
+
 
   private val wakeupSignals = VecInit(wakeup.map(_._1).map(elm =>{
     val wkp = Wire(Valid(new WakeUpInfo))
@@ -68,7 +71,14 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod
   })
-  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("IntegerAllocateNetwork")))
+  private val wakeupWidth = wakeupSignals.length
+  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("FloatingAllocateNetwork")))
+  private val floatingBusyTable = Module(new BusyTable(param.bankNum * 3, wakeupWidth))
+  floatingBusyTable.io.allocPregs := io.floatingAllocPregs
+  floatingBusyTable.io.wbPregs.zip(wakeupSignals).foreach({ case (bt, wb) =>
+    bt.valid := wb.valid && wb.bits.destType === SrcType.fp
+    bt.bits := wb.bits.pdest
+  })
 
   private val fmaIssuePortNum = issue.count(_._2.hasFmac)
   private val fdivIssuePortNum = issue.count(_._2.hasFdiv)
@@ -93,10 +103,21 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     sn.io.redirect := io.redirect
   })
 
+  private var busyTableReadIdx = 0
   allocateNetwork.io.enqFromDispatch.zip(enq).foreach({case(sink, source) =>
+    val rport0 = floatingBusyTable.io.read(busyTableReadIdx)
+    val rport1 = floatingBusyTable.io.read(busyTableReadIdx + 1)
+    val rport2 = floatingBusyTable.io.read(busyTableReadIdx + 2)
+    rport0.req := source.bits.psrc(0)
+    rport1.req := source.bits.psrc(1)
+    rport2.req := source.bits.psrc(2)
     sink.valid := source.valid
     sink.bits := source.bits
+    sink.bits.srcState(0) := Mux(source.bits.ctrl.srcType(0) === SrcType.fp, rport0.resp, SrcState.rdy)
+    sink.bits.srcState(1) := Mux(source.bits.ctrl.srcType(1) === SrcType.fp, rport1.resp, SrcState.rdy)
+    sink.bits.srcState(2) := Mux(source.bits.ctrl.srcType(2) === SrcType.fp, rport2.resp, SrcState.rdy)
     source.ready := sink.ready
+    busyTableReadIdx = busyTableReadIdx + 3
     xs_assert(Mux(source.valid, FuType.floatingTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })
 

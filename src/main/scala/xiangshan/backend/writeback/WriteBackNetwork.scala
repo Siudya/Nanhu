@@ -3,7 +3,7 @@ package xiangshan.backend.writeback
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
-import execute.exu.ExuType
+import xiangshan.backend.execute.exu.ExuType
 import freechips.rocketchip.diplomacy._
 import xiangshan.{HasXSParameter, Redirect}
 import xiangshan.frontend.Ftq_RF_Components

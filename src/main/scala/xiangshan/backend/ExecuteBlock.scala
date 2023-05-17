@@ -8,6 +8,7 @@ import regfile.{PcMem, PcWritePort, RegFileTop}
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.{MicroOp, Redirect}
 import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemoryBlock}
+import xiangshan.backend.execute.fu.csr.CSRFileIO
 import xiangshan.backend.issue.FpRs.FloatingReservationStation
 import xiangshan.backend.issue.IntRs.IntegerReservationStation
 import xiangshan.backend.issue.MemRs.MemoryReservationStation
@@ -40,6 +41,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule {
     val io = IO(new Bundle {
       val redirectOut = Output(Valid(new Redirect))
       val fenceio = new FenceIO
+      val csrio = new CSRFileIO
       val pcMemWrite = new PcWritePort
     })
     private val localRedirect = writebackNetwork.module.io.redirectOut
@@ -57,13 +59,20 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule {
     memoryReservationStation.module.io.specWakeup := integerReservationStation.module.io.specWakeup
     memoryReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
 
-    private val pcMem = Module(new PcMem(regFile.module.pcReadNum, 1))
+    //issue + redirect + exception
+    private val pcReadPortNum = regFile.module.pcReadNum + writebackNetwork.module.io.pcReadData.length + 1
+    private val pcMem = Module(new PcMem(pcReadPortNum, 1))
     pcMem.io.write.head := io.pcMemWrite
 
-    pcMem.io.read.zip(regFile.module.io.pcReadAddr ++ writebackNetwork.module.io.pcReadAddr).foreach({ case (r, addr) => r.addr := addr })
-    (regFile.module.io.pcReadData ++ writebackNetwork.module.io.pcReadData).zip(pcMem.io.read).foreach({ case (data, r) => data := r.data })
+    pcMem.io.read.take(pcReadPortNum - 1).zip(regFile.module.io.pcReadAddr ++ writebackNetwork.module.io.pcReadAddr).foreach({ case (r, addr) => r.addr := addr })
+    (regFile.module.io.pcReadData ++ writebackNetwork.module.io.pcReadData).zip(pcMem.io.read.take(pcReadPortNum - 1)).foreach({ case (data, r) => data := r.data })
 
+    private val exceptionInUop = io.csrio.exception.bits.uop
     integerBlock.module.io.fenceio <> io.fenceio
+    integerBlock.module.io.csrio <> io.csrio
+    pcMem.io.read.last.addr := exceptionInUop.cf.ftqPtr.value
+    integerBlock.module.io.csrio.exception.bits.uop.cf.pc := pcMem.io.read.last.data.getPc(exceptionInUop.cf.ftqOffset)
+
     memoryBlock.module.io.issueToMou <> integerBlock.module.io.issueToMou
     memoryBlock.module.io.writebackFromMou <> integerBlock.module.io.writebackFromMou
 

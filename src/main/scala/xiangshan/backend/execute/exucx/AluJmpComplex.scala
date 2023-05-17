@@ -4,6 +4,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
 import xiangshan.backend.execute.exu.{AluExu, ExuType, FenceIO, JmpCsrExu}
+import xiangshan.backend.execute.fu.csr.CSRFileIO
 import xiangshan.{ExuInput, ExuOutput, FuType}
 import xs.utils.Assertion.xs_assert
 
@@ -22,6 +23,7 @@ class AluJmpComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     private val issueJmp = issueNode.out.filter(_._2._2.exuType == ExuType.jmp).head._1
     val io = IO(new Bundle {
       val fenceio = new FenceIO
+      val csrio = new CSRFileIO
       val issueToMou = Decoupled(new ExuInput)
       val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     })
@@ -35,6 +37,7 @@ class AluJmpComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     jmp.module.redirectIn := redirectIn
 
     jmp.module.io.fenceio <> io.fenceio
+    jmp.module.io.csrio <> io.csrio
     io.issueToMou <> jmp.module.io.issueToMou
     io.writebackFromMou <> jmp.module.io.writebackFromMou
 

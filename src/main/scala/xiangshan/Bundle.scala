@@ -224,10 +224,10 @@ class Redirect(implicit p: Parameters) extends XSBundle {
   val level = RedirectLevel()
   val interrupt = Bool()
   val cfiUpdate = new CfiUpdateInfo
-  val isCsr = Bool()
+  val isException = Bool()
   val isLoadStore = Bool()
   val isLoadLoad = Bool()
-  val flushPipe = Bool()
+  val isFlushPipe = Bool()
 
   val stFtqIdx = new FtqPtr // for load violation predict
   val stFtqOffset = UInt(log2Up(PredictWidth).W)
@@ -376,20 +376,6 @@ class TlbCsrBundle(implicit p: Parameters) extends XSBundle {
   override def toPrintable: Printable = {
     p"Satp mode:0x${Hexadecimal(satp.mode)} asid:0x${Hexadecimal(satp.asid)} ppn:0x${Hexadecimal(satp.ppn)} " +
       p"Priv mxr:${priv.mxr} sum:${priv.sum} imode:${priv.imode} dmode:${priv.dmode}"
-  }
-}
-
-class SfenceBundle(implicit p: Parameters) extends XSBundle {
-  val valid = Bool()
-  val bits = new Bundle {
-    val rs1 = Bool()
-    val rs2 = Bool()
-    val addr = UInt(VAddrBits.W)
-    val asid = UInt(AsidLength.W)
-  }
-
-  override def toPrintable: Printable = {
-    p"valid:0x${Hexadecimal(valid)} rs1:${bits.rs1} rs2:${bits.rs2} addr:${Hexadecimal(bits.addr)}"
   }
 }
 

@@ -120,7 +120,7 @@ object FuConfigs{
     writeFpRf = false,
     writeVecRf = false,
     writeFflags = false,
-    latency = Int.MaxValue,
+    latency = 1,
     hasRedirect = true,
     trigger = false,
     exceptionOut = Seq(illegalInstr, breakPoint, ecallU, ecallS, ecallM)

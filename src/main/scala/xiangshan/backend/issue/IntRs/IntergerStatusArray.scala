@@ -128,7 +128,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
 
   //Start of dequeue and redirect
   private val shouldBeFlushed = io.entry.valid & io.entry.bits.robIdx.needFlush(io.redirect)
-  private val miscUpdateEnDequeueOrRedirect = io.entry.bits.state === s_issued || shouldBeFlushed
+  private val miscUpdateEnDequeueOrRedirect = stateNext === s_issued || shouldBeFlushed
   when(miscUpdateEnDequeueOrRedirect) {
     miscNext.valid := false.B
   }

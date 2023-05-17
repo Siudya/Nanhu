@@ -7,6 +7,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan.{ExuInput, ExuOutput}
 import xiangshan.backend.execute.exu.FenceIO
+import xiangshan.backend.execute.fu.csr.CSRFileIO
 
 class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
   require(jmpNum == 1)
@@ -22,6 +23,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
   lazy val module = new BasicExuBlockImp(this){
     val io = IO(new Bundle {
       val fenceio = new FenceIO
+      val csrio = new CSRFileIO
       val issueToMou = Decoupled(new ExuInput)
       val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     })
@@ -35,6 +37,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
     })
 
     aluJmps.head.module.io.fenceio <> io.fenceio
+    aluJmps.head.module.io.csrio <> io.csrio
     aluJmps.head.module.io.issueToMou <> io.issueToMou
     aluJmps.head.module.io.writebackFromMou <> io.writebackFromMou
   }

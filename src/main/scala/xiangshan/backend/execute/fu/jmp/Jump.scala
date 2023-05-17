@@ -87,10 +87,10 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.cfiUpdate.taken := true.B
   redirectOut.cfiUpdate.target := jumpDataModule.io.target
   redirectOut.cfiUpdate.isMisPred := jumpDataModule.io.target(VAddrBits - 1, 0) =/= jalr_target || !uop.cf.pred_taken
-  redirectOut.isCsr := false.B
+  redirectOut.isException := false.B
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
-  redirectOut.flushPipe := uop.ctrl.flushPipe
+  redirectOut.isFlushPipe := uop.ctrl.flushPipe
 
   io.in.ready := io.out.ready
   io.out.valid := valid
