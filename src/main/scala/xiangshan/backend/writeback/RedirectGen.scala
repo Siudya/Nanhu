@@ -94,7 +94,7 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   private val redirectTarget = WireInit(snpc)
   when(s1_isMemReg){
     redirectTarget := s1_pcReadReg
-  }.elsewhen(s1_redirectBitsReg.isException){
+  }.elsewhen(s1_redirectBitsReg.isException || s1_redirectBitsReg.isXRet){
     redirectTarget := s1_jmpTargetReg
   }.elsewhen(s1_redirectBitsReg.cfiUpdate.taken){
     redirectTarget := Mux(s1_isJmpReg, s1_jmpTargetReg, branchTarget)

@@ -706,10 +706,10 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   val permitted = Mux(addrInPerfCnt, perfcntPermitted, modePermitted) && accessPermitted
 
   MaskedRegMap.generate(mapping, addr, rdata, wen && permitted, wdata)
-  io.out.bits.data := RegEnable(rdata, valid)
-  io.out.bits.uop := RegEnable(io.in.bits.uop, valid)
-  io.out.bits.uop.cf := RegEnable(cfOut, valid)
-  io.out.bits.uop.ctrl.flushPipe := RegEnable(flushPipe, valid)
+  io.out.bits.data := rdata
+  io.out.bits.uop := io.in.bits.uop
+  io.out.bits.uop.cf := cfOut
+  io.out.bits.uop.ctrl.flushPipe := flushPipe
 
   // send distribute csr a w signal
   csrio.customCtrl.distribute_csr.w.valid := wen && permitted
@@ -883,7 +883,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   }
 
   io.in.ready := true.B
-  io.out.valid := RegNext(valid, false.B)
+  io.out.valid := valid
 
   // In this situation, hart will enter debug mode instead of handling a breakpoint exception simply.
   // Ebreak block instructions backwards, so it's ok to not keep extra info to distinguish between breakpoint
@@ -1043,17 +1043,6 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   val delegS = deleg(causeNO(3,0)) && (priviledgeMode < ModeM)
   val clearTval = !updateTval || hasIntr
 
-  // ctrl block will use theses later for flush
-  // waiting for rob exception signals
-  val isXRetFlag = RegInit(false.B)
-  when (io.redirectIn.valid && io.redirectIn.bits.isException) {
-    isXRetFlag := false.B
-  }.elsewhen (isXRet) {
-    isXRetFlag := true.B
-  }
-  private val retTargetReg = RegEnable(retTarget, isXRet && !illegalRetTarget)
-  private val illegalXret = RegEnable(illegalMret || illegalSret || illegalSModeSret, isXRet)
-
   private val xtvec = Mux(delegS, stvec, mtvec)
   private val xtvecBase = xtvec(VAddrBits - 1, 2)
   // When MODE=Vectored, all synchronous exceptions into M/S mode
@@ -1062,17 +1051,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   // plus four times the interrupt cause number.
   private val pcFromXtvec = Cat(xtvecBase + Mux(xtvec(0) && hasIntr, causeNO(3, 0), 0.U), 0.U(2.W))
 
-  // XRet sends redirect instead of Flush and isXRetFlag is true.B before redirect.valid.
-  // ROB sends exception at T0 while CSR receives at T2.
-  // We add a RegNext here and trapTarget is valid at T3.
-
   private val trapTarget = MuxCase(pcFromXtvec, Seq(
-    (isXRetFlag && !illegalXret) -> retTargetReg,
     ((hasDebugTrap && !debugMode) || ebreakEnterParkLoop) -> debugTrapTarget
   ))
-  private val exceptionValid = isXRetFlag || csrio.exception.valid
+  private val exceptionValid = csrio.exception.valid
   private val flushPipeValid = io.in.valid && flushPipe
   private val exceptionValidReg = RegNext(exceptionValid, false.B)
+  private val illegalXret = illegalMret || illegalSret || illegalSModeSret
   redirectOutValid := exceptionValidReg || flushPipeValid
   redirectOut := DontCare
   redirectOut.level := Mux(exceptionValidReg, RedirectLevel.flush, RedirectLevel.flushAfter)
@@ -1082,11 +1067,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   redirectOut.cfiUpdate.predTaken := false.B
   redirectOut.cfiUpdate.taken := false.B
   redirectOut.cfiUpdate.isMisPred := false.B
-  redirectOut.cfiUpdate.target := RegEnable(trapTarget, exceptionValid)
+  redirectOut.cfiUpdate.target := Mux(exceptionValidReg,RegEnable(trapTarget, exceptionValid), retTarget)
   redirectOut.isException := exceptionValidReg
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
-  redirectOut.isFlushPipe := flushPipeValid
+  redirectOut.isXRet := (isXRet && !illegalXret)
+  redirectOut.isFlushPipe := flushPipe
 
   when (hasExceptionIntr) {
     val mstatusOld = WireInit(mstatus.asTypeOf(new MstatusStruct))

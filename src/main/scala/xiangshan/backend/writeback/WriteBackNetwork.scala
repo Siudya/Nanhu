@@ -62,8 +62,7 @@ class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
           realSrc.bits.uop := RegEnable(src.bits.uop, realValid)
         }
         if(s._2._1.isRob){
-          dst.valid := RegNext(realSrc.valid, false.B)
-          dst.bits := RegEnable(realSrc.bits, realSrc.valid)
+          dst := Pipe(realSrc)
         } else {
           dst := realSrc
         }
