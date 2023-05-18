@@ -28,6 +28,7 @@ import difftest._
 import xiangshan.ExceptionNO._
 import xiangshan.backend.execute.fu.PMPRespBundle
 import xiangshan.backend.execute.fu.csr.SdtrigExt
+import xs.utils.Assertion.xs_assert
 
 class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstants with SdtrigExt{
   val io = IO(new Bundle() {
@@ -76,7 +77,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
   io.exceptionAddr.bits  := in.src(0)
 
   // assign default value to output signals
-  io.in.ready          := false.B
+  io.in.ready          := state === s_invalid
 
   io.dcache.req.valid  := false.B
   io.dcache.req.bits   := DontCare
@@ -90,28 +91,14 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
   io.flush_sbuffer.valid := false.B
 
   XSDebug("state: %d\n", state)
+  xs_assert(Mux(io.in.valid, state === s_invalid, true.B))
 
   when (state === s_invalid) {
-    io.in.ready := true.B
     when (io.in.fire) {
       in := io.in.bits
-      in.src(1) := in.src(1) // leave src2 unchanged
       state := s_tlb
     }
   }
-
-  when (io.storeDataIn.fire) {
-    in.src(1) := io.storeDataIn.bits.data
-    data_valid := true.B
-  }
-
-  assert(!(io.storeDataIn.fire && data_valid), "atomic unit re-receive data")
-
-  // Send TLB feedback to store issue queue
-  // we send feedback right after we receives request
-  // also, we always treat amo as tlb hit
-  // since we will continue polling tlb all by ourself
-
 
   // tlb translation, manipulating signals && deal with exception
   when (state === s_tlb) {

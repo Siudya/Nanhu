@@ -60,14 +60,14 @@ class DataBufferEntry (implicit p: Parameters)  extends DCacheBundle {
 }
 
 // Store Queue
-class StoreQueue(implicit p: Parameters) extends XSModule
+class StoreQueue(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule
   with HasDCacheParameters with HasCircularQueuePtrHelper with HasPerfEvents {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))
     val enq = new SqEnqIO
     val brqRedirect = Flipped(ValidIO(new Redirect))
-    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle))) // store addr, data is not included
-    val storeInRe = Vec(StorePipelineWidth, Input(new LsPipelineBundle())) // store more mmio and exception
+    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle(rsBankNum, rsEntryNum)))) // store addr, data is not included
+    val storeInRe = Vec(StorePipelineWidth, Input(new LsPipelineBundle(rsBankNum, rsEntryNum))) // store more mmio and exception
     val storeDataIn = Vec(StorePipelineWidth, Flipped(Valid(new ExuOutput))) // store data, send to sq from rs
     val storeMaskIn = Vec(StorePipelineWidth, Flipped(Valid(new StoreMaskBundle))) // store mask, send to sq from rs
     val sbuffer = Vec(StorePipelineWidth, Decoupled(new DCacheWordReqWithVaddr)) // write committed store to sbuffer

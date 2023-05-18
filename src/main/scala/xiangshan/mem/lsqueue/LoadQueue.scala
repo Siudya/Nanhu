@@ -82,7 +82,7 @@ class LqTriggerIO(implicit p: Parameters) extends XSBundle {
 }
 
 // Load Queue
-class LoadQueue(implicit p: Parameters) extends XSModule
+class LoadQueue(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule
   with HasDCacheParameters
   with HasCircularQueuePtrHelper
   with HasLoadHelper
@@ -93,7 +93,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val brqRedirect = Flipped(ValidIO(new Redirect))
     val loadPaddrIn = Vec(LoadPipelineWidth, Flipped(Valid(new LqPaddrWriteBundle)))
     val loadIn = Vec(LoadPipelineWidth, Flipped(Valid(new LqWriteBundle)))
-    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle)))
+    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle(rsBankNum, rsEntryNum))))
     val s2_load_data_forwarded = Vec(LoadPipelineWidth, Input(Bool()))
     val s3_delayed_load_error = Vec(LoadPipelineWidth, Input(Bool()))
     val s2_dcache_require_replay = Vec(LoadPipelineWidth, Input(Bool()))
@@ -707,8 +707,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   io.rollback.bits.ftqOffset := rollbackUop.cf.ftqOffset
   io.rollback.bits.stFtqOffset := rollbackStFtqOffset
   io.rollback.bits.level := RedirectLevel.flush
-  io.rollback.bits.interrupt := DontCare
-  io.rollback.bits.cfiUpdate := DontCare
+  io.rollback.bits.interrupt := false.B
+  io.rollback.bits.cfiUpdate := 0.U.asTypeOf(io.rollback.bits.cfiUpdate)
   io.rollback.bits.cfiUpdate.target := rollbackUop.cf.pc
   // io.rollback.bits.pc := DontCare
 

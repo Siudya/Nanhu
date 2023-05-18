@@ -184,7 +184,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   }
 
   val loadUnits = Seq.fill(exuParameters.LduCnt)(Module(new LoadUnit(rsParam.bankNum, rsParam.entriesNum)))
-  val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit))
+  val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit(rsParam.bankNum, rsParam.entriesNum)))
   val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
   private val stData = stdUnits.map(_.io.out)
   val exeUnits = loadUnits ++ storeUnits
@@ -212,34 +212,18 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   val atomicsUnit = Module(new AtomicsUnit)
 
-  // Atom inst comes from sta / std, then its result
-  // will be writebacked using load writeback port
-  //
-  // However, atom exception will be writebacked to rob
-  // using store writeback port
 
-  val loadWritebackOverride  = Mux(atomicsUnit.io.out.valid, atomicsUnit.io.out.bits, loadUnits.head.io.ldout.bits)
-  val ldOut0 = Wire(Decoupled(new ExuOutput))
-  ldOut0.valid := atomicsUnit.io.out.valid || loadUnits.head.io.ldout.valid
-  ldOut0.bits  := loadWritebackOverride
-  atomicsUnit.io.out.ready := ldOut0.ready
-  loadUnits.head.io.ldout.ready := ldOut0.ready
-  when(atomicsUnit.io.out.valid){
-    ldOut0.bits.uop.cf.exceptionVec := 0.U(16.W).asBools // exception will be writebacked via store wb port
-  }
-
-  private val ldExeWbReqs = ldOut0 +: loadUnits.tail.map(_.io.ldout)
   (lduWritebacks ++ staWritebacks ++ stdWritebacks)
-    .zip(ldExeWbReqs ++ storeUnits.map(_.io.stout) ++ stdUnits.map(_.io.out))
+    .zip(loadUnits.map(_.io.ldout) ++ storeUnits.map(_.io.stout) ++ stdUnits.map(_.io.out))
     .foreach({case(wb, out) =>
-    wb.valid := out.valid
-    wb.bits := out.bits
+      wb.valid := out.valid
+      wb.bits := out.bits
       out.ready := true.B
   })
   private val stOut = staWritebacks
 
   // TODO: fast load wakeup
-  val lsq     = Module(new LsqWrappper)
+  val lsq     = Module(new LsqWrappper(rsParam.bankNum, rsParam.entriesNum))
   val sbuffer = Module(new Sbuffer)
   // if you wants to stress test dcache store, use FakeSbuffer
   // val sbuffer = Module(new FakeSbuffer)
@@ -459,7 +443,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
     stu.io.redirect     <> redirect
     stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlow
-    stu.io.rsIdx        <>  staIssues(i).rsIdx
+    stu.io.rsIdx        := staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt
     stu.io.isFirstIssue <> staIssues(i).rsFeedback.isFirstIssue
     stu.io.stin         <> staIssues(i).issue
@@ -550,19 +534,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     lsq.io.mmioStout.ready := true.B
   }
 
-  // atomic exception / trigger writeback
-  when (atomicsUnit.io.out.valid) {
-    // atom inst will use store writeback port 0 to writeback exception info
-    stOut(0).valid := true.B
-    stOut(0).bits  := atomicsUnit.io.out.bits
-    assert(!lsq.io.mmioStout.valid && !storeUnits(0).io.stout.valid)
-
-    // when atom inst writeback, surpress normal load trigger
-    (0 until 2).map(i => {
-      io.writeback(i).bits.uop.cf.trigger.backendHit := VecInit(Seq.fill(TriggerNum)(false.B))
-    })
-  }
-
   // Lsq
   lsq.io.rob            <> io.lsqio.rob
   lsq.io.enq            <> io.enqLsq
@@ -602,15 +573,15 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   // AtomicsUnit: AtomicsUnit will override other control signials,
   // as atomics insts (LR/SC/AMO) will block the pipeline
-  val s_normal :: s_atomics_0 :: s_atomics_1 :: Nil = Enum(3)
-  val state = RegInit(s_normal)
+  val s_normal :: s_atomics :: Nil = Enum(2)
+  private val state = RegInit(s_normal)
 
-  atomicsUnit.io.in.valid := io.issueToMou.valid
-  atomicsUnit.io.in.bits  := io.issueToMou.bits
+  atomicsUnit.io.in <> io.issueToMou
+
   atomicsUnit.io.redirect := redirect
 
   // TODO: complete amo's pmp support
-  val amoTlb = dtlb_ld(0).requestor(0)
+  private val amoTlb = dtlb_ld(0).requestor(0)
   atomicsUnit.io.dtlb.resp.valid := false.B
   atomicsUnit.io.dtlb.resp.bits  := DontCare
   atomicsUnit.io.dtlb.req.ready  := amoTlb.req.ready
@@ -623,23 +594,23 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   // for atomicsUnit, it uses loadUnit(0)'s TLB port
 
-  when (state === s_atomics_0 || state === s_atomics_1) {
+  when(state === s_normal){
+    when(atomicsUnit.io.in.fire){
+      state := s_atomics
+    }
+  }
+  when(state === s_atomics){
+    when(atomicsUnit.io.out.fire){
+      state := s_normal
+    }
+  }
+
+  when (state === s_atomics) {
     loadUnits(0).io.ldout.ready := false.B
     atomicsUnit.io.dtlb <> amoTlb
 
     // make sure there's no in-flight uops in load unit
     assert(!loadUnits(0).io.ldout.valid)
-  }
-
-  when (state === s_atomics_0) {
-    atomicsUnit.io.feedbackSlow <> io.rsfeedback(atomic_rs0).feedbackSlow
-
-    assert(!storeUnits(0).io.feedbackSlow.valid)
-  }
-  when (state === s_atomics_1) {
-    atomicsUnit.io.feedbackSlow <> io.rsfeedback(atomic_rs1).feedbackSlow
-
-    assert(!storeUnits(1).io.feedbackSlow.valid)
   }
 
   lsq.io.exceptionAddr.isStore := io.lsqio.exceptionAddr.isStore
@@ -651,7 +622,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   }.elsewhen (atomicsUnit.io.exceptionAddr.valid) {
     atomicsException := true.B
   }
-  val atomicsExceptionAddress = RegEnable(atomicsUnit.io.exceptionAddr.bits, atomicsUnit.io.exceptionAddr.valid)
+  private val atomicsExceptionAddress = RegEnable(atomicsUnit.io.exceptionAddr.bits, atomicsUnit.io.exceptionAddr.valid)
   io.lsqio.exceptionAddr.vaddr := RegNext(Mux(atomicsException, atomicsExceptionAddress, lsq.io.exceptionAddr.vaddr))
   XSError(atomicsException && atomicsUnit.io.in.valid, "new instruction before exception triggers\n")
 
@@ -659,7 +630,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   io.memInfo.lqFull := RegNext(lsq.io.lqFull)
   io.memInfo.dcacheMSHRFull := RegNext(dcache.io.mshrFull)
 
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
+  private val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(4,s"${outer.parentName}_mbistPipe")))
   } else {
     None

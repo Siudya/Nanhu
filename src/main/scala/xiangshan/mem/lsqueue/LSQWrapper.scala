@@ -49,15 +49,15 @@ class LsqEnqIO(implicit p: Parameters) extends XSBundle {
 }
 
 // Load / Store Queue Wrapper for XiangShan Out of Order LSU
-class LsqWrappper(implicit p: Parameters) extends XSModule with HasDCacheParameters with HasPerfEvents {
+class LsqWrappper(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule with HasDCacheParameters with HasPerfEvents {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))
     val enq = new LsqEnqIO
     val brqRedirect = Flipped(ValidIO(new Redirect))
     val loadPaddrIn = Vec(LoadPipelineWidth, Flipped(Valid(new LqPaddrWriteBundle)))
     val loadIn = Vec(LoadPipelineWidth, Flipped(Valid(new LqWriteBundle)))
-    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle)))
-    val storeInRe = Vec(StorePipelineWidth, Input(new LsPipelineBundle()))
+    val storeIn = Vec(StorePipelineWidth, Flipped(Valid(new LsPipelineBundle(rsBankNum, rsEntryNum))))
+    val storeInRe = Vec(StorePipelineWidth, Input(new LsPipelineBundle(rsBankNum, rsEntryNum)))
     val storeDataIn = Vec(StorePipelineWidth, Flipped(Valid(new ExuOutput))) // store data, send to sq from rs
     val storeMaskIn = Vec(StorePipelineWidth, Flipped(Valid(new StoreMaskBundle))) // store mask, send to sq from rs
     val s2_load_data_forwarded = Vec(LoadPipelineWidth, Input(Bool()))
@@ -86,8 +86,8 @@ class LsqWrappper(implicit p: Parameters) extends XSModule with HasDCacheParamet
     val trigger = Vec(LoadPipelineWidth, new LqTriggerIO)
   })
 
-  val loadQueue = Module(new LoadQueue)
-  val storeQueue = Module(new StoreQueue)
+  val loadQueue = Module(new LoadQueue(rsBankNum, rsEntryNum))
+  val storeQueue = Module(new StoreQueue(rsBankNum, rsEntryNum))
 
   storeQueue.io.hartId := io.hartId
 
