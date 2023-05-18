@@ -22,8 +22,9 @@ import chisel3.internal.naming.chiselName
 import chisel3.util._
 import xiangshan._
 import utils._
+import xiangshan.backend.execute.fu.csr.HasCSRConst
+import xiangshan.backend.execute.fu.fence.SfenceBundle
 import xs.utils._
-import xiangshan.backend.fu.util.HasCSRConst
 
 
 @chiselName

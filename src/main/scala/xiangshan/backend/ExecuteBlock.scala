@@ -56,7 +56,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule {
     floatingReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
 
     memoryReservationStation.module.io.redirect := Pipe(localRedirect)
-    memoryReservationStation.module.io.specWakeup := integerReservationStation.module.io.specWakeup
+    memoryReservationStation.module.io.specWakeup.zip(integerReservationStation.module.io.specWakeup).foreach({case(a, b) => a := Pipe(b)})
     memoryReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
 
     //issue + redirect + exception

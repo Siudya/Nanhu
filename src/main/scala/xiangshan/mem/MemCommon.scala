@@ -21,6 +21,7 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan._
+import xiangshan.backend.issue.RsIdx
 import xiangshan.cache._
 import xs.utils.LookupTree
 
@@ -46,7 +47,7 @@ object genWdata {
   }
 }
 
-class LsPipelineBundle(implicit p: Parameters) extends XSBundle {
+class LsPipelineBundle(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSBundle {
   val vaddr = UInt(VAddrBits.W)
   val paddr = UInt(PAddrBits.W)
   // val func = UInt(6.W)
@@ -59,7 +60,7 @@ class LsPipelineBundle(implicit p: Parameters) extends XSBundle {
   val tlbMiss = Bool()
   val ptwBack = Bool()
   val mmio = Bool()
-  val rsIdx = UInt(log2Up(IssQueSize).W)
+  val rsIdx = new RsIdx(rsBankNum, rsEntryNum)
 
   val forwardMask = Vec(8, Bool())
   val forwardData = Vec(8, UInt(8.W))

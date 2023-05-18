@@ -87,7 +87,7 @@ package object issue {
   }
 
   class RSFeedback(bankNum: Int, entriesNum: Int)(implicit p: Parameters) extends XSBundle {
-    val rsIdx = new RsIdx(bankNum, entriesNum)
+    val rsIdx = new RsIdx(bankNum, entriesNum / bankNum)
     val flushState: Bool = Bool()
     val sourceType: UInt = RSFeedbackType()
   }

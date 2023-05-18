@@ -23,17 +23,19 @@ import utils._
 import xs.utils._
 import xiangshan.ExceptionNO._
 import xiangshan._
-import xiangshan.backend.fu.PMPRespBundle
+import xiangshan.backend.execute.fu.FuConfigs.staCfg
+import xiangshan.backend.execute.fu.PMPRespBundle
+import xiangshan.backend.issue.{RSFeedback, RSFeedbackType}
 import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 
 // Store Pipeline Stage 0
 // Generate addr, use addr to query DCache and DTLB
-class StoreUnit_S0(implicit p: Parameters) extends XSModule {
+class StoreUnit_S0(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new ExuInput))
     val rsIdx = Input(UInt(log2Up(IssQueSize).W))
     val isFirstIssue = Input(Bool())
-    val out = Decoupled(new LsPipelineBundle)
+    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
     val dtlbReq = DecoupledIO(new TlbReq)
   })
 
@@ -90,13 +92,13 @@ class StoreUnit_S0(implicit p: Parameters) extends XSModule {
 
 // Store Pipeline Stage 1
 // TLB resp (send paddr to dcache)
-class StoreUnit_S1(implicit p: Parameters) extends XSModule {
+class StoreUnit_S1(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle))
-    val out = Decoupled(new LsPipelineBundle)
-    val lsq = ValidIO(new LsPipelineBundle())
+    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
+    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val lsq = ValidIO(new LsPipelineBundle(rsBankNum, rsEntryNum))
     val dtlbResp = Flipped(DecoupledIO(new TlbResp()))
-    val rsFeedback = ValidIO(new RSFeedback)
+    val rsFeedback = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
   })
 
   // mmio cbo decoder
@@ -115,17 +117,16 @@ class StoreUnit_S1(implicit p: Parameters) extends XSModule {
 
   // Send TLB feedback to store issue queue
   // Store feedback is generated in store_s1, sent to RS in store_s2
-  io.rsFeedback.valid := io.in.valid
-  io.rsFeedback.bits.hit := !s1_tlb_miss
+  io.rsFeedback.valid := io.in.valid && s1_tlb_miss
   io.rsFeedback.bits.flushState := io.dtlbResp.bits.ptwBack
   io.rsFeedback.bits.rsIdx := io.in.bits.rsIdx
   io.rsFeedback.bits.sourceType := RSFeedbackType.tlbMiss
   XSDebug(io.rsFeedback.valid,
-    "S1 Store: tlbHit: %d robIdx: %d\n",
-    io.rsFeedback.bits.hit,
-    io.rsFeedback.bits.rsIdx
+    "S1 Store: tlbHit: %d rsBank: %d rsIdx: %d\n",
+    io.in.valid && !s1_tlb_miss,
+    io.rsFeedback.bits.rsIdx.bankIdxOH,
+    io.rsFeedback.bits.rsIdx.entryIdxOH
   )
-  io.rsFeedback.bits.dataInvalidSqIdx := DontCare
 
   // get paddr from dtlb, check if rollback is needed
   // writeback store inst to lsq
@@ -151,12 +152,12 @@ class StoreUnit_S1(implicit p: Parameters) extends XSModule {
   XSPerfAccumulate("tlb_miss_first_issue", io.in.fire && s1_tlb_miss && io.in.bits.isFirstIssue)
 }
 
-class StoreUnit_S2(implicit p: Parameters) extends XSModule {
+class StoreUnit_S2(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle))
+    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
     val pmpResp = Flipped(new PMPRespBundle)
     val static_pm = Input(Valid(Bool()))
-    val out = Decoupled(new LsPipelineBundle)
+    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
   })
   val pmp = WireInit(io.pmpResp)
   when (io.static_pm.valid) {
@@ -176,9 +177,9 @@ class StoreUnit_S2(implicit p: Parameters) extends XSModule {
   io.out.valid := io.in.valid && (!is_mmio || s2_exception)
 }
 
-class StoreUnit_S3(implicit p: Parameters) extends XSModule {
+class StoreUnit_S3(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle))
+    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
     val stout = DecoupledIO(new ExuOutput) // writeback store
   })
 
@@ -197,26 +198,26 @@ class StoreUnit_S3(implicit p: Parameters) extends XSModule {
 
 }
 
-class StoreUnit(implicit p: Parameters) extends XSModule {
+class StoreUnit(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val stin = Flipped(Decoupled(new ExuInput))
     val redirect = Flipped(ValidIO(new Redirect))
-    val feedbackSlow = ValidIO(new RSFeedback)
+    val feedbackSlow = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
     val tlb = new TlbRequestIO()
     val pmp = Flipped(new PMPRespBundle())
     val rsIdx = Input(UInt(log2Up(IssQueSize).W))
     val isFirstIssue = Input(Bool())
-    val lsq = ValidIO(new LsPipelineBundle)
-    val lsq_replenish = Output(new LsPipelineBundle())
+    val lsq = ValidIO(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val lsq_replenish = Output(new LsPipelineBundle(rsBankNum, rsEntryNum))
     val stout = DecoupledIO(new ExuOutput) // writeback store
     // store mask, send to sq in store_s0
     val storeMaskOut = Valid(new StoreMaskBundle)
   })
 
-  val store_s0 = Module(new StoreUnit_S0)
-  val store_s1 = Module(new StoreUnit_S1)
-  val store_s2 = Module(new StoreUnit_S2)
-  val store_s3 = Module(new StoreUnit_S3)
+  val store_s0 = Module(new StoreUnit_S0(rsBankNum, rsEntryNum))
+  val store_s1 = Module(new StoreUnit_S1(rsBankNum, rsEntryNum))
+  val store_s2 = Module(new StoreUnit_S2(rsBankNum, rsEntryNum))
+  val store_s3 = Module(new StoreUnit_S3(rsBankNum, rsEntryNum))
 
   store_s0.io.in <> io.stin
   store_s0.io.dtlbReq <> io.tlb.req

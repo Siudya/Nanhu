@@ -22,10 +22,11 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xiangshan.backend.rob.RobPtr
-import xiangshan.backend.fu.util.HasCSRConst
+import xiangshan.backend.execute.fu.csr.HasCSRConst
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.tilelink._
-import xiangshan.backend.fu.{PMPConfig, PMPReqBundle}
+import xiangshan.backend.execute.fu.fence.SfenceBundle
+import xiangshan.backend.execute.fu.{PMPConfig, PMPReqBundle}
 import xs.utils.Code
 
 
