@@ -103,8 +103,6 @@ package object issue {
   class IssueBundle(bankNum: Int, entryNum: Int)(implicit p: Parameters) extends XSBundle {
     val issue = DecoupledIO(new ExuInput)
     val rsIdx: RsIdx = Output(new RsIdx(bankNum, entryNum / bankNum))
-    val fmaMidState: FMAMidResultIO = Flipped(new FMAMidResultIO)
-    val fuInFire: Bool = Input(Bool())
     val rsFeedback: RSFeedbackIO = Flipped(new RSFeedbackIO(bankNum, entryNum))
   }
 

@@ -20,20 +20,19 @@ class ReadPort(dataWidth:Int)(implicit p: Parameters) extends XSBundle {
   val data = Output(UInt(dataWidth.W))
 }
 
-class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNum:Int, dataWidth:Int, moduleName:String, extraWriteNum:Int = 0, hasMask:Boolean = false)(implicit p: Parameters) extends XSModule{
+class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNum:Int, dataWidth:Int, moduleName:String, hasMask:Boolean = false)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val read = Vec(readPortNum, new ReadPort(dataWidth))
     val write = Vec(writeBackNum, new WritePort(dataWidth, hasMask))
     val bypassWrite = Vec(bypassNum, new WritePort(dataWidth, hasMask))
-    val extraWrite = Vec(extraWriteNum, new WritePort(dataWidth, hasMask))
   })
   override val desiredName = moduleName
-  println(s"${moduleName} read ports: $readPortNum regular write ports: $writeBackNum bypass write ports $bypassNum extra write ports $extraWriteNum")
+  println(s"${moduleName} read ports: $readPortNum regular write ports: $writeBackNum bypass write ports $bypassNum")
 
   if(hasMask) {
     val bankNum = dataWidth / 8
     val mem = Mem(entriesNum, Vec(bankNum, UInt(8.W)))
-    (io.write ++ io.bypassWrite ++ io.extraWrite).foreach(w => {
+    (io.write ++ io.bypassWrite).foreach(w => {
       val writeData = Wire(Vec(bankNum, UInt(8.W)))
       writeData.zipWithIndex.foreach({ case (d, i) => d := w.data(i * 8 + 7, i * 8) })
       when(w.en) {
@@ -54,7 +53,7 @@ class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNu
     })
   } else {
     val mem = Mem(entriesNum, UInt(dataWidth.W))
-    (io.write ++ io.bypassWrite ++ io.extraWrite).foreach(w => {
+    (io.write ++ io.bypassWrite).foreach(w => {
       when(w.en) {
         mem.write(w.addr, w.data)
       }

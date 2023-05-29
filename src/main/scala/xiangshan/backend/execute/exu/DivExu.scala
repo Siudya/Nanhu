@@ -35,8 +35,6 @@ class DivExuImpl(outer:DivExu, exuCfg:ExuConfig) extends BasicExuImpl(outer) wit
 
   private val divSel = PickOneHigh(Cat(divs.map(_.io.in.ready).reverse))
   issuePort.issue.ready := true.B
-  issuePort.fmaMidState.out := DontCare
-  issuePort.fuInFire := DontCare
   for(((div, en), arbIn) <- divs.zip(Mux(divSel.valid, divSel.bits, 0.U).asBools).zip(outputArbiter.io.in)){
     div.io.redirectIn := redirectIn
     div.io.in.valid := finalIssueSignals.valid & en & finalIssueSignals.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType

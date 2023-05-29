@@ -35,8 +35,6 @@ class SelectInfo(implicit p: Parameters) extends XSBundle{
   val rfWen = Bool()
   val fpWen = Bool()
   val robPtr = new RobPtr
-  val fmaWaitAdd = Bool()
-  val midResultReadEn = Bool()
 }
 
 class SelectResp(val bankIdxWidth:Int, entryIdxWidth:Int)(implicit p: Parameters) extends XSBundle {

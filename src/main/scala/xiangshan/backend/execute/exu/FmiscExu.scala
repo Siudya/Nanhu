@@ -27,9 +27,6 @@ class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) exte
 
   private val fuList = Seq(f2i, f2f)
   issuePort.issue.ready := true.B
-  issuePort.fmaMidState.out.valid := false.B
-  issuePort.fmaMidState.out.bits := DontCare
-  issuePort.fuInFire := DontCare
   fuList.zip(exuCfg.fuConfigs).foreach({case(fu,cfg) =>
     fu.io.redirectIn := redirectIn
     fu.rm := issuePort.issue.bits.uop.ctrl.fpu.rm

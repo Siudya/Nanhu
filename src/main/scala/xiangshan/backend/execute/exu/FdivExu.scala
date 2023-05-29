@@ -31,8 +31,6 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
 
   private val fuSel = PickOneHigh(Cat(fdivSqrts.map(_.io.in.ready).reverse))
   issuePort.issue.ready := fuSel.valid
-  issuePort.fmaMidState.out := DontCare
-  issuePort.fuInFire := DontCare
   fdivSqrts.zipWithIndex.zip(outputArbiter.io.in).foreach({case((fu,idx), arbIn) =>
     fu.io.redirectIn := redirectIn
     fu.io.in.valid := issuePort.issue.valid & fuSel.bits(idx) & issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType

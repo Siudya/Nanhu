@@ -101,6 +101,31 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   with HasPerfEvents
   with SdtrigExt
 {
+  private val lduIssues = outer.lduIssueNodes.map(iss => {
+    require(iss.in.length == 1)
+    iss.in.head._1
+  })
+  private val staIssues = outer.staIssueNodes.map(iss => {
+    require(iss.in.length == 1)
+    iss.in.head._1
+  })
+  private val stdIssues = outer.stdIssueNodes.map(iss => {
+    require(iss.in.length == 1)
+    iss.in.head._1
+  })
+  private val lduWritebacks = outer.lduWritebackNodes.map(wb => {
+    require(wb.out.length == 1)
+    wb.out.head._1
+  })
+  private val staWritebacks = outer.staWritebackNodes.map(wb => {
+    require(wb.out.length == 1)
+    wb.out.head._1
+  })
+  private val stdWritebacks = outer.stdWritebackNodes.map(wb => {
+    require(wb.out.length == 1)
+    wb.out.head._1
+  })
+  private val rsParam = outer.lduIssueNodes.head.in.head._2._1
 
   val io = IO(new Bundle {
     val hartId = Input(UInt(8.W))
@@ -110,7 +135,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val s3_delayed_load_error = Vec(exuParameters.LduCnt, Output(Bool()))
     // misc
     val stIn = Vec(exuParameters.StuCnt, ValidIO(new ExuInput))
-    val memoryViolation = ValidIO(new Redirect)
     val ptw = new BTlbPtwIO(ld_tlb_ports + exuParameters.StuCnt)
     val sfence = Input(new SfenceBundle)
     val tlbCsr = Input(new TlbCsrBundle)
@@ -141,31 +165,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val sqCancelCnt = Output(UInt(log2Up(StoreQueueSize + 1).W))
     val sqDeq = Output(UInt(2.W))
   })
-  private val lduIssues = outer.lduIssueNodes.map(iss => {
-    require(iss.in.length == 1)
-    iss.in.head._1
-  })
-  private val staIssues = outer.staIssueNodes.map(iss => {
-    require(iss.in.length == 1)
-    iss.in.head._1
-  })
-  private val stdIssues = outer.stdIssueNodes.map(iss => {
-    require(iss.in.length == 1)
-    iss.in.head._1
-  })
-  private val lduWritebacks = outer.lduWritebackNodes.map(wb => {
-    require(wb.out.length == 1)
-    wb.out.head._1
-  })
-  private val staWritebacks = outer.staWritebackNodes.map(wb => {
-    require(wb.out.length == 1)
-    wb.out.head._1
-  })
-  private val stdWritebacks = outer.stdWritebackNodes.map(wb => {
-    require(wb.out.length == 1)
-    wb.out.head._1
-  })
-  private val rsParam = outer.lduIssueNodes.head.in.head._2._1
 
 
   val redirect = redirectIn
@@ -183,11 +182,10 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     io.error.valid := false.B
   }
 
-  val loadUnits = Seq.fill(exuParameters.LduCnt)(Module(new LoadUnit(rsParam.bankNum, rsParam.entriesNum)))
-  val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit))
-  val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
+  private val loadUnits = Seq.fill(exuParameters.LduCnt)(Module(new LoadUnit(rsParam.bankNum, rsParam.entriesNum)))
+  private val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit(rsParam.bankNum, rsParam.entriesNum)))
+  private val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
   private val stData = stdUnits.map(_.io.out)
-  val exeUnits = loadUnits ++ storeUnits
   val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher.map {
     case _: SMSParams =>
       val sms = Module(new SMSPrefetcher(parentName = outer.parentName + "sms_"))
@@ -205,37 +203,42 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     outer.pf_sender_opt.get.out.head._1.l2_pf_en := RegNextN(io.csrCtrl.l2_pf_enable, 2, Some(true.B))
     pf.io.enable := RegNextN(io.csrCtrl.l1D_pf_enable, 2, Some(false.B))
   })
-  val pf_train_on_hit = RegNextN(io.csrCtrl.l1D_pf_train_on_hit, 2, Some(true.B))
+  private val pf_train_on_hit = RegNextN(io.csrCtrl.l1D_pf_train_on_hit, 2, Some(true.B))
 
   loadUnits.zipWithIndex.map(x => x._1.suggestName("LoadUnit_"+x._2))
   storeUnits.zipWithIndex.map(x => x._1.suggestName("StoreUnit_"+x._2))
 
-  val atomicsUnit = Module(new AtomicsUnit)
+  private val atomicsUnit = Module(new AtomicsUnit)
 
-  // Atom inst comes from sta / std, then its result
-  // will be writebacked using load writeback port
-  //
-  // However, atom exception will be writebacked to rob
-  // using store writeback port
-
-  val loadWritebackOverride  = Mux(atomicsUnit.io.out.valid, atomicsUnit.io.out.bits, loadUnits.head.io.ldout.bits)
-  val ldOut0 = Wire(Decoupled(new ExuOutput))
-  ldOut0.valid := atomicsUnit.io.out.valid || loadUnits.head.io.ldout.valid
-  ldOut0.bits  := loadWritebackOverride
-  atomicsUnit.io.out.ready := ldOut0.ready
-  loadUnits.head.io.ldout.ready := ldOut0.ready
-  when(atomicsUnit.io.out.valid){
-    ldOut0.bits.uop.cf.exceptionVec := 0.U(16.W).asBools // exception will be writebacked via store wb port
-  }
-
-  private val ldExeWbReqs = ldOut0 +: loadUnits.tail.map(_.io.ldout)
+  io.writebackFromMou <> atomicsUnit.io.out
+  private val ldExeWbReqs = loadUnits.map(_.io.ldout)
+  private val staExeWbReqs = storeUnits.map(_.io.stout)
+  private val stdExeWbReqs = stdUnits.map(_.io.out)
   (lduWritebacks ++ staWritebacks ++ stdWritebacks)
-    .zip(ldExeWbReqs ++ storeUnits.map(_.io.stout) ++ stdUnits.map(_.io.out))
+    .zip(ldExeWbReqs ++ staExeWbReqs ++ stdExeWbReqs)
     .foreach({case(wb, out) =>
     wb.valid := out.valid
     wb.bits := out.bits
       out.ready := true.B
   })
+  lduWritebacks.zip(ldExeWbReqs).foreach({case(wb, out) =>
+    val redirect_wb = wb.bits.redirect
+    val uop_out = out.bits.uop
+    wb.bits.redirectValid := out.fire && out.bits.uop.ctrl.replayInst
+    redirect_wb.robIdx := uop_out.robIdx
+    redirect_wb.ftqIdx := uop_out.cf.ftqPtr
+    redirect_wb.ftqOffset := uop_out.cf.ftqOffset
+    redirect_wb.level := RedirectLevel.flush
+    redirect_wb.interrupt := false.B
+    redirect_wb.cfiUpdate := DontCare
+    redirect_wb.cfiUpdate.isMisPred := false.B
+    redirect_wb.isException := false.B
+    redirect_wb.isLoadStore := false.B
+    redirect_wb.isLoadLoad := true.B
+    redirect_wb.isXRet := false.B
+    redirect_wb.isFlushPipe := false.B
+  })
+
   private val stOut = staWritebacks
 
   // TODO: fast load wakeup
@@ -517,29 +520,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
       stOut(i).bits.uop.cf.trigger.backendCanFire := triggerCanFireVec
     }
     // store data
-//    when(lsq.io.storeDataIn(i).fire()){
-//
-//      val hit = Wire(Vec(3, Bool()))
-//      for (j <- 0 until 3) {
-//        when(tdata(sTriggerMapping(j)).select) {
-//          hit(j) := TriggerCmp(lsq.io.storeDataIn(i).bits.data, tdata(sTriggerMapping(j)).tdata2, tdata(sTriggerMapping(j)).matchType, tEnable(sTriggerMapping(j)))
-//          lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendHit(sTriggerMapping(j)) := hit(j)
-//          lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendTiming(sTriggerMapping(j)) := tdata(sTriggerMapping(j)).timing
-////          if (sChainMapping.contains(j)) lsq.io.storeDataIn(i).bits.uop.cf.trigger.triggerChainVec(sChainMapping(j)) := hit && tdata(j + 3).chain
-//        }
-//      }
-//
-//      when(tdata(0).chain) {
-//        lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendHit(0) := hit(0) && hit(1)
-//        lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendHit(1) := hit(0) && hit(1)
-//      }
-//      when(lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendEn(1)) {
-//        lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendHit(4) := Mux(io.writeback(i).bits.uop.cf.trigger.backendConsiderTiming(1),
-//          tdata(4).timing === lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendChainTiming(1), true.B) && hit(2)
-//      } .otherwise {
-//        lsq.io.storeDataIn(i).bits.uop.cf.trigger.backendHit(4) := false.B
-//      }
-//    }
   }
 
   // mmio store writeback will use store writeback port 0
@@ -550,24 +530,16 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     lsq.io.mmioStout.ready := true.B
   }
 
-  // atomic exception / trigger writeback
-  when (atomicsUnit.io.out.valid) {
-    // atom inst will use store writeback port 0 to writeback exception info
-    stOut(0).valid := true.B
-    stOut(0).bits  := atomicsUnit.io.out.bits
-    assert(!lsq.io.mmioStout.valid && !storeUnits(0).io.stout.valid)
-
-    // when atom inst writeback, surpress normal load trigger
-    (0 until 2).map(i => {
-      io.writeback(i).bits.uop.cf.trigger.backendHit := VecInit(Seq.fill(TriggerNum)(false.B))
-    })
-  }
-
   // Lsq
   lsq.io.rob            <> io.lsqio.rob
   lsq.io.enq            <> io.enqLsq
   lsq.io.brqRedirect    <> redirect
-  io.memoryViolation    <> lsq.io.rollback
+  staWritebacks.head.bits.redirectValid := lsq.io.rollback.valid
+  staWritebacks.head.bits.redirect := lsq.io.rollback.bits
+  staWritebacks.tail.foreach(e => {
+    e.bits.redirectValid := false.B
+    e.bits.redirect := DontCare
+  })
   // lsq.io.uncache        <> uncache.io.lsq
   AddPipelineReg(lsq.io.uncache.req, uncache.io.lsq.req, false.B)
   AddPipelineReg(uncache.io.lsq.resp, lsq.io.uncache.resp, false.B)
@@ -602,7 +574,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   // AtomicsUnit: AtomicsUnit will override other control signials,
   // as atomics insts (LR/SC/AMO) will block the pipeline
-  val s_normal :: s_atomics_0 :: s_atomics_1 :: Nil = Enum(3)
+  val s_normal :: s_atomics :: Nil = Enum(2)
   val state = RegInit(s_normal)
 
   atomicsUnit.io.in.valid := io.issueToMou.valid
@@ -610,7 +582,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   atomicsUnit.io.redirect := redirect
 
   // TODO: complete amo's pmp support
-  val amoTlb = dtlb_ld(0).requestor(0)
+  private val amoTlb = dtlb_ld(0).requestor(0)
   atomicsUnit.io.dtlb.resp.valid := false.B
   atomicsUnit.io.dtlb.resp.bits  := DontCare
   atomicsUnit.io.dtlb.req.ready  := amoTlb.req.ready
@@ -622,24 +594,17 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   atomicsUnit.io.csrCtrl := csrCtrl
 
   // for atomicsUnit, it uses loadUnit(0)'s TLB port
+  when(state === s_normal){
+    when(atomicsUnit.io.in.valid){
+      state := s_atomics
+    }
+  }
 
-  when (state === s_atomics_0 || state === s_atomics_1) {
-    loadUnits(0).io.ldout.ready := false.B
+  when (state === s_atomics) {
     atomicsUnit.io.dtlb <> amoTlb
-
-    // make sure there's no in-flight uops in load unit
-    assert(!loadUnits(0).io.ldout.valid)
-  }
-
-  when (state === s_atomics_0) {
-    atomicsUnit.io.feedbackSlow <> io.rsfeedback(atomic_rs0).feedbackSlow
-
-    assert(!storeUnits(0).io.feedbackSlow.valid)
-  }
-  when (state === s_atomics_1) {
-    atomicsUnit.io.feedbackSlow <> io.rsfeedback(atomic_rs1).feedbackSlow
-
-    assert(!storeUnits(1).io.feedbackSlow.valid)
+    when(atomicsUnit.io.out.fire){
+      state := s_normal
+    }
   }
 
   lsq.io.exceptionAddr.isStore := io.lsqio.exceptionAddr.isStore

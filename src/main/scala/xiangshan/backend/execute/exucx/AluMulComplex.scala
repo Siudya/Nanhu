@@ -37,7 +37,6 @@ class AluMulComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     alu.module.io.bypassIn.last := mul.module.io.bypassOut
     io.bypassOut := mul.module.io.bypassOut
 
-    issueIn.fuInFire := DontCare
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueMul.issue.ready)
     private val issueFuHit = issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_ | _)
     xs_assert(Mux(issueIn.issue.valid, issueFuHit, true.B))

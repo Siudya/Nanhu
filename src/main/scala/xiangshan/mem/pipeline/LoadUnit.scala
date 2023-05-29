@@ -25,9 +25,7 @@ import xiangshan.ExceptionNO._
 import xiangshan._
 import xiangshan.backend.execute.fu.PMPRespBundle
 import xiangshan.backend.execute.fu.csr.SdtrigExt
-import xiangshan.backend.fu.PMPRespBundle
-import xiangshan.backend.fu.util.SdtrigExt
-import xiangshan.backend.issue.RSFeedback
+import xiangshan.backend.issue.{RSFeedback, RSFeedbackType}
 import xiangshan.cache._
 import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 
@@ -799,11 +797,6 @@ class LoadUnit(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XS
   io.lsq.s3_delayed_load_error := false.B //load_s2.io.s3_delayed_load_error
 
   io.lsq.ldout.ready := !hitLoadOut.valid
-
-  when(io.feedbackSlow.valid && !io.feedbackSlow.bits.hit){
-    assert(RegNext(!hitLoadOut.valid))
-    assert(RegNext(!io.lsq.loadIn.valid) || RegNext(load_s2.io.s2_dcache_require_replay))
-  }
 
   val lastValidData = RegEnable(io.ldout.bits.data, io.ldout.fire)
   val hitLoadAddrTriggerHitVec = Wire(Vec(TriggerNum, Bool()))

@@ -185,18 +185,12 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
       finalSelectInfo.ready := issueDriver.io.enq.ready
       issueDriver.io.enq.valid := issueBundle.valid
       issueDriver.io.enq.bits.uop := issueBundle.bits
-      issueDriver.io.enq.bits.fmaMidStateIssue.valid := false.B
-      issueDriver.io.enq.bits.fmaMidStateIssue.bits := DontCare
-      issueDriver.io.enq.bits.fmaWaitForAdd := false.B
       issueDriver.io.enq.bits.bankIdxOH := finalSelectInfo.bits.bankIdxOH
       issueDriver.io.enq.bits.entryIdxOH := finalSelectInfo.bits.entryIdxOH
 
       iss._1.issue.valid := issueDriver.io.deq.valid
       iss._1.issue.bits.uop := issueDriver.io.deq.bits.uop
       iss._1.issue.bits.src := DontCare
-      iss._1.fmaMidState.in.valid := false.B
-      iss._1.fmaMidState.in.bits := DontCare
-      iss._1.fmaMidState.waitForAdd := false.B
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
       issueDriver.io.deq.ready := iss._1.issue.ready

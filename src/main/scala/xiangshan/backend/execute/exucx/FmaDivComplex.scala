@@ -27,12 +27,6 @@ class FmaDivComplex (id: Int)(implicit p:Parameters) extends BasicExuComplex{
     issueFdiv <> issueIn
     fdiv.module.redirectIn := redirectIn
 
-    issueIn.fmaMidState <> issueFmac.fmaMidState
-    issueFdiv.fmaMidState.in.valid := false.B
-    issueFdiv.fmaMidState.in.bits := DontCare
-    issueFdiv.fmaMidState.waitForAdd := false.B
-
-    issueIn.fuInFire := DontCare
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.fmac, issueFmac.issue.ready, issueFmac.issue.ready)
     private val issueFuHit = issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_ | _)
     xs_assert(Mux(issueIn.issue.valid, issueFuHit, true.B))

@@ -55,6 +55,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     val specWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.specWakeUpNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Output(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val stLastCompelet = Input(Valid(new RobPtr))
     val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
     val floatingAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
   })
@@ -80,6 +81,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod.io.stIssued := stIssuedWires
+    mod.io.stLastCompelet := Pipe(io.stLastCompelet)
     mod
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemoryAllocateNetwork")))
@@ -262,18 +264,12 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       finalSelectInfo.ready := issueDriver.io.enq.ready
       issueDriver.io.enq.valid := issueBundle.valid
       issueDriver.io.enq.bits.uop := issueBundle.bits
-      issueDriver.io.enq.bits.fmaMidStateIssue.valid := false.B
-      issueDriver.io.enq.bits.fmaMidStateIssue.bits := DontCare
-      issueDriver.io.enq.bits.fmaWaitForAdd := false.B
       issueDriver.io.enq.bits.bankIdxOH := finalSelectInfo.bits.bankIdxOH
       issueDriver.io.enq.bits.entryIdxOH := finalSelectInfo.bits.entryIdxOH
 
       iss._1.issue.valid := issueDriver.io.deq.valid
       iss._1.issue.bits.uop := issueDriver.io.deq.bits.uop
       iss._1.issue.bits.src := DontCare
-      iss._1.fmaMidState.in.valid := false.B
-      iss._1.fmaMidState.in.bits := DontCare
-      iss._1.fmaMidState.waitForAdd := false.B
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
       issueDriver.io.deq.ready := iss._1.issue.ready

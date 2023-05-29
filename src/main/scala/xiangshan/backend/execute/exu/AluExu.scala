@@ -28,8 +28,6 @@ class AluExuImpl(outer:AluExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   private val writebackPort = outer.writebackNode.out.head._1
 
   issuePort.issue.ready := true.B
-  issuePort.fuInFire := DontCare
-  issuePort.fmaMidState.out := DontCare
   private val finalIssueSignals = bypassSigGen(io.bypassIn, issuePort, outer.bypassInNum > 0)
 
   private val alu = Module(new Alu)

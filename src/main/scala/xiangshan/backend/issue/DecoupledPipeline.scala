@@ -10,8 +10,6 @@ import xs.utils.{CircularQueuePtr, HasCircularQueuePtrHelper, LogicShiftRight}
 sealed class TwoEntryQueuePtr extends CircularQueuePtr[TwoEntryQueuePtr](entries = 2) with HasCircularQueuePtrHelper
 sealed class PipelineEntry(bankIdxWidth:Int, entryIdxWidth:Int)(implicit p: Parameters) extends Bundle{
   val uop = new MicroOp
-  val fmaMidStateIssue: Valid[FMAMidResult] = Valid(new FMAMidResult)
-  val fmaWaitForAdd: Bool = Bool()
   val bankIdxOH: UInt = UInt(bankIdxWidth.W)
   val entryIdxOH: UInt = UInt(entryIdxWidth.W)
 }

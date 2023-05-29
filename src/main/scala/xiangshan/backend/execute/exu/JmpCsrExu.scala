@@ -56,8 +56,6 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   private val csr = Module(new CSR)
 
   issuePort.issue.ready := true.B
-  issuePort.fmaMidState.out := DontCare
-  issuePort.fuInFire := DontCare
 
   private val finalIssueSignals = bypassSigGen(io.bypassIn, issuePort, outer.bypassInNum > 0)
   private val fuSeq = Seq(jmp, fence, mou, csr)

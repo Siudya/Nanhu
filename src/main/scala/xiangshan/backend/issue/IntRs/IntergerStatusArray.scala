@@ -54,8 +54,6 @@ class IntegerIssueInfoGenerator(implicit p: Parameters) extends XSModule{
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
   io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.reduce(_|_)})
-  io.out.bits.fmaWaitAdd := false.B
-  io.out.bits.midResultReadEn := false.B
 
   chisel3.experimental.annotate(new ChiselAnnotation {
     def toFirrtl = InlineAnnotation(toNamed)
@@ -100,7 +98,11 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
   private val srcShouldBeCancelled = io.entry.bits.lpv.map(l => io.earlyWakeUpCancel.zip(l).map({ case(c, li) => li(0) & c}).reduce(_|_))
   private val shouldBeIssued = Cat(io.issue).orR
   private val shouldBeCancelled = srcShouldBeCancelled.reduce(_|_)
-  private val mayNeedReplay = io.entry.bits.lpv.map(_.map(_.orR).reduce(_|_)).reduce(_|_)
+  private val mayNeedReplay = io.entry.bits.lpv
+    .zip(io.entry.bits.srcType)
+    .map({ case (l, st) =>
+      l.map(elm => Mux(st === SrcType.reg, elm.orR, false.B)).reduce(_ | _)
+    }).reduce(_ | _)
   private val state = io.entry.bits.state
   private val stateNext = io.entryNext.bits.state
 
@@ -118,6 +120,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       }
     }
   }
+  xs_assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
   xs_assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
 
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}

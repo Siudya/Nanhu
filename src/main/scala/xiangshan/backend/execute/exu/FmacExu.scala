@@ -28,8 +28,9 @@ class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   fmac.io.in.bits.src := issuePort.issue.bits.src
   issuePort.issue.ready := fmac.io.in.ready
   fmac.rm := issuePort.issue.bits.uop.ctrl.fpu.rm
-  fmac.midResult <> issuePort.fmaMidState
-  issuePort.fuInFire := DontCare
+  fmac.midResult.in.bits := DontCare
+  fmac.midResult.in.valid := false.B
+  fmac.midResult.waitForAdd := false.B
 
   writebackPort.valid := fmac.io.out.valid
   fmac.io.out.ready := true.B

@@ -141,9 +141,6 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
       issueDriver.io.redirect := io.redirect
       issueDriver.io.earlyWakeUpCancel := io.earlyWakeUpCancel
 
-      val midStateWaitQueue = Module(new MidStateWaitQueue(3, param.bankNum, entriesNumPerBank))
-      midStateWaitQueue.io.redirect := io.redirect
-
       val finalSelectInfo = if (iss._2.isFmac) {
         fmaPortIdx = fmaPortIdx + 1
         fmacSelectNetwork.io.issueInfo(fmaPortIdx - 1)
@@ -179,66 +176,18 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
       issueBundle.bits.ctrl.fuType := finalSelectInfo.bits.info.fuType
       issueBundle.bits.lpv := finalSelectInfo.bits.info.lpv
 
-      val midResultFromPayload = Wire(new FMAMidResult)
-      val midResultFromPayloadHi = Mux1H(rsBankRen, rsBankSeq.map(_.io.issueMidResult(issuePortIdx)))
-      val midResultFromPayloadLo = 0.U(XLEN - 1, 0)
-      midResultFromPayload := Cat(midResultFromPayloadHi, midResultFromPayloadLo).asTypeOf(midResultFromPayload)
-
-      val midResultFromBypass = Wire(new FMAMidResult)
-      midResultFromBypass := iss._1.fmaMidState.out.bits.midResult
-
-      val midResult = Wire(new FMAMidResult)
-
       finalSelectInfo.ready := issueDriver.io.enq.ready
       issueDriver.io.enq.valid := issueBundle.valid
       issueDriver.io.enq.bits.uop := issueBundle.bits
-      issueDriver.io.enq.bits.fmaMidStateIssue.valid := finalSelectInfo.bits.info.midResultReadEn
-      issueDriver.io.enq.bits.fmaMidStateIssue.bits := midResult
-      issueDriver.io.enq.bits.fmaWaitForAdd := finalSelectInfo.bits.info.fmaWaitAdd
       issueDriver.io.enq.bits.bankIdxOH := finalSelectInfo.bits.bankIdxOH
       issueDriver.io.enq.bits.entryIdxOH := finalSelectInfo.bits.entryIdxOH
 
       iss._1.issue.valid := issueDriver.io.deq.valid
       iss._1.issue.bits.uop := issueDriver.io.deq.bits.uop
       iss._1.issue.bits.src := DontCare
-      iss._1.fmaMidState.in := issueDriver.io.deq.bits.fmaMidStateIssue
-      iss._1.fmaMidState.waitForAdd := issueDriver.io.deq.bits.fmaWaitForAdd
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
       issueDriver.io.deq.ready := iss._1.issue.ready
-
-      val midStateWaitQueueInValidReg = RegInit(false.B)
-      val midStateWaitQueueInDataReg = Reg(new SelectResp(param.bankNum, entriesNumPerBank))
-      when(issueDriver.io.deq.fire) {
-        midStateWaitQueueInValidReg := issueDriver.io.deq.bits.fmaWaitForAdd
-      }
-      when(issueDriver.io.deq.fire && issueDriver.io.deq.bits.fmaWaitForAdd) {
-        midStateWaitQueueInDataReg.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
-        midStateWaitQueueInDataReg.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
-        midStateWaitQueueInDataReg.info := DontCare
-        midStateWaitQueueInDataReg.info.robPtr := issueDriver.io.deq.bits.uop.robIdx
-        midStateWaitQueueInDataReg.info.pdest := issueDriver.io.deq.bits.uop.pdest
-      }
-      midStateWaitQueue.io.in.valid := midStateWaitQueueInValidReg && iss._1.fuInFire && !midStateWaitQueueInDataReg.info.robPtr.needFlush(io.redirect)
-      midStateWaitQueue.io.in.bits := midStateWaitQueueInDataReg
-
-      val bankForThisWaitQueue = rsBankSeq(issuePortIdx)
-      val bankEn = Mux(midStateWaitQueue.io.earlyWakeUp.valid, midStateWaitQueue.io.out.bits.bankIdxOH, 0.U)
-        .asBools(issuePortIdx)
-      bankForThisWaitQueue.io.midResultReceived.valid := bankEn
-      bankForThisWaitQueue.io.midResultReceived.bits := midStateWaitQueue.io.earlyWakeUp.bits.entryIdxOH
-
-      val midStateShouldBypass =
-        iss._1.fmaMidState.out.valid &&
-          midStateWaitQueue.io.out.valid &&
-          midStateWaitQueue.io.out.bits.info.pdest === iss._1.fmaMidState.out.bits.pdest
-
-      midResult := Mux(midStateShouldBypass, midResultFromBypass, midResultFromPayload)
-
-      val midResultWidth = iss._1.fmaMidState.out.bits.midResult.getWidth
-      bankForThisWaitQueue.io.midResultEnq.valid := midStateWaitQueue.io.out.valid
-      bankForThisWaitQueue.io.midResultEnq.bits.addrOH := midStateWaitQueue.io.out.bits.entryIdxOH
-      bankForThisWaitQueue.io.midResultEnq.bits.data := iss._1.fmaMidState.out.bits.midResult.asUInt(midResultWidth - 1, XLEN)
     }
   }
   println("\nFloating Reservation Wake Up Ports Config:")

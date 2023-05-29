@@ -30,7 +30,6 @@ class AluDivComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     div.module.redirectIn := redirectIn
 
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueDiv.issue.ready)
-    issueIn.fuInFire := DontCare
 
     private val issueFuHit = issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_|_)
     xs_assert(Mux(issueIn.issue.valid, issueFuHit, true.B))

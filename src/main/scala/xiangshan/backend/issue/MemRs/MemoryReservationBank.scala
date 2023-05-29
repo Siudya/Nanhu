@@ -36,6 +36,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
       val waitVal = UInt(5.W)
     })))
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
+    val stLastCompelet = Input(Valid(new RobPtr))
 
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(lduNum, Valid(new EarlyWakeUpInfo)))
@@ -47,6 +48,8 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   private val payloadArray = Module(new PayloadArray(new MicroOp, entryNum, issueWidth, "IntegerPayloadArray"))
 
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
+    val stIssueHit = io.stIssued.map(st => st.valid && st.bits === in.cf.waitForRobIdx).reduce(_|_)
+    val shouldWait = in.ctrl.fuType === FuType.ldu && in.cf.loadWaitBit && in.cf.waitForRobIdx > io.stLastCompelet.bits && !stIssueHit
     val enqEntry = Wire(new MemoryStatusArrayEntry)
     enqEntry.psrc(0) := in.psrc(0)
     enqEntry.psrc(1) := in.psrc(1)
@@ -60,7 +63,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     enqEntry.rfWen := in.ctrl.rfWen
     enqEntry.fpWen := in.ctrl.fpWen
     enqEntry.robIdx := in.robIdx
-    enqEntry.staLoadState := Mux(in.ctrl.fuType === FuType.ldu, Mux(in.cf.loadWaitBit, s_wait_st, s_ready), s_ready)
+    enqEntry.staLoadState := Mux(shouldWait, s_wait_st, s_ready)
     enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu, s_ready, s_issued)
     enqEntry.waitTarget := in.cf.waitForRobIdx
     enqEntry.isFirstIssue := false.B
@@ -80,7 +83,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   statusArray.io.stdIssue := io.stdIssue
   statusArray.io.lduIssue := io.lduIssue
   statusArray.io.replay := io.replay
-  statusArray.io.stIssued := io.stIssued
+  statusArray.io.stIssued.zip(io.stIssued).foreach({case(a, b) => a := Pipe(b)})
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup
   statusArray.io.earlyWakeUpCancel := io.earlyWakeUpCancel

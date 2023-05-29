@@ -28,13 +28,13 @@ import xiangshan.{Redirect, SrcState, SrcType, XSModule}
 import xiangshan.backend.issue.{BasicStatusArrayEntry, EarlyWakeUpInfo, SelectInfo, WakeUpInfo}
 import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
+import xiangshan.backend.issue.FpRs.EntryState._
 
 protected[FpRs] object EntryState{
-  def s_idle: UInt = 0.U
-  def s_wait_for_mid: UInt = 1.U
-  def s_mid_received: UInt = 2.U
-  def s_issued: UInt = 3.U
-  def apply(): UInt = UInt(2.W)
+  def s_ready: UInt = 0.U
+  def s_wait_cancel: UInt = 1.U
+  def s_issued: UInt = 2.U
+  def apply() = UInt(2.W)
 }
 
 class FloatingIssueInfoGenerator(implicit p: Parameters) extends XSModule{
@@ -49,18 +49,15 @@ class FloatingIssueInfoGenerator(implicit p: Parameters) extends XSModule{
   private val shouldBeFlushed = ib.robIdx.needFlush(io.redirect)
   private val shouldBeCanceled = ib.lpv.map(l => l.zip(io.earlyWakeUpCancel).map({case(li, c) => li(1) && c}).reduce(_||_)).reduce(_||_)
   private val readyToIssue = Wire(Bool())
-  private val fmaIssueCond0 = ib.srcState(0) === SrcState.rdy && ib.srcState(1) === SrcState.rdy && ib.state === EntryState.s_idle
-  private val fmaIssueCond1 = ib.srcState(2) === SrcState.rdy && ib.state === EntryState.s_mid_received
-  private val fmiscIssueCond = ib.srcState(0) === SrcState.rdy && ib.srcState(1) === SrcState.rdy
-  readyToIssue := Mux(ib.isFma, fmaIssueCond0 | fmaIssueCond1, fmiscIssueCond)
+  private val fmaIssueCond = ib.srcState(0) === SrcState.rdy && ib.srcState(1) === SrcState.rdy && ib.srcState(2) === SrcState.rdy && ib.state === EntryState.s_ready
+  private val fmiscIssueCond = ib.srcState(0) === SrcState.rdy && ib.srcState(1) === SrcState.rdy && ib.state === EntryState.s_ready
+  readyToIssue := Mux(ib.isFma, fmaIssueCond, fmiscIssueCond)
   io.out.valid := readyToIssue && iv && !shouldBeFlushed && !shouldBeCanceled
   io.out.bits.fuType := ib.fuType
   io.out.bits.robPtr := ib.robIdx
   io.out.bits.pdest := ib.pdest
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
-  io.out.bits.fmaWaitAdd := ib.isFma && ib.srcState(0) === SrcState.rdy && ib.srcState(1) === SrcState.rdy && ib.srcState(2) =/= SrcState.rdy
-  io.out.bits.midResultReadEn := ib.isFma && fmaIssueCond1
   io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.map(LogicShiftRight(_, 1)).reduce(_|_)})
   chisel3.experimental.annotate(new ChiselAnnotation {
     def toFirrtl = InlineAnnotation(toNamed)
@@ -108,49 +105,31 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
   private val srcShouldBeCancelled = io.entry.bits.lpv.map(l => io.earlyWakeUpCancel.zip(l).map({ case(c, li) => li(0) & c}).reduce(_|_))
   private val shouldBeIssued = Cat(io.issue).orR
   private val shouldBeCancelled = srcShouldBeCancelled.reduce(_|_)
-  private val srcAllReady = io.entry.bits.srcState.map(elm => elm === SrcState.rdy).reduce(_|_)
-  private val waitAddIssue = shouldBeIssued && io.entry.bits.srcState(2) =/= SrcState.rdy && isFma
-  private val actualIssue = shouldBeIssued && (srcAllReady || !isFma)
   private val mayNeedReplay = io.entry.bits.lpv
     .zip(io.entry.bits.srcType)
     .map({case(l,st) =>
-      l.map(elm => Mux(st === SrcType.fp, false.B, elm.orR)).reduce(_|_)
+      l.map(elm => Mux(st === SrcType.fp, elm.orR, false.B)).reduce(_|_)
     }).reduce(_|_)
   private val state = io.entry.bits.state
   private val stateNext = miscNext.bits.state
   private val miscUpdateEnCancelOrIssue = WireInit(false.B)
-  switch(state){
-    is(EntryState.s_idle){
-      when(waitAddIssue) {
-        stateNext := EntryState.s_wait_for_mid
-        miscUpdateEnCancelOrIssue := true.B
-      }.elsewhen(actualIssue) {
-        stateNext := EntryState.s_issued
-        miscUpdateEnCancelOrIssue := true.B
+
+  switch(state) {
+    is(s_ready) {
+      when(shouldBeIssued) {
+        stateNext := Mux(mayNeedReplay, s_wait_cancel, s_issued)
       }
     }
-    is(EntryState.s_wait_for_mid){
-      when(shouldBeCancelled){
-        stateNext := EntryState.s_idle
-        miscUpdateEnCancelOrIssue := true.B
-      }.elsewhen(io.midResultReceived){
-        stateNext := EntryState.s_mid_received
-        miscUpdateEnCancelOrIssue := true.B
-      }
-    }
-    is(EntryState.s_mid_received){
-      when(actualIssue){
-        stateNext := EntryState.s_issued
-        miscUpdateEnCancelOrIssue := true.B
-      }
-    }
-    is(EntryState.s_issued){
-      when(!mayNeedReplay){
-        stateNext := EntryState.s_idle
-        miscUpdateEnCancelOrIssue := true.B
+    is(s_wait_cancel) {
+      when(!mayNeedReplay) {
+        stateNext := s_issued
+      }.elsewhen(shouldBeCancelled) {
+        stateNext := s_ready
       }
     }
   }
+  xs_assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
+  xs_assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}
   //End of issue and cancel
 

@@ -16,6 +16,5 @@ class FmacComplex(id: Int)(implicit p:Parameters) extends BasicExuComplex{
     private val issueRouted = issueNode.out.map(_._1)
     issueRouted.foreach(_ <> issueIn)
     fmac.module.redirectIn := redirectIn
-    issueIn.fuInFire := DontCare
   }
 }
