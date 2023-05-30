@@ -522,6 +522,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
 
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
     val s2IsPointerChasing = Output(Bool())
+    val cancel = Output(Bool())
   })
 
   val load_s0 = Module(new LoadUnit_S0)
@@ -717,7 +718,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s2.io.out.ready := true.B
 
   // load s3
-  val s3_load_wb_meta_reg = RegNext(Mux(hitLoadOut.valid, hitLoadOut.bits, io.lsq.ldout.bits))
+  val s3_load_wb_meta_reg = RegEnable(Mux(hitLoadOut.valid, hitLoadOut.bits, io.lsq.ldout.bits), hitLoadOut.valid | io.lsq.ldout.valid)
 
   // data from load queue refill
   val s3_loadDataFromLQ = RegEnable(io.lsq.ldRawData, io.lsq.ldout.valid)
@@ -808,6 +809,10 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     io.trigger(i).lastDataHit := TriggerCmp(lastValidData, tdata2, matchType, tEnable)
   }}
   io.lsq.trigger.hitLoadAddrTriggerHitVec := hitLoadAddrTriggerHitVec
+
+  private val s1_cancel = RegInit(false.B)
+  s1_cancel := load_s1.io.in.valid && load_s1.io.rsFeedback.valid
+  io.cancel := s1_cancel || (load_s2.io.in.valid && load_s2.io.rsFeedback.valid)
 
   val perfEvents = Seq(
     ("load_s0_in_fire         ", load_s0.io.in.fire                                                                                                              ),

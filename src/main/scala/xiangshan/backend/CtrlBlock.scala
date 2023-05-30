@@ -107,17 +107,16 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   private val fpDq = Module(new DispatchQueue(dpParams.FpDqSize, RenameWidth, fpDispatch._2.bankNum))
   private val lsDq = Module(new DispatchQueue(dpParams.LsDqSize, RenameWidth, lsDispatch._2.bankNum))
   private val rob = outer.rob.module
+  private val lsqCtrl = Module(new LsqEnqCtrl)
 
   for (i <- 0 until CommitWidth) {
-    // why flushOut: instructions with flushPipe are not commited to frontend
-    // If we commit them to frontend, it will cause flush after commit, which is not acceptable by frontend.
-    val is_commit = rob.io.commits.commitValid(i) && rob.io.commits.isCommit && !rob.io.flushOut.valid
+    val is_commit = rob.io.commits.commitValid(i) && rob.io.commits.isCommit
     io.frontend.toFtq.rob_commits(i).valid := RegNext(is_commit)
     io.frontend.toFtq.rob_commits(i).bits := RegEnable(rob.io.commits.info(i), is_commit)
   }
   io.frontend.toFtq.redirect := io.redirectIn
 
-  val pendingRedirect = RegInit(false.B)
+  private val pendingRedirect = RegInit(false.B)
   when (io.redirectIn.valid) {
     pendingRedirect := true.B
   }.elsewhen (RegNext(io.frontend.toFtq.redirect.valid, false.B)) {
@@ -133,7 +132,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val LdReplayPending = RegInit(false.B); val ldReplay_bubble_cycles = RegInit(false.B) // frontend_bound->fetch_lantency->stage2_redirect->ldReplay_bubble
     
     when(io.redirectIn.valid && io.redirectIn.bits.cfiUpdate.isMisPred) { MissPredPending := true.B }
-    when(io.redirectIn.valid && io.redirectIn.bits.isCsr)  { RobFlushPending := true.B }
+    when(io.redirectIn.valid && io.redirectIn.bits.isFlushPipe)  { RobFlushPending := true.B }
     when(io.redirectIn.valid && io.redirectIn.bits.isLoadLoad)  { LdReplayPending := true.B }
     
     when (RegNext(io.frontend.toFtq.redirect.valid)) {
@@ -265,10 +264,23 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   fpDeq <> fpDq.io.deq
   lsDeq <> lsDq.io.deq
 
+  lsqCtrl.io.redirect := Pipe(io.redirectIn)
+  lsqCtrl.io.lcommit := rob.io.lsq.lcommit
+  lsqCtrl.io.scommit := io.sqDeq
+  lsqCtrl.io.lqCancelCnt := io.lqCancelCnt
+  lsqCtrl.io.sqCancelCnt := io.sqCancelCnt
+  lsqCtrl.io.enq.req.zip(lsDq.io.deq).foreach({case(l, d) =>
+    l.valid := d.valid
+    l.bits := d.bits
+  })
+
+  lsDeq.zip(lsDq.io.deq).foreach({ case(a, b) =>
+    a.valid := b.valid & lsqCtrl.io.enq.canAccept
+  })
+
   rob.io.hartId := io.hartId
   io.cpu_halt := DelayN(rob.io.cpu_halt, 5)
   rob.io.redirect := io.redirectIn
-  outer.rob.generateWritebackIO(Some(outer), Some(this))
 
   // rob to int block
   io.robio.toCSR <> rob.io.csr
@@ -277,7 +289,6 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   rob.io.wfi_enable := decode.io.csrCtrl.wfi_enable
   io.robio.toCSR.perfinfo.retiredInstr <> RegNext(rob.io.csr.perfinfo.retiredInstr)
   io.robio.exception := rob.io.exception
-  io.robio.exception.bits.uop.cf.pc := flushPC
 
   // rob to mem block
   io.robio.lsq <> rob.io.lsq
@@ -304,6 +315,6 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   }
 
   private val allPerfInc = allPerfEvents.map(_._2.asTypeOf(new PerfEvent))
-  private val perfEvents = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
+  val perfEvents = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
   generatePerfEvent()
 }

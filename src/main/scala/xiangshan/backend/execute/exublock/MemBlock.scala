@@ -154,7 +154,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
       val dcacheMSHRFull = Output(Bool())
     }
 
-    val earlyWakeUpCancel = Output(Vec(lduIssues.length, Bool()))
+    val earlyWakeUpCancel = Output(Vec(3, Vec(lduIssues.length, Bool())))
     val issueToMou = Flipped(Decoupled(new ExuInput))
     val writebackFromMou = Decoupled(new ExuOutput)
 
@@ -217,8 +217,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   (lduWritebacks ++ staWritebacks ++ stdWritebacks)
     .zip(ldExeWbReqs ++ staExeWbReqs ++ stdExeWbReqs)
     .foreach({case(wb, out) =>
-    wb.valid := out.valid
-    wb.bits := out.bits
+      wb.valid := out.valid
+      wb.bits := out.bits
       out.ready := true.B
   })
   lduWritebacks.zip(ldExeWbReqs).foreach({case(wb, out) =>
@@ -356,9 +356,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   // LoadUnit
   for (i <- 0 until exuParameters.LduCnt) {
-    loadUnits(i).io.redirect <> redirect
-    loadUnits(i).io.feedbackSlow <> lduIssues(i).rsFeedback.feedbackSlow
-    loadUnits(i).io.feedbackFast <> lduIssues(i).rsFeedback.feedbackFast
+    loadUnits(i).io.redirect := redirect
+    lduIssues(i).rsFeedback.feedbackSlow := loadUnits(i).io.feedbackSlow
+    lduIssues(i).rsFeedback.feedbackFast := loadUnits(i).io.feedbackFast
     loadUnits(i).io.rsIdx := lduIssues(i).rsIdx
     loadUnits(i).io.isFirstIssue := lduIssues(i).rsFeedback.isFirstIssue // NOTE: just for dtlb's perf cnt
     // get input form dispatch
@@ -375,14 +375,21 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     loadUnits(i).io.tlb <> dtlb_reqs.take(exuParameters.LduCnt)(i)
     // pmp
     loadUnits(i).io.pmp <> pmp_check(i).resp
+    //cancel
+    io.earlyWakeUpCancel.foreach(w => w(i) := RegNext(loadUnits(i).io.cancel,false.B))
     // prefetch
+    val pcDelay1Valid = RegNext(lduIssues(i).issue.fire, false.B)
+    val pcDelay1Bits = RegEnable(lduIssues(i).issue.bits.uop.cf.pc, lduIssues(i).issue.fire)
+    val pcDelay2Bits = RegEnable(pcDelay1Bits, pcDelay1Valid)
     prefetcherOpt.foreach(pf => {
       pf.io.ld_in(i).valid := Mux(pf_train_on_hit,
         loadUnits(i).io.prefetch_train.valid,
         loadUnits(i).io.prefetch_train.valid && loadUnits(i).io.prefetch_train.bits.miss
       )
       pf.io.ld_in(i).bits := loadUnits(i).io.prefetch_train.bits
-      pf.io.ld_in(i).bits.uop.cf.pc := Mux(loadUnits(i).io.s2IsPointerChasing, lduIssues(i).issue.bits.uop.cf.pc, RegNext(lduIssues(i).issue.bits.uop.cf.pc))
+      pf.io.ld_in(i).bits.uop.cf.pc := Mux(loadUnits(i).io.s2IsPointerChasing,
+        pcDelay1Bits,
+        pcDelay2Bits)
     })
 
     // load to load fast forward: load(i) prefers data(i)
@@ -462,9 +469,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
     stu.io.redirect     <> redirect
     stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlow
-    stu.io.rsIdx        <>  staIssues(i).rsIdx
+    stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt
-    stu.io.isFirstIssue <> staIssues(i).rsFeedback.isFirstIssue
+    stu.io.isFirstIssue := staIssues(i).rsFeedback.isFirstIssue
     stu.io.stin         <> staIssues(i).issue
     stu.io.lsq          <> lsq.io.storeIn(i)
     stu.io.lsq_replenish <> lsq.io.storeInRe(i)

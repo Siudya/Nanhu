@@ -7,7 +7,7 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import regfile.{PcMem, PcWritePort, RegFileTop}
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.{MicroOp, Redirect}
-import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemoryBlock}
+import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemBlock}
 import xiangshan.backend.execute.fu.csr.CSRFileIO
 import xiangshan.backend.issue.FpRs.FloatingReservationStation
 import xiangshan.backend.issue.IntRs.IntegerReservationStation
@@ -21,7 +21,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule {
   private val memoryReservationStation = LazyModule(new MemoryReservationStation)
   private val integerBlock = LazyModule(new IntegerBlock)
   private val floatingBlock = LazyModule(new FloatingBlock)
-  private val memoryBlock = LazyModule(new MemoryBlock)
+  private val memoryBlock = LazyModule(new MemBlock)
   private val regFile = LazyModule(new RegFileTop)
   private val writebackNetwork = LazyModule(new WriteBackNetwork)
   private val exuBlocks = integerBlock :: floatingBlock :: memoryBlock :: Nil
@@ -49,15 +49,15 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule {
 
     integerReservationStation.module.io.redirect := Pipe(localRedirect)
     integerReservationStation.module.io.loadEarlyWakeup := memoryReservationStation.module.io.loadEarlyWakeup
-    integerReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
+    integerReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(0)
 
     floatingReservationStation.module.io.redirect := Pipe(localRedirect)
     floatingReservationStation.module.io.loadEarlyWakeup := memoryReservationStation.module.io.loadEarlyWakeup
-    floatingReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
+    floatingReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(1)
 
     memoryReservationStation.module.io.redirect := Pipe(localRedirect)
     memoryReservationStation.module.io.specWakeup.zip(integerReservationStation.module.io.specWakeup).foreach({case(a, b) => a := Pipe(b)})
-    memoryReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel
+    memoryReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(2)
 
     //issue + redirect + exception
     private val pcReadPortNum = regFile.module.pcReadNum + writebackNetwork.module.io.pcReadData.length + 1

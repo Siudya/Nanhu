@@ -60,24 +60,15 @@ package object xiangshan {
     def div = "b0101".U
     def fence = "b0011".U
     def bku = "b0111".U
+    def mou = "b1111".U // for amo, lr, sc, fence
     def fmac = "b1000".U
     def fmisc = "b1011".U
     def fDivSqrt = "b1010".U
     def ldu = "b1100".U
     def stu = "b1101".U
-    def mou = "b1111".U // for amo, lr, sc, fence
     def X = BitPat("b????")
     def num = 14
     def apply() = UInt(log2Up(num).W)
-
-    def isIntExu(fuType: UInt) = !fuType(3)
-    def isJumpExu(fuType: UInt) = fuType === jmp
-    def isFpExu(fuType: UInt) = fuType(3, 2) === "b10".U
-    def isMemExu(fuType: UInt) = fuType(3, 2) === "b11".U
-    def isLoadStore(fuType: UInt) = isMemExu(fuType) && !fuType(1)
-    def isStoreExu(fuType: UInt) = isMemExu(fuType) && fuType(0)
-    def isAMO(fuType: UInt) = fuType(1)
-    def isFence(fuType: UInt) = fuType === fence
 
     val functionNameMap = Map(
       jmp.litValue -> "jmp",
@@ -99,6 +90,22 @@ package object xiangshan {
     val integerTypes: Seq[UInt] = Seq(jmp, i2f, csr, alu, mul, div, fence, bku, mou)
     val floatingTypes: Seq[UInt] = Seq(fmac, fmisc, fDivSqrt)
     val memoryTypes: Seq[UInt] = Seq(ldu, stu)
+
+    def isIntExu(fuType: UInt): Bool = integerTypes.map(_ === fuType).reduce(_||_)
+
+    def isJumpExu(fuType: UInt): Bool = fuType === jmp
+
+    def isFpExu(fuType: UInt): Bool = floatingTypes.map(_ === fuType).reduce(_||_)
+
+    def isMemExu(fuType: UInt): Bool = memoryTypes.map(_ === fuType).reduce(_||_)
+
+    def isLoadStore(fuType: UInt): Bool = isMemExu(fuType)
+
+    def isStoreExu(fuType: UInt): Bool = fuType === stu
+
+    def isAMO(fuType: UInt): Bool = fuType === mou
+
+    def isFence(fuType: UInt): Bool = fuType === fence
   }
 
   object FuOpType {

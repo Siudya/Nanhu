@@ -66,7 +66,7 @@ class LsPipelineBundle(implicit p: Parameters) extends XSBundle {
   val forwardData = Vec(8, UInt(8.W))
 
   //softprefetch
-  val isSoftPrefetch = Bool() 
+  val isSoftPrefetch = Bool()
 
   // For debug usage
   val isFirstIssue = Bool()
