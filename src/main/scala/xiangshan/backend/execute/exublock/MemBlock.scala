@@ -182,8 +182,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     io.error.valid := false.B
   }
 
-  private val loadUnits = Seq.fill(exuParameters.LduCnt)(Module(new LoadUnit(rsParam.bankNum, rsParam.entriesNum)))
-  private val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit(rsParam.bankNum, rsParam.entriesNum)))
+  private val loadUnits = Seq.fill(exuParameters.LduCnt)(Module(new LoadUnit))
+  private val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit))
   private val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
   private val stData = stdUnits.map(_.io.out)
   val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher.map {

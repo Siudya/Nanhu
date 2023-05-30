@@ -21,7 +21,7 @@ object RsIssueNodeImpl extends SimpleNodeImp[RsParam, Seq[ExuComplexParam], (RsP
       (pd, pu.filter(_.isFpType), p)
     }
   }
-  override def bundle(e: (RsParam, Seq[ExuComplexParam], Parameters)): Vec[IssueBundle] = Vec(e._2.length, new IssueBundle(e._1.bankNum, e._1.entriesNum)(e._3))
+  override def bundle(e: (RsParam, Seq[ExuComplexParam], Parameters)): Vec[IssueBundle] = Vec(e._2.length, new IssueBundle()(e._3))
   override def render(e: (RsParam, Seq[ExuComplexParam], Parameters)): RenderedEdge = {
     RenderedEdge("#00ff00", e._1.TypeName + "Issue")
   }

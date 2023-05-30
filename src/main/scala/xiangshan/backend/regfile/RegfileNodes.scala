@@ -21,7 +21,7 @@ object RegFileNodeInwardImpl extends InwardNodeImp[RsParam,Seq[ExuComplexParam],
       (pd, pu.filter(_.isFpType), p)
     }
   }
-  override def bundleI(ei: (RsParam, Seq[ExuComplexParam], Parameters)): Vec[IssueBundle] = Vec(ei._2.length, new IssueBundle(ei._1.bankNum, ei._1.entriesNum)(ei._3))
+  override def bundleI(ei: (RsParam, Seq[ExuComplexParam], Parameters)): Vec[IssueBundle] = Vec(ei._2.length, new IssueBundle()(ei._3))
   override def render(e: (RsParam, Seq[ExuComplexParam], Parameters)): RenderedEdge = RenderedEdge("#0000ff", e._1.TypeName + "Issue")
 }
 object RegFileNodeOutwardImpl extends OutwardNodeImp[Seq[RsParam], ExuComplexParam, (RsParam, ExuComplexParam, Parameters), IssueBundle]{
@@ -37,7 +37,7 @@ object RegFileNodeOutwardImpl extends OutwardNodeImp[Seq[RsParam], ExuComplexPar
       (pd.filter(_.isMemRs).head, pu, p)
     }
   }
-  override def bundleO(eo: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle(eo._1.bankNum, eo._1.entriesNum)(eo._3)
+  override def bundleO(eo: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle()(eo._3)
 }
 
 class RegFileNode(implicit valName: ValName) extends MixedNexusNode(

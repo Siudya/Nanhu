@@ -30,12 +30,12 @@ import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 
 // Store Pipeline Stage 0
 // Generate addr, use addr to query DCache and DTLB
-class StoreUnit_S0(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
+class StoreUnit_S0(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new ExuInput))
     val rsIdx = Input(UInt(log2Up(IssQueSize).W))
     val isFirstIssue = Input(Bool())
-    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val out = Decoupled(new LsPipelineBundle)
     val dtlbReq = DecoupledIO(new TlbReq)
   })
 
@@ -92,13 +92,13 @@ class StoreUnit_S0(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extend
 
 // Store Pipeline Stage 1
 // TLB resp (send paddr to dcache)
-class StoreUnit_S1(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
+class StoreUnit_S1(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
-    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
-    val lsq = ValidIO(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val in = Flipped(Decoupled(new LsPipelineBundle))
+    val out = Decoupled(new LsPipelineBundle)
+    val lsq = ValidIO(new LsPipelineBundle())
     val dtlbResp = Flipped(DecoupledIO(new TlbResp()))
-    val rsFeedback = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
+    val rsFeedback = ValidIO(new RSFeedback)
   })
 
   // mmio cbo decoder
@@ -152,12 +152,12 @@ class StoreUnit_S1(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extend
   XSPerfAccumulate("tlb_miss_first_issue", io.in.fire && s1_tlb_miss && io.in.bits.isFirstIssue)
 }
 
-class StoreUnit_S2(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
+class StoreUnit_S2(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
+    val in = Flipped(Decoupled(new LsPipelineBundle))
     val pmpResp = Flipped(new PMPRespBundle)
     val static_pm = Input(Valid(Bool()))
-    val out = Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val out = Decoupled(new LsPipelineBundle)
   })
   val pmp = WireInit(io.pmpResp)
   when (io.static_pm.valid) {
@@ -177,9 +177,9 @@ class StoreUnit_S2(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extend
   io.out.valid := io.in.valid && (!is_mmio || s2_exception)
 }
 
-class StoreUnit_S3(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
+class StoreUnit_S3(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
-    val in = Flipped(Decoupled(new LsPipelineBundle(rsBankNum, rsEntryNum)))
+    val in = Flipped(Decoupled(new LsPipelineBundle))
     val stout = DecoupledIO(new ExuOutput) // writeback store
   })
 
@@ -198,26 +198,26 @@ class StoreUnit_S3(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extend
 
 }
 
-class StoreUnit(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule {
+class StoreUnit(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val stin = Flipped(Decoupled(new ExuInput))
     val redirect = Flipped(ValidIO(new Redirect))
-    val feedbackSlow = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
+    val feedbackSlow = ValidIO(new RSFeedback)
     val tlb = new TlbRequestIO()
     val pmp = Flipped(new PMPRespBundle())
     val rsIdx = Input(UInt(log2Up(IssQueSize).W))
     val isFirstIssue = Input(Bool())
-    val lsq = ValidIO(new LsPipelineBundle(rsBankNum, rsEntryNum))
-    val lsq_replenish = Output(new LsPipelineBundle(rsBankNum, rsEntryNum))
+    val lsq = ValidIO(new LsPipelineBundle)
+    val lsq_replenish = Output(new LsPipelineBundle())
     val stout = DecoupledIO(new ExuOutput) // writeback store
     // store mask, send to sq in store_s0
     val storeMaskOut = Valid(new StoreMaskBundle)
   })
 
-  val store_s0 = Module(new StoreUnit_S0(rsBankNum, rsEntryNum))
-  val store_s1 = Module(new StoreUnit_S1(rsBankNum, rsEntryNum))
-  val store_s2 = Module(new StoreUnit_S2(rsBankNum, rsEntryNum))
-  val store_s3 = Module(new StoreUnit_S3(rsBankNum, rsEntryNum))
+  val store_s0 = Module(new StoreUnit_S0)
+  val store_s1 = Module(new StoreUnit_S1)
+  val store_s2 = Module(new StoreUnit_S2)
+  val store_s3 = Module(new StoreUnit_S3)
 
   store_s0.io.in <> io.stin
   store_s0.io.dtlbReq <> io.tlb.req

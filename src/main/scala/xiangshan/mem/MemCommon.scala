@@ -47,7 +47,7 @@ object genWdata {
   }
 }
 
-class LsPipelineBundle(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSBundle {
+class LsPipelineBundle(implicit p: Parameters) extends XSBundle {
   val vaddr = UInt(VAddrBits.W)
   val paddr = UInt(PAddrBits.W)
   // val func = UInt(6.W)
@@ -60,7 +60,7 @@ class LsPipelineBundle(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) ex
   val tlbMiss = Bool()
   val ptwBack = Bool()
   val mmio = Bool()
-  val rsIdx = new RsIdx(rsBankNum, rsEntryNum)
+  val rsIdx = new RsIdx
 
   val forwardMask = Vec(8, Bool())
   val forwardData = Vec(8, UInt(8.W))

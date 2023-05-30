@@ -20,7 +20,7 @@ object ExuBlockIssueNodeImpl extends SimpleNodeImp[Seq[RsParam], ExuComplexParam
       (pd.filter(_.isMemRs).head, pu, p)
     }
   }
-  override def bundle(e: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle(e._1.bankNum, e._1.entriesNum)(e._3)
+  override def bundle(e: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle()(e._3)
   override def render(e: (RsParam, ExuComplexParam, Parameters)): RenderedEdge = RenderedEdge("#0000ff", e._1.TypeName + "Issue")
 }
 

@@ -145,6 +145,7 @@ case class XSCoreParameters
   intRsDepth:Int = 32,
   fpRsDepth:Int = 32,
   memRsDepth:Int = 48,
+  rsBankNum:Int = 4,
   exuParameters: ExuParameters = ExuParameters(),
   prefetcher: Option[PrefetcherParams] = Some(SMSParams()),
   LoadPipelineWidth: Int = 2,
@@ -233,8 +234,9 @@ case class XSCoreParameters
   usePTWRepeater: Boolean = false,
   softPTW: Boolean = false // dpi-c debug only
 ){
-  val allHistLens = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
-  val HistoryLength = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
+  val allHistLens: Seq[Int] = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
+  val HistoryLength: Int = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
+  val maxRsEntryNum: Int = Seq(fpRsDepth, intRsDepth, memRsDepth).max
 }
 
 case object DebugOptionsKey extends Field[DebugOptions]

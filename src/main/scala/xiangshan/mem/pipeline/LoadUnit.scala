@@ -23,6 +23,7 @@ import utils._
 import xs.utils._
 import xiangshan.ExceptionNO._
 import xiangshan._
+import xiangshan.backend.execute.fu.FuConfigs.lduCfg
 import xiangshan.backend.execute.fu.PMPRespBundle
 import xiangshan.backend.execute.fu.csr.SdtrigExt
 import xiangshan.backend.issue.{RSFeedback, RSFeedbackType}
@@ -231,11 +232,9 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
     RegNext(io.csrCtrl.ldld_vio_check_enable)
   io.needLdVioCheckRedo := needLdVioCheckRedo
   io.rsFeedback.valid := io.in.valid && (s1_bank_conflict || needLdVioCheckRedo) && !io.s1_kill
-  io.rsFeedback.bits.hit := false.B // we have found s1_bank_conflict / re do ld-ld violation check
   io.rsFeedback.bits.rsIdx := io.in.bits.rsIdx
   io.rsFeedback.bits.flushState := io.in.bits.ptwBack
   io.rsFeedback.bits.sourceType := Mux(s1_bank_conflict, RSFeedbackType.bankConflict, RSFeedbackType.ldVioCheckRedo)
-  io.rsFeedback.bits.dataInvalidSqIdx := DontCare
 
   // if replay is detected in load_s1,
   // load inst will be canceled immediately
@@ -442,7 +441,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
   io.in.ready := io.out.ready || !io.in.valid
 
   // feedback tlb result to RS
-  io.rsFeedback.valid := io.in.valid
+
   val s2_need_replay_from_rs = Wire(Bool())
   if (EnableFastForward) {
     s2_need_replay_from_rs :=
@@ -456,7 +455,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
       s2_cache_replay && !s2_is_prefetch && !s2_mmio && !s2_exception && !io.dataForwarded || // replay if dcache miss queue full / busy
       s2_data_invalid && !s2_is_prefetch // replay if store to load forward data is not ready
   }
-  io.rsFeedback.bits.hit := !s2_need_replay_from_rs
+  io.rsFeedback.valid := io.in.valid && s2_need_replay_from_rs
   io.rsFeedback.bits.rsIdx := io.in.bits.rsIdx
   io.rsFeedback.bits.flushState := io.in.bits.ptwBack
   io.rsFeedback.bits.sourceType := Mux(s2_tlb_miss, RSFeedbackType.tlbMiss,
@@ -465,15 +464,13 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
       RSFeedbackType.dataInvalid
     )
   )
-  io.rsFeedback.bits.dataInvalidSqIdx.value := io.dataInvalidSqIdx
-  io.rsFeedback.bits.dataInvalidSqIdx.flag := DontCare
 
   // s2_cache_replay is quite slow to generate, send it separately to LQ
   if (EnableFastForward) {
     io.s2_dcache_require_replay := s2_cache_replay && !fullForward
   } else {
     io.s2_dcache_require_replay := s2_cache_replay &&
-      !io.rsFeedback.bits.hit &&
+      io.rsFeedback.valid &&
       !io.dataForwarded &&
       !s2_is_prefetch &&
       io.out.bits.miss
@@ -486,21 +483,21 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
   XSPerfAccumulate("dcache_miss_first_issue", io.in.fire && s2_cache_miss && io.in.bits.isFirstIssue)
   XSPerfAccumulate("full_forward", io.in.valid && fullForward)
   XSPerfAccumulate("dcache_miss_full_forward", io.in.valid && s2_cache_miss && fullForward)
-  XSPerfAccumulate("replay",  io.rsFeedback.valid && !io.rsFeedback.bits.hit)
-  XSPerfAccumulate("replay_tlb_miss", io.rsFeedback.valid && !io.rsFeedback.bits.hit && s2_tlb_miss)
-  XSPerfAccumulate("replay_cache", io.rsFeedback.valid && !io.rsFeedback.bits.hit && !s2_tlb_miss && s2_cache_replay)
+  XSPerfAccumulate("replay",  io.rsFeedback.valid)
+  XSPerfAccumulate("replay_tlb_miss", io.rsFeedback.valid && s2_tlb_miss)
+  XSPerfAccumulate("replay_cache", io.rsFeedback.valid && !s2_tlb_miss && s2_cache_replay)
   XSPerfAccumulate("stall_out", io.out.valid && !io.out.ready)
   XSPerfAccumulate("replay_from_fetch_forward", io.out.valid && debug_forwardFailReplay)
   XSPerfAccumulate("replay_from_fetch_load_vio", io.out.valid && debug_ldldVioReplay)
 }
 
-class LoadUnit(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XSModule with HasLoadHelper with HasPerfEvents with SdtrigExt {
+class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with HasPerfEvents with SdtrigExt {
   val io = IO(new Bundle() {
     val ldin = Flipped(Decoupled(new ExuInput))
     val ldout = Decoupled(new ExuOutput)
     val redirect = Flipped(ValidIO(new Redirect))
-    val feedbackSlow = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
-    val feedbackFast = ValidIO(new RSFeedback(rsBankNum, rsEntryNum))
+    val feedbackSlow = ValidIO(new RSFeedback)
+    val feedbackFast = ValidIO(new RSFeedback)
     val rsIdx = Input(UInt(log2Up(IssQueSize).W))
     val isFirstIssue = Input(Bool())
     val dcache = new DCacheLoadIO
@@ -820,9 +817,9 @@ class LoadUnit(rsBankNum:Int, rsEntryNum:Int)(implicit p: Parameters) extends XS
     ("load_s1_tlb_miss        ", load_s1.io.in.fire && load_s1.io.dtlbResp.bits.miss                                                                             ),
     ("load_s2_in_fire         ", load_s2.io.in.fire                                                                                                              ),
     ("load_s2_dcache_miss     ", load_s2.io.in.fire && load_s2.io.dcacheResp.bits.miss                                                                           ),
-    ("load_s2_replay          ", load_s2.io.rsFeedback.valid && !load_s2.io.rsFeedback.bits.hit                                                                  ),
-    ("load_s2_replay_tlb_miss ", load_s2.io.rsFeedback.valid && !load_s2.io.rsFeedback.bits.hit && load_s2.io.in.bits.tlbMiss                                    ),
-    ("load_s2_replay_cache    ", load_s2.io.rsFeedback.valid && !load_s2.io.rsFeedback.bits.hit && !load_s2.io.in.bits.tlbMiss && load_s2.io.dcacheResp.bits.miss),
+    ("load_s2_replay          ", load_s2.io.rsFeedback.valid                                                                 ),
+    ("load_s2_replay_tlb_miss ", load_s2.io.rsFeedback.valid && load_s2.io.in.bits.tlbMiss                                    ),
+    ("load_s2_replay_cache    ", load_s2.io.rsFeedback.valid && !load_s2.io.in.bits.tlbMiss && load_s2.io.dcacheResp.bits.miss),
   )
   generatePerfEvent()
 

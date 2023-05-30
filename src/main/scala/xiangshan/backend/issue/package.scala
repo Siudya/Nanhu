@@ -86,28 +86,28 @@ package object issue {
     def apply(): UInt = UInt(width.W)
   }
 
-  class RSFeedback(bankNum: Int, entriesNum: Int)(implicit p: Parameters) extends XSBundle {
-    val rsIdx = new RsIdx(bankNum, entriesNum / bankNum)
+  class RSFeedback(implicit p: Parameters) extends XSBundle {
+    val rsIdx = new RsIdx
     val flushState: Bool = Bool()
     val sourceType: UInt = RSFeedbackType()
   }
 
-  class RSFeedbackIO(bankNum: Int, entriesNum: Int)(implicit p: Parameters) extends XSBundle {
+  class RSFeedbackIO(implicit p: Parameters) extends XSBundle {
     // Note: you need to update in implicit Parameters p before imp MemRSFeedbackIO
     // for instance: MemRSFeedbackIO()(updateP)
-    val feedbackSlow = ValidIO(new RSFeedback(bankNum, entriesNum)) // dcache miss queue full, dtlb miss
-    val feedbackFast = ValidIO(new RSFeedback(bankNum, entriesNum)) // bank conflict
+    val feedbackSlow = ValidIO(new RSFeedback) // dcache miss queue full, dtlb miss
+    val feedbackFast = ValidIO(new RSFeedback) // bank conflict
     val isFirstIssue: Bool = Input(Bool())
   }
 
-  class IssueBundle(bankNum: Int, entryNum: Int)(implicit p: Parameters) extends XSBundle {
+  class IssueBundle(implicit p: Parameters) extends XSBundle {
     val issue = DecoupledIO(new ExuInput)
-    val rsIdx: RsIdx = Output(new RsIdx(bankNum, entryNum / bankNum))
-    val rsFeedback: RSFeedbackIO = Flipped(new RSFeedbackIO(bankNum, entryNum))
+    val rsIdx: RsIdx = Output(new RsIdx)
+    val rsFeedback: RSFeedbackIO = Flipped(new RSFeedbackIO)
   }
 
-  class RsIdx(bankNum: Int, entryNumPerBank: Int) extends Bundle {
-    val bankIdxOH: UInt = UInt(bankNum.W)
-    val entryIdxOH: UInt = UInt(entryNumPerBank.W)
+  class RsIdx(implicit p: Parameters) extends XSBundle {
+    val bankIdxOH: UInt = UInt(coreParams.rsBankNum.W)
+    val entryIdxOH: UInt = UInt((coreParams.maxRsEntryNum / coreParams.rsBankNum).W)
   }
 }

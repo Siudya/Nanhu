@@ -18,7 +18,7 @@ object ExuInwardImpl extends SimpleNodeImp[Seq[RsParam],ExuConfig,(RsParam, ExuC
       (pd.filter(_.isMemRs).head, pu, p)
     }
   }
-  override def bundle(e: (RsParam, ExuConfig, Parameters)): IssueBundle = new IssueBundle(e._1.bankNum, e._1.entriesNum)(e._3)
+  override def bundle(e: (RsParam, ExuConfig, Parameters)): IssueBundle = new IssueBundle()(e._3)
   override def render(e: (RsParam, ExuConfig, Parameters)) = RenderedEdge("#00ff00", e._2.name)
 }
 object ExuOutwardImpl extends SimpleNodeImp[ExuConfig, Option[ExuConfig],(ExuConfig, Parameters),Valid[ExuOutput]]{

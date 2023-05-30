@@ -63,7 +63,7 @@ object ExuComplexIssueInwardNodeImpl extends InwardNodeImp[Seq[RsParam], ExuComp
       (pd.filter(_.isMemRs).head, pu, p)
     }
   }
-  override def bundleI(ei: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle(ei._1.bankNum, ei._1.entriesNum)(ei._3)
+  override def bundleI(ei: (RsParam, ExuComplexParam, Parameters)): IssueBundle = new IssueBundle()(ei._3)
   override def render(ei: (RsParam, ExuComplexParam, Parameters)): RenderedEdge = RenderedEdge("#0000ff", ei._2.exuConfigs.map(_.name).reduce(_++_))
 }
 object ExuComplexIssueOutwardNodeImpl extends OutwardNodeImp[Seq[RsParam], ExuConfig, (RsParam, ExuConfig, Parameters), IssueBundle]{
@@ -80,7 +80,7 @@ object ExuComplexIssueOutwardNodeImpl extends OutwardNodeImp[Seq[RsParam], ExuCo
     }
   }
 
-  override def bundleO(eo: (RsParam, ExuConfig, Parameters)): IssueBundle = new IssueBundle(eo._1.bankNum, eo._1.entriesNum)(eo._3)
+  override def bundleO(eo: (RsParam, ExuConfig, Parameters)): IssueBundle = new IssueBundle()(eo._3)
 }
 class ExuComplexIssueNode(implicit valName: ValName) extends
   MixedNexusNode(inner = ExuComplexIssueInwardNodeImpl, outer = ExuComplexIssueOutwardNodeImpl)(
