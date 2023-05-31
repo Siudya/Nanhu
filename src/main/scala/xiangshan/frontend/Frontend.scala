@@ -23,7 +23,9 @@ import xs.utils.mbist.MBISTPipeline
 import utils._
 import xs.utils._
 import xiangshan._
-import xiangshan.backend.fu.{PFEvent, PMP, PMPChecker, PMPReqBundle}
+import xiangshan.backend.execute.fu.csr.PFEvent
+import xiangshan.backend.execute.fu.fence.SfenceBundle
+import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle}
 import xiangshan.cache.mmu._
 import xiangshan.frontend.icache._
 

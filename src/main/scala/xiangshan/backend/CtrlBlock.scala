@@ -23,7 +23,7 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utils._
 import xiangshan._
 import xiangshan.backend.decode.{DecodeStage, FusionDecoder, ImmUnion}
-import xiangshan.backend.dispatch.{Dispatch, DispatchQueue}
+import xiangshan.backend.dispatch.{Dispatch, DispatchQueue, MemDispatch2Rs}
 import xiangshan.backend.execute.fu.csr.PFEvent
 import xiangshan.backend.rename.{Rename, RenameTableWrapper}
 import xiangshan.backend.rob.{Rob, RobCSRIO, RobLsqIO}
@@ -62,10 +62,9 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val lqCancelCnt = Input(UInt(log2Up(LoadQueueSize + 1).W))
     val sqCancelCnt = Input(UInt(log2Up(StoreQueueSize + 1).W))
     val sqDeq = Input(UInt(2.W))
-    val ld_pc_read = Vec(exuParameters.LduCnt, Flipped(new FtqRead(UInt(VAddrBits.W))))
     // from int block
     val redirectIn = Input(Valid(new Redirect))
-    val memPredUpdate = Input(new MemPredUpdateReq)
+    val memPredUpdate = Input(Valid(new MemPredUpdateReq))
     val stIn = Vec(exuParameters.StuCnt, Flipped(ValidIO(new ExuInput)))
     val robio = new Bundle {
       // to int block
@@ -107,7 +106,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   private val fpDq = Module(new DispatchQueue(dpParams.FpDqSize, RenameWidth, fpDispatch._2.bankNum))
   private val lsDq = Module(new DispatchQueue(dpParams.LsDqSize, RenameWidth, lsDispatch._2.bankNum))
   private val rob = outer.rob.module
-  private val lsqCtrl = Module(new LsqEnqCtrl)
+  private val memDispatch2Rs = Module(new MemDispatch2Rs)
 
   for (i <- 0 until CommitWidth) {
     val is_commit = rob.io.commits.commitValid(i) && rob.io.commits.isCommit
@@ -173,11 +172,9 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     waittable.io.raddr(i) := mdp_foldpc
   }
   // currently, we only update mdp info when isReplay
-  ssit.io.update := RegEnable(io.memPredUpdate, io.memPredUpdate.valid)
-  ssit.io.update.valid := RegNext(io.memPredUpdate.valid, false.B)
+  ssit.io.update := Pipe(io.memPredUpdate)
   ssit.io.csrCtrl := RegNext(io.csrCtrl)
-  waittable.io.update := RegEnable(io.memPredUpdate, io.memPredUpdate.valid)
-  waittable.io.update.valid := RegNext(io.memPredUpdate.valid, false.B)
+  waittable.io.update := Pipe(io.memPredUpdate)
   waittable.io.csrCtrl := RegNext(io.csrCtrl)
 
   // LFST lookup and update
@@ -262,21 +259,15 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
 
   intDeq <> intDq.io.deq
   fpDeq <> fpDq.io.deq
-  lsDeq <> lsDq.io.deq
 
-  lsqCtrl.io.redirect := Pipe(io.redirectIn)
-  lsqCtrl.io.lcommit := rob.io.lsq.lcommit
-  lsqCtrl.io.scommit := io.sqDeq
-  lsqCtrl.io.lqCancelCnt := io.lqCancelCnt
-  lsqCtrl.io.sqCancelCnt := io.sqCancelCnt
-  lsqCtrl.io.enq.req.zip(lsDq.io.deq).foreach({case(l, d) =>
-    l.valid := d.valid
-    l.bits := d.bits
-  })
-
-  lsDeq.zip(lsDq.io.deq).foreach({ case(a, b) =>
-    a.valid := b.valid & lsqCtrl.io.enq.canAccept
-  })
+  memDispatch2Rs.io.redirect := Pipe(io.redirectIn)
+  memDispatch2Rs.io.lcommit := rob.io.lsq.lcommit
+  memDispatch2Rs.io.scommit := io.sqDeq
+  memDispatch2Rs.io.lqCancelCnt := io.lqCancelCnt
+  memDispatch2Rs.io.sqCancelCnt := io.sqCancelCnt
+  memDispatch2Rs.io.enqLsq <> io.enqLsq
+  memDispatch2Rs.io.in <> lsDq.io.deq
+  lsDeq <> memDispatch2Rs.io.out
 
   rob.io.hartId := io.hartId
   io.cpu_halt := DelayN(rob.io.cpu_halt, 5)

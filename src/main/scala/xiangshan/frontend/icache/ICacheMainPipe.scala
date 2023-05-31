@@ -22,8 +22,8 @@ import chisel3.util._
 import xiangshan._
 import xiangshan.cache.mmu._
 import utils._
+import xiangshan.backend.execute.fu.{PMPReqBundle, PMPRespBundle}
 import xs.utils._
-import xiangshan.backend.fu.{PMPReqBundle, PMPRespBundle}
 import xiangshan.frontend.{FtqICacheInfo, FtqToICacheRequestBundle}
 
 class ICacheMainPipeReq(implicit p: Parameters) extends ICacheBundle

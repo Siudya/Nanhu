@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.exu.ExuType
 import freechips.rocketchip.diplomacy._
-import xiangshan.{HasXSParameter, Redirect}
+import xiangshan.{HasXSParameter, MemPredUpdateReq, Redirect}
 import xiangshan.frontend.Ftq_RF_Components
 class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
   val node = new WriteBackNetworkNode
@@ -21,6 +21,7 @@ class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
       val pcReadAddr = Output(Vec(2, UInt(log2Ceil(FtqSize).W)))
       val pcReadData = Input(Vec(2, new Ftq_RF_Components))
       val redirectOut = Output(Valid(new Redirect))
+      val memPredUpdate = Output(Valid(new MemPredUpdateReq))
     })
     private val jmpNum = wbSources.count(_._2.exuType == ExuType.jmp)
     private val aluNum = wbSources.count(_._2.exuType == ExuType.alu)
@@ -49,6 +50,7 @@ class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
     private val localRedirectReg = Pipe(redirectGen.io.redirectOut)
     redirectGen.io.redirectIn := localRedirectReg
     io.redirectOut := redirectGen.io.redirectOut
+    io.memPredUpdate := redirectGen.io.memPredUpdate
 
     for(s <- wbSink){
       val sinkParam = s._2._2

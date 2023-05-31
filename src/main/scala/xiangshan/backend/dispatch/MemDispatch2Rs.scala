@@ -29,7 +29,7 @@ class MemDispatch2Rs(implicit p: Parameters) extends XSModule{
   private val enqCtrl = lsqCtrl.io.enq
   private val fuType = io.in.map(_.bits.ctrl.fuType)
   private val isLs = fuType.map(f => FuType.isLoadStore(f))
-  private val isStore = fuType.map(f => FuType.isStoreExu(f))
+  private val isStore = fuType.map(f => FuType.isStore(f))
 
   private def isBlocked(index: Int): Bool = {
     if (index >= 2) {
@@ -44,17 +44,16 @@ class MemDispatch2Rs(implicit p: Parameters) extends XSModule{
   }
 
   for (i <- io.in.indices) {
-    is_blocked(i) := isBlocked(i)
-    io.out(i).valid := io.in(i).valid && !is_blocked(i)
-    io.in(i).ready := io.out(i).ready && !is_blocked(i)
-
     enqCtrl.needAlloc(i) := Mux(io.in(i).valid && isLs(i), Mux(isStore(i), 2.U, 1.U), 0.U)
+    enqCtrl.req(i).valid := io.out(i).fire
     enqCtrl.req(i).bits := io.in(i).bits
+
+    is_blocked(i) := isBlocked(i)
+    io.out(i).valid := io.in(i).valid && !is_blocked(i) && io.enqLsq.canAccept
+    io.out(i).bits := io.in(i).bits
     io.out(i).bits.lqIdx := enqCtrl.resp(i).lqIdx
     io.out(i).bits.sqIdx := enqCtrl.resp(i).sqIdx
 
-    enqCtrl.req(i).valid := io.out(i).valid && VecInit(io.out.map(_.ready)).asUInt.andR
+    io.in(i).ready := io.out(i).ready && !is_blocked(i) && io.enqLsq.canAccept
   }
-
-
 }

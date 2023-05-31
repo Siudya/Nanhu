@@ -48,7 +48,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
     // to rename
     val rdata = Vec(RenameWidth, Output(new SSITEntry))
     // misc
-    val update = Input(new MemPredUpdateReq) // RegNext should be added outside
+    val update = Input(Valid(new MemPredUpdateReq)) // RegNext should be added outside
     val csrCtrl = Input(new CustomCSRCtrlIO)
   })
 
@@ -157,48 +157,46 @@ class SSIT(implicit p: Parameters) extends XSModule {
   // update SSIT if load violation redirect is detected
 
   // update stage 0: read ssit
-  val s1_mempred_update_req_valid = RegNext(io.update.valid)
-  val s1_mempred_update_req = RegEnable(io.update, io.update.valid)
+  private val s1_mempred_update_req = Pipe(io.update)
 
   // when io.update.valid, take over ssit read port
   when (io.update.valid) {
-    valid_array.io.raddr(SSIT_UPDATE_LOAD_READ_PORT) := io.update.ldpc
-    valid_array.io.raddr(SSIT_UPDATE_STORE_READ_PORT) := io.update.stpc
-    data_array.io.raddr(SSIT_UPDATE_LOAD_READ_PORT) := io.update.ldpc
-    data_array.io.raddr(SSIT_UPDATE_STORE_READ_PORT) := io.update.stpc
+    valid_array.io.raddr(SSIT_UPDATE_LOAD_READ_PORT) := io.update.bits.ldpc
+    valid_array.io.raddr(SSIT_UPDATE_STORE_READ_PORT) := io.update.bits.stpc
+    data_array.io.raddr(SSIT_UPDATE_LOAD_READ_PORT) := io.update.bits.ldpc
+    data_array.io.raddr(SSIT_UPDATE_STORE_READ_PORT) := io.update.bits.stpc
   }
 
   // update stage 1: get ssit read result
 
   // Read result
   // load has already been assigned with a store set
-  val s1_loadAssigned = valid_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT)
-  val s1_loadOldSSID = data_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT).ssid
-  val s1_loadStrict = data_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT).strict
+  private val s1_loadAssigned = valid_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT)
+  private val s1_loadOldSSID = data_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT).ssid
+  private val s1_loadStrict = data_array.io.rdata(SSIT_UPDATE_LOAD_READ_PORT).strict
   // store has already been assigned with a store set
-  val s1_storeAssigned = valid_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT)
-  val s1_storeOldSSID = data_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT).ssid
-  val s1_storeStrict = data_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT).strict
+  private val s1_storeAssigned = valid_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT)
+  private val s1_storeOldSSID = data_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT).ssid
+  private val s1_storeStrict = data_array.io.rdata(SSIT_UPDATE_STORE_READ_PORT).strict
   // val s1_ssidIsSame = s1_loadOldSSID === s1_storeOldSSID
 
   // update stage 2, update ssit data_array
-  val s2_mempred_update_req_valid = RegNext(s1_mempred_update_req_valid)
-  val s2_mempred_update_req = RegEnable(s1_mempred_update_req, s1_mempred_update_req_valid)
-  val s2_loadAssigned = RegEnable(s1_loadAssigned, s1_mempred_update_req_valid)
-  val s2_storeAssigned = RegEnable(s1_storeAssigned, s1_mempred_update_req_valid)
-  val s2_loadOldSSID = RegEnable(s1_loadOldSSID, s1_mempred_update_req_valid)
-  val s2_storeOldSSID = RegEnable(s1_storeOldSSID, s1_mempred_update_req_valid)
-  val s2_loadStrict = RegEnable(s1_loadStrict, s1_mempred_update_req_valid)
+  private val s2_mempred_update_req = Pipe(s1_mempred_update_req)
+  private val s2_loadAssigned = RegEnable(s1_loadAssigned, s1_mempred_update_req.valid)
+  private val s2_storeAssigned = RegEnable(s1_storeAssigned, s1_mempred_update_req.valid)
+  private val s2_loadOldSSID = RegEnable(s1_loadOldSSID, s1_mempred_update_req.valid)
+  private val s2_storeOldSSID = RegEnable(s1_storeOldSSID, s1_mempred_update_req.valid)
+  private val s2_loadStrict = RegEnable(s1_loadStrict, s1_mempred_update_req.valid)
 
-  val s2_ssidIsSame = s2_loadOldSSID === s2_storeOldSSID
+  private val s2_ssidIsSame = s2_loadOldSSID === s2_storeOldSSID
   // for now we just use lowest bits of ldpc as store set id
-  val s2_ldSsidAllocate = XORFold(s1_mempred_update_req.ldpc, SSIDWidth)
-  val s2_stSsidAllocate = XORFold(s1_mempred_update_req.stpc, SSIDWidth)
+  private val s2_ldSsidAllocate = XORFold(s1_mempred_update_req.bits.ldpc, SSIDWidth)
+  private val s2_stSsidAllocate = XORFold(s1_mempred_update_req.bits.stpc, SSIDWidth)
   // both the load and the store have already been assigned store sets
   // but load's store set ID is smaller
-  val s2_winnerSSID = Mux(s2_loadOldSSID < s2_storeOldSSID, s2_loadOldSSID, s2_storeOldSSID)
+  private val s2_winnerSSID = Mux(s2_loadOldSSID < s2_storeOldSSID, s2_loadOldSSID, s2_storeOldSSID)
 
-  def update_ld_ssit_entry(pc: UInt, valid: Bool, ssid: UInt, strict: Bool) = {
+  private def update_ld_ssit_entry(pc: UInt, valid: Bool, ssid: UInt, strict: Bool): Unit = {
     valid_array.io.wen(SSIT_UPDATE_LOAD_WRITE_PORT) := true.B
     valid_array.io.waddr(SSIT_UPDATE_LOAD_WRITE_PORT) := pc
     valid_array.io.wdata(SSIT_UPDATE_LOAD_WRITE_PORT) := valid
@@ -211,10 +209,10 @@ class SSIT(implicit p: Parameters) extends XSModule {
     debug_strict(pc) := strict
   }
 
-  def update_st_ssit_entry(pc: UInt, valid: Bool, ssid: UInt, strict: Bool) = {
+  private def update_st_ssit_entry(pc: UInt, valid: Bool, ssid: UInt, strict: Bool): Unit = {
     valid_array.io.wen(SSIT_UPDATE_STORE_WRITE_PORT) := true.B
     valid_array.io.waddr(SSIT_UPDATE_STORE_WRITE_PORT) := pc
-    valid_array.io.wdata(SSIT_UPDATE_STORE_WRITE_PORT):= valid
+    valid_array.io.wdata(SSIT_UPDATE_STORE_WRITE_PORT) := valid
     data_array.io.wen(SSIT_UPDATE_STORE_WRITE_PORT) := true.B
     data_array.io.waddr(SSIT_UPDATE_STORE_WRITE_PORT) := pc
     data_array.io.wdata(SSIT_UPDATE_STORE_WRITE_PORT).ssid := ssid
@@ -224,19 +222,19 @@ class SSIT(implicit p: Parameters) extends XSModule {
     debug_strict(pc) := strict
   }
 
-  when(s2_mempred_update_req_valid){
+  when(s2_mempred_update_req.valid){
     switch (Cat(s2_loadAssigned, s2_storeAssigned)) {
       // 1. "If neither the load nor the store has been assigned a store set,
       // two are allocated and assigned to each instruction."
       is ("b00".U(2.W)) {
         update_ld_ssit_entry(
-          pc = s2_mempred_update_req.ldpc,
+          pc = s2_mempred_update_req.bits.ldpc,
           valid = true.B,
           ssid = s2_ldSsidAllocate,
           strict = false.B
         )
         update_st_ssit_entry(
-          pc = s2_mempred_update_req.stpc,
+          pc = s2_mempred_update_req.bits.stpc,
           valid = true.B,
           ssid = s2_stSsidAllocate,
           strict = false.B
@@ -246,7 +244,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
       // one is allocated and assigned to the store instructions."
       is ("b10".U(2.W)) {
         update_st_ssit_entry(
-          pc = s2_mempred_update_req.stpc,
+          pc = s2_mempred_update_req.bits.stpc,
           valid = true.B,
           ssid = s2_stSsidAllocate,
           strict = false.B
@@ -256,7 +254,7 @@ class SSIT(implicit p: Parameters) extends XSModule {
       // one is allocated and assigned to the load instructions."
       is ("b01".U(2.W)) {
         update_ld_ssit_entry(
-          pc = s2_mempred_update_req.ldpc,
+          pc = s2_mempred_update_req.bits.ldpc,
           valid = true.B,
           ssid = s2_ldSsidAllocate,
           strict = false.B
@@ -267,20 +265,20 @@ class SSIT(implicit p: Parameters) extends XSModule {
       // The instruction belonging to the loser’s store set is assigned the winner’s store set."
       is ("b11".U(2.W)) {
         update_ld_ssit_entry(
-          pc = s2_mempred_update_req.ldpc,
+          pc = s2_mempred_update_req.bits.ldpc,
           valid = true.B,
           ssid = s2_winnerSSID,
           strict = false.B
         )
         update_st_ssit_entry(
-          pc = s2_mempred_update_req.stpc,
+          pc = s2_mempred_update_req.bits.stpc,
           valid = true.B,
           ssid = s2_winnerSSID,
           strict = false.B
         )
         when(s2_ssidIsSame){
           data_array.io.wdata(SSIT_UPDATE_LOAD_READ_PORT).strict := true.B
-          debug_strict(s2_mempred_update_req.ldpc) := true.B
+          debug_strict(s2_mempred_update_req.bits.ldpc) := true.B
         }
       }
     }
@@ -295,18 +293,18 @@ class SSIT(implicit p: Parameters) extends XSModule {
     data_array.io.wen(SSIT_UPDATE_STORE_WRITE_PORT) := false.B
   }
 
-  XSPerfAccumulate("ssit_update_lxsx", s2_mempred_update_req_valid && !s2_loadAssigned && !s2_storeAssigned)
-  XSPerfAccumulate("ssit_update_lysx", s2_mempred_update_req_valid && s2_loadAssigned && !s2_storeAssigned)
-  XSPerfAccumulate("ssit_update_lxsy", s2_mempred_update_req_valid && !s2_loadAssigned && s2_storeAssigned)
-  XSPerfAccumulate("ssit_update_lysy", s2_mempred_update_req_valid && s2_loadAssigned && s2_storeAssigned)
-  XSPerfAccumulate("ssit_update_should_strict", s2_mempred_update_req_valid && s2_ssidIsSame && s2_loadAssigned && s2_storeAssigned)
+  XSPerfAccumulate("ssit_update_lxsx", s2_mempred_update_req.valid && !s2_loadAssigned && !s2_storeAssigned)
+  XSPerfAccumulate("ssit_update_lysx", s2_mempred_update_req.valid && s2_loadAssigned && !s2_storeAssigned)
+  XSPerfAccumulate("ssit_update_lxsy", s2_mempred_update_req.valid && !s2_loadAssigned && s2_storeAssigned)
+  XSPerfAccumulate("ssit_update_lysy", s2_mempred_update_req.valid && s2_loadAssigned && s2_storeAssigned)
+  XSPerfAccumulate("ssit_update_should_strict", s2_mempred_update_req.valid && s2_ssidIsSame && s2_loadAssigned && s2_storeAssigned)
   XSPerfAccumulate("ssit_update_strict_failed",
-    s2_mempred_update_req_valid && s2_ssidIsSame && s2_loadStrict && s2_loadAssigned && s2_storeAssigned
+    s2_mempred_update_req.valid && s2_ssidIsSame && s2_loadStrict && s2_loadAssigned && s2_storeAssigned
   ) // should be zero
 
   // debug
   when (s2_mempred_update_req.valid) {
-    XSDebug("%d: SSIT update: load pc %x store pc %x\n", GTimer(), s2_mempred_update_req.ldpc, s2_mempred_update_req.stpc)
+    XSDebug("%d: SSIT update: load pc %x store pc %x\n", GTimer(), s2_mempred_update_req.bits.ldpc, s2_mempred_update_req.bits.stpc)
     XSDebug("%d: SSIT update: load valid %b ssid %x  store valid %b ssid %x\n", GTimer(), s2_loadAssigned, s2_loadOldSSID, s2_storeAssigned, s2_storeOldSSID)
   }
 }

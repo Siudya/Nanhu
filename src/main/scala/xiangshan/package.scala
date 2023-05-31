@@ -101,7 +101,7 @@ package object xiangshan {
 
     def isLoadStore(fuType: UInt): Bool = isMemExu(fuType)
 
-    def isStoreExu(fuType: UInt): Bool = fuType === stu
+    def isStore(fuType: UInt): Bool = fuType === stu
 
     def isAMO(fuType: UInt): Bool = fuType === mou
 

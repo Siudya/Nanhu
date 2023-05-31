@@ -18,6 +18,7 @@ class FmacExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicEx
   lazy val module = new FmacExuImpl(this, cfg)
 }
 class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer){
+  val csr_frm: UInt = IO(Input(UInt(3.W)))
   private val fmac = Module(new FMA)
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
@@ -27,7 +28,7 @@ class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   fmac.io.in.bits.uop := issuePort.issue.bits.uop
   fmac.io.in.bits.src := issuePort.issue.bits.src
   issuePort.issue.ready := fmac.io.in.ready
-  fmac.rm := issuePort.issue.bits.uop.ctrl.fpu.rm
+  fmac.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
   fmac.midResult.in.bits := DontCare
   fmac.midResult.in.valid := false.B
   fmac.midResult.waitForAdd := false.B

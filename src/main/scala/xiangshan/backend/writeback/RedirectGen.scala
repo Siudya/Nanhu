@@ -61,7 +61,7 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
     val pcReadData = Input(Vec(2, new Ftq_RF_Components))
     val redirectIn = Input(Valid(new Redirect))
     val redirectOut = Output(Valid(new Redirect))
-    val memPredUpdate = Output(new MemPredUpdateReq)
+    val memPredUpdate = Output(Valid(new MemPredUpdateReq))
   })
 
   private val allWb = io.jmpWbIn ++ io.aluWbIn ++ io.memWbIn
@@ -116,10 +116,10 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   // update load violation predictor if load violation redirect triggered
   io.memPredUpdate.valid := RegNext(shouldUpdateMdp, init = false.B)
   // update wait table
-  io.memPredUpdate.waddr := RegEnable(XORFold(s1_pcReadReg(VAddrBits - 1, 1), MemPredPCWidth), shouldUpdateMdp)
-  io.memPredUpdate.wdata := true.B
+  io.memPredUpdate.bits.waddr := RegEnable(XORFold(s1_pcReadReg(VAddrBits - 1, 1), MemPredPCWidth), shouldUpdateMdp)
+  io.memPredUpdate.bits.wdata := true.B
   // update store set
-  io.memPredUpdate.ldpc := RegEnable(XORFold(s1_pcReadReg(VAddrBits - 1, 1), MemPredPCWidth), shouldUpdateMdp)
+  io.memPredUpdate.bits.ldpc := RegEnable(XORFold(s1_pcReadReg(VAddrBits - 1, 1), MemPredPCWidth), shouldUpdateMdp)
   // store pc is ready 1 cycle after s1_isReplay is judged
-  io.memPredUpdate.stpc := XORFold(storePc(VAddrBits - 1, 1), MemPredPCWidth)
+  io.memPredUpdate.bits.stpc := XORFold(storePc(VAddrBits - 1, 1), MemPredPCWidth)
 }

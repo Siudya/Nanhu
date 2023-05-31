@@ -29,7 +29,7 @@ class WaitTable(implicit p: Parameters) extends XSModule {
     // to decode
     val raddr = Vec(DecodeWidth, Input(UInt(MemPredPCWidth.W))) // decode pc(VaddrBits-1, 1)
     val rdata = Vec(DecodeWidth, Output(Bool())) // loadWaitBit
-    val update = Input(new MemPredUpdateReq) // RegNext should be added outside
+    val update = Input(Valid(new MemPredUpdateReq)) // RegNext should be added outside
     val csrCtrl = Input(new CustomCSRCtrlIO)
   })
 
@@ -46,7 +46,7 @@ class WaitTable(implicit p: Parameters) extends XSModule {
 
   // write port
   when(io.update.valid){
-    data(io.update.waddr) := Cat(data(io.update.waddr)(0), true.B)
+    data(io.update.bits.waddr) := Cat(data(io.update.bits.waddr)(0), true.B)
   }
 
   // reset period: ResetTimeMax2Pow
@@ -59,7 +59,7 @@ class WaitTable(implicit p: Parameters) extends XSModule {
 
   // debug
   when (io.update.valid) {
-    XSDebug("%d: waittable update: pc %x data: %x\n", GTimer(), io.update.waddr, io.update.wdata)
+    XSDebug("%d: waittable update: pc %x data: %x\n", GTimer(), io.update.bits.waddr, io.update.bits.wdata)
   }
 
   XSPerfAccumulate("wait_table_bit_set", PopCount(data.map(d => d(1))))

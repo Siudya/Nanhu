@@ -23,6 +23,7 @@ class FdivExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicEx
   lazy val module = new FdivExuImpl(this, cfg)
 }
 class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer) with HasXSParameter{
+  val csr_frm: UInt = IO(Input(UInt(3.W)))
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
 
@@ -36,7 +37,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     fu.io.in.valid := issuePort.issue.valid & fuSel.bits(idx) & issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType
     fu.io.in.bits.uop := issuePort.issue.bits.uop
     fu.io.in.bits.src := issuePort.issue.bits.src
-    fu.rm := issuePort.issue.bits.uop.ctrl.fpu.rm
+    fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
     fu.io.out.ready := arbIn.ready
     arbIn.valid := fu.io.out.valid
     arbIn.bits.data := fu.io.out.bits.data

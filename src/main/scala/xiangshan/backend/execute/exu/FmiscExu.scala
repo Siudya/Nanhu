@@ -19,6 +19,7 @@ class FmiscExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicE
   lazy val module = new FmiscExuImpl(this, cfg)
 }
 class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer){
+  val csr_frm: UInt = IO(Input(UInt(3.W)))
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
 
@@ -29,7 +30,7 @@ class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) exte
   issuePort.issue.ready := true.B
   fuList.zip(exuCfg.fuConfigs).foreach({case(fu,cfg) =>
     fu.io.redirectIn := redirectIn
-    fu.rm := issuePort.issue.bits.uop.ctrl.fpu.rm
+    fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
     fu.io.in.valid := issuePort.issue.valid & issuePort.issue.bits.uop.ctrl.fuType === cfg.fuType
     fu.io.in.bits.uop := issuePort.issue.bits.uop
     fu.io.in.bits.src := issuePort.issue.bits.src

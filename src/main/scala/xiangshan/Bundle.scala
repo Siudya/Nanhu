@@ -382,8 +382,6 @@ class TlbCsrBundle(implicit p: Parameters) extends XSBundle {
 
 // Bundle for load violation predictor updating
 class MemPredUpdateReq(implicit p: Parameters) extends XSBundle  {
-  val valid = Bool()
-
   // wait table update
   val waddr = UInt(MemPredPCWidth.W)
   val wdata = Bool() // true.B by default
@@ -445,6 +443,11 @@ class DistributedCSRIO(implicit p: Parameters) extends XSBundle {
     val addr = Output(UInt(12.W))
     val data = Output(UInt(XLEN.W))
   })
+  def delay():DistributedCSRIO = {
+    val delay = Wire(new DistributedCSRIO)
+    delay.w := Pipe(this.w)
+    delay
+  }
 }
 
 class DistributedCSRUpdateReq(implicit p: Parameters) extends XSBundle {
