@@ -26,7 +26,7 @@ import xiangshan._
 import xiangshan.backend.execute.fu.FuConfigs.lduCfg
 import xiangshan.backend.execute.fu.PMPRespBundle
 import xiangshan.backend.execute.fu.csr.SdtrigExt
-import xiangshan.backend.issue.{RSFeedback, RSFeedbackType}
+import xiangshan.backend.issue.{RSFeedback, RSFeedbackType, RsIdx}
 import xiangshan.cache._
 import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 
@@ -66,7 +66,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
     val out = Decoupled(new LsPipelineBundle)
     val dtlbReq = DecoupledIO(new TlbReq)
     val dcacheReq = DecoupledIO(new DCacheWordReq)
-    val rsIdx = Input(UInt(log2Up(IssQueSize).W))
+    val rsIdx = Input(new RsIdx)
     val isFirstIssue = Input(Bool())
     val fastpath = Input(new LoadToLoadIO)
     val s0_kill = Input(Bool())
@@ -498,7 +498,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     val redirect = Flipped(ValidIO(new Redirect))
     val feedbackSlow = ValidIO(new RSFeedback)
     val feedbackFast = ValidIO(new RSFeedback)
-    val rsIdx = Input(UInt(log2Up(IssQueSize).W))
+    val rsIdx = Input(new RsIdx)
     val isFirstIssue = Input(Bool())
     val dcache = new DCacheLoadIO
     val sbuffer = new LoadForwardQueryIO

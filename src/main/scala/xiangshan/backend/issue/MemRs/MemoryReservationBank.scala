@@ -31,10 +31,9 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     val stdIssueUop = Output(new MicroOp)
     val lduIssueUop = Output(new MicroOp)
 
-    val replay = Input(Vec(2, Valid(new Bundle {
-      val entryIdxOH = UInt(entryNum.W)
-      val waitVal = UInt(5.W)
-    })))
+    val loadReplay = Input(Vec(2, Valid(new Replay(entryNum))))
+    val storeReplay = Input(Vec(2, Valid(new Replay(entryNum))))
+
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(Valid(new RobPtr))
 
@@ -44,7 +43,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   })
 
 
-  private val statusArray = Module(new MemoryStatusArray(entryNum, stuNum, wakeupWidth:Int))
+  private val statusArray = Module(new MemoryStatusArray(entryNum, stuNum, lduNum, wakeupWidth:Int))
   private val payloadArray = Module(new PayloadArray(new MicroOp, entryNum, issueWidth, "IntegerPayloadArray"))
 
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
@@ -83,7 +82,8 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   statusArray.io.staIssue := io.staIssue
   statusArray.io.stdIssue := io.stdIssue
   statusArray.io.lduIssue := io.lduIssue
-  statusArray.io.replay := io.replay
+  statusArray.io.loadReplay := io.loadReplay
+  statusArray.io.storeReplay := io.storeReplay
   statusArray.io.stIssued.zip(io.stIssued).foreach({case(a, b) => a := Pipe(b)})
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup

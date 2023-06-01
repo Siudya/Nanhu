@@ -31,9 +31,6 @@ class PcMem(numRead:Int, numWrite:Int)(implicit p: Parameters) extends XSModule{
   })
 
   io.read.foreach(r => {
-    val bypassHits = io.write.map(w => w.en && w.addr === r.addr)
-    val bypassData = Mux1H(bypassHits, io.write.map(_.data))
-    val bypassValid = bypassHits.reduce(_|_)
-    r.data := Mux(bypassValid, bypassData, mem(r.addr).asTypeOf(new Ftq_RF_Components))
+    r.data := mem(r.addr).asTypeOf(new Ftq_RF_Components)
   })
 }

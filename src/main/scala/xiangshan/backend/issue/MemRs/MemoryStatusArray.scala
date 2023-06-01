@@ -25,7 +25,7 @@ import chisel3.experimental.ChiselAnnotation
 import chisel3.util._
 import firrtl.passes.InlineAnnotation
 import xiangshan.backend.issue.{BasicStatusArrayEntry, EarlyWakeUpInfo, SelectInfo, WakeUpInfo}
-import xiangshan.{FuType, Redirect, SrcState, XSModule}
+import xiangshan.{FuType, Redirect, SrcState, XSBundle, XSModule}
 import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
 import xiangshan.backend.issue.MemRs.EntryState._
@@ -254,8 +254,12 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
     def toFirrtl = InlineAnnotation(toNamed)
   })
 }
+class Replay(entryNum:Int) extends Bundle {
+  val entryIdxOH = UInt(entryNum.W)
+  val waitVal = UInt(5.W)
+}
 
-class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends XSModule{
+class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val redirect = Input(Valid(new Redirect))
 
@@ -276,10 +280,8 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int)(implicit p: P
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
-    val replay = Input(Vec(2, Valid(new Bundle {
-      val entryIdxOH = UInt(entryNum.W)
-      val waitVal = UInt(5.W)
-    })))
+    val loadReplay = Input(Vec(2, Valid(new Replay(entryNum))))
+    val storeReplay = Input(Vec(2, Valid(new Replay(entryNum))))
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(Valid(new RobPtr))
   })
@@ -329,8 +331,8 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int)(implicit p: P
     updateNetwork.io.loadEarlyWakeup := io.loadEarlyWakeup
     updateNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
 
-    val replaySels = io.replay.map(r => r.valid && r.bits.entryIdxOH(idx))
-    val replayVals = io.replay.map(_.bits.waitVal)
+    val replaySels = (io.loadReplay ++ io.storeReplay).map(r => r.valid && r.bits.entryIdxOH(idx))
+    val replayVals = (io.loadReplay ++ io.storeReplay).map(_.bits.waitVal)
     updateNetwork.io.replay.valid := replaySels.reduce(_|_)
     updateNetwork.io.replay.bits := Mux1H(replaySels, replayVals)
     updateNetwork.io.redirect := io.redirect

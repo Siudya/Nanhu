@@ -859,8 +859,8 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   // **********************************************************************
   // to backend pc mem / target
   io.toBackend.pc_mem_wen   := RegNext(last_cycle_bpu_in)
-  io.toBackend.pc_mem_waddr := RegNext(last_cycle_bpu_in_idx)
-  io.toBackend.pc_mem_wdata := RegNext(bpu_in_bypass_buf_for_ifu)
+  io.toBackend.pc_mem_waddr := RegEnable(last_cycle_bpu_in_idx, last_cycle_bpu_in)
+  io.toBackend.pc_mem_wdata := RegEnable(bpu_in_bypass_buf_for_ifu, last_cycle_bpu_in)
 
   // *******************************************************************************
   // **************************** redirect from backend ****************************

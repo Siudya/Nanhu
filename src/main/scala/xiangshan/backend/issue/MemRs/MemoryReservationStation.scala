@@ -132,9 +132,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     val iread1 = integerBusyTable.io.read(intBusyTableReadIdx + 1)
     val type0 = source.bits.ctrl.srcType(0)
     val type1 = source.bits.ctrl.srcType(1)
-    fread := source.bits.psrc(1)
-    iread0 := source.bits.psrc(0)
-    iread1 := source.bits.psrc(1)
+    fread.req := source.bits.psrc(1)
+    iread0.req := source.bits.psrc(0)
+    iread1.req := source.bits.psrc(1)
     sink.valid := source.valid
     sink.bits := source.bits
     sink.bits.srcState(0) := Mux(type0 === SrcType.reg, iread0.resp, SrcState.rdy)
@@ -156,6 +156,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   private var staPortIdx = 0
   private var stdPortIdx = 0
   private var lduPortIdx = 0
+  private var replayPortIdx = 0
   private val staIssBankNum = param.bankNum / staIssuePortNum
   private val stdIssBankNum = param.bankNum / stdIssuePortNum
   private val lduIssBankNum = param.bankNum / lduIssuePortNum
@@ -180,6 +181,23 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
 
         stIssuedWires(staPortIdx).valid := issueDriver.io.deq.fire
         stIssuedWires(staPortIdx).bits := issueDriver.io.deq.bits.uop.robIdx
+
+        val replayPortSel = selectedBanks.map(_.io.storeReplay)
+        for ((rp, idx) <- replayPortSel.zipWithIndex) {
+          val fFast = iss._1.rsFeedback.feedbackFast
+          val fSlow = iss._1.rsFeedback.feedbackSlow
+          val faskBankIdxSel = fFast.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
+          val fastFeedBackEn = fFast.valid && faskBankIdxSel(idx)
+          rp(0).valid := RegNext(fastFeedBackEn, false.B)
+          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
+          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
+
+          val slowBankIdxSel = fSlow.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
+          val slowFeedBackEn = fSlow.valid && slowBankIdxSel(idx)
+          rp(1).valid := RegNext(slowFeedBackEn, false.B)
+          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
+          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
+        }
 
         staPortIdx = staPortIdx + 1
         (res, selPayload)
@@ -206,7 +224,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
         }
         val selPayload = Mux1H(bankEns, bankPayloadData)
 
-        val replayPortSel = selectedBanks.map(_.io.replay)
+        val replayPortSel = selectedBanks.map(_.io.loadReplay)
         for ((rp, idx) <- replayPortSel.zipWithIndex) {
           val fFast = iss._1.rsFeedback.feedbackFast
           val fSlow = iss._1.rsFeedback.feedbackSlow

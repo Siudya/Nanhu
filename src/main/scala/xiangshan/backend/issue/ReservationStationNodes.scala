@@ -36,4 +36,4 @@ class RsIssueNode(param:RsParam)(implicit valName: ValName) extends SourceNode(R
 
 class RsDispatchNode(paramSeq:RsParam)(implicit valName: ValName) extends SinkNode(RsDispatchNodeImpl)(Seq(paramSeq))
 
-class DqDispatchNode(implicit valName: ValName) extends SourceNode(RsDispatchNodeImpl)(Seq(None))
+class DqDispatchNode(implicit valName: ValName) extends SourceNode(RsDispatchNodeImpl)(Seq.fill(3)(None))

@@ -36,9 +36,14 @@ import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
 import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, ValidIODelay}
 
-class Std(implicit p: Parameters) extends FunctionUnit {
+class Std(implicit p: Parameters) extends XSModule {
+  val io = IO(new Bundle{
+    val in = Flipped(DecoupledIO(new ExuInput))
+    val out = DecoupledIO(new ExuOutput)
+  })
   io.in.ready := true.B
   io.out.valid := io.in.valid
+  io.out.bits := DontCare
   io.out.bits.uop := io.in.bits.uop
   io.out.bits.data := io.in.bits.src(0)
 }
@@ -463,9 +468,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   for (i <- 0 until exuParameters.StuCnt) {
     val stu = storeUnits(i)
 
-    stdUnits(i).io.redirectIn := redirect
     stdUnits(i).io.in <> stdIssues(i).issue
-    stdUnits(i).io.out := DontCare
 
     stu.io.redirect     <> redirect
     stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlow

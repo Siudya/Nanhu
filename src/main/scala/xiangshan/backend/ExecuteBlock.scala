@@ -115,7 +115,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     io.sqCancelCnt := memoryBlock.module.io.sqCancelCnt
     io.sqDeq := memoryBlock.module.io.sqDeq
     io.stIn := memoryBlock.module.io.stIn
-    io.enqLsq := memoryBlock.module.io.enqLsq
+    io.enqLsq <> memoryBlock.module.io.enqLsq
     io.lsqio <> memoryBlock.module.io.lsqio
 
     //issue + redirect + exception

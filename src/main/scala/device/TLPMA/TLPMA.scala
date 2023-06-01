@@ -8,7 +8,7 @@ import xiangshan._
 import utils._
 import freechips.rocketchip.regmapper.RegFieldGroup
 import freechips.rocketchip.tilelink.TLRegisterNode
-import xiangshan.backend.fu.{MMPMAMethod, PMAConst, PMPChecker, PMPReqBundle, PMPRespBundle}
+import xiangshan.backend.execute.fu.{MMPMAMethod, PMAConst, PMPChecker, PMPReqBundle, PMPRespBundle}
 
 class TLPMAIO(implicit val p: Parameters) extends Bundle with PMAConst {
   val req = Vec(mmpma.num, Flipped(Valid(new PMPReqBundle(mmpma.lgMaxSize))))

@@ -95,18 +95,10 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
     io.in.ready := true.B
     when (io.in.fire) {
       in := io.in.bits
-      in.src(1) := in.src(1) // leave src2 unchanged
       state := s_tlb
+      data_valid := true.B
     }
   }
-
-  when (io.storeDataIn.fire) {
-    in.src(1) := io.storeDataIn.bits.data
-    data_valid := true.B
-  }
-
-  assert(!(io.storeDataIn.fire && data_valid), "atomic unit re-receive data")
-
   // Send TLB feedback to store issue queue
   // we send feedback right after we receives request
   // also, we always treat amo as tlb hit

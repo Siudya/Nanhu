@@ -67,9 +67,9 @@ abstract class XSCoreBase(val parentName:String = "Unknown")(implicit p: config.
   val csrOut = BundleBridgeSource(Some(() => new DistributedCSRIO()))
   val exuBlock = LazyModule(new ExecuteBlock)
   val ctrlBlock = LazyModule(new CtrlBlock)
-  exuBlock.integerReservationStation.issueNode :*= ctrlBlock.dispatchNode
-  exuBlock.floatingReservationStation.issueNode :*= ctrlBlock.dispatchNode
-  exuBlock.memoryReservationStation.issueNode :*= ctrlBlock.dispatchNode
+  exuBlock.integerReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
+  exuBlock.floatingReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
+  exuBlock.memoryReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   ctrlBlock.rob.writebackNode :=* exuBlock.writebackNetwork.node
   ptw_to_l2_buffer.node := ptw.node
 }
@@ -108,11 +108,11 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   io.cpu_halt := ctrlBlock.io.cpu_halt
   exuBlock.io.dfx_reset := io.dfx_reset
 
-  io.beu_errors.icache <> frontend.io.error.toL1BusErrorUnitInfo()
-  io.beu_errors.dcache <> exuBlock.io.l1Error.toL1BusErrorUnitInfo()
+  io.beu_errors.icache := frontend.io.error.toL1BusErrorUnitInfo()
+  io.beu_errors.dcache := exuBlock.io.l1Error.toL1BusErrorUnitInfo()
 
   frontend.io.backend <> ctrlBlock.io.frontend
-  frontend.io.sfence <> fenceio.sfence
+  frontend.io.sfence := fenceio.sfence
   frontend.io.tlbCsr <> csrioIn.tlb
   frontend.io.csrCtrl <> csrioIn.customCtrl
   frontend.io.fencei := fenceio.fencei
@@ -134,25 +134,25 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
 
   exuBlock.io.perfEventsPTW  := ptw.getPerf
 
-  csrioIn.hartId <> io.hartId
-  csrioIn.perf <> DontCare
-  csrioIn.perf.retiredInstr <> ctrlBlock.io.robio.toCSR.perfinfo.retiredInstr
-  csrioIn.perf.ctrlInfo <> ctrlBlock.io.perfInfo.ctrlInfo
-  csrioIn.perf.memInfo <> exuBlock.io.memInfo
-  csrioIn.perf.frontendInfo <> frontend.io.frontendInfo
+  csrioIn.hartId := io.hartId
+  csrioIn.perf := DontCare
+  csrioIn.perf.retiredInstr := ctrlBlock.io.robio.toCSR.perfinfo.retiredInstr
+  csrioIn.perf.ctrlInfo := ctrlBlock.io.perfInfo.ctrlInfo
+  csrioIn.perf.memInfo := exuBlock.io.memInfo
+  csrioIn.perf.frontendInfo := frontend.io.frontendInfo
 
-  csrioIn.perf.perfEventsFrontend <> frontend.getPerf
-  csrioIn.perf.perfEventsCtrl     <> ctrlBlock.getPerf
-  csrioIn.perf.perfEventsLsu      <> exuBlock.getPerf
-  csrioIn.perf.perfEventsHc       <> io.perfEvents
+  csrioIn.perf.perfEventsFrontend := frontend.getPerf
+  csrioIn.perf.perfEventsCtrl     := ctrlBlock.getPerf
+  csrioIn.perf.perfEventsLsu      := exuBlock.getPerf
+  csrioIn.perf.perfEventsHc       := io.perfEvents
 
   csrioIn.fpu.fflags := ctrlBlock.io.robio.toCSR.fflags
   csrioIn.fpu.isIllegal := false.B
   csrioIn.fpu.dirty_fs := ctrlBlock.io.robio.toCSR.dirty_fs
-  csrioIn.exception <> ctrlBlock.io.robio.exception
-  csrioIn.interrupt <> ctrlBlock.io.robio.toCSR.intrBitSet
-  csrioIn.wfi_event <> ctrlBlock.io.robio.toCSR.wfiEvent
-  csrioIn.memExceptionVAddr <> exuBlock.io.lsqio.exceptionAddr.vaddr
+  csrioIn.exception := ctrlBlock.io.robio.exception
+  ctrlBlock.io.robio.toCSR.intrBitSet := csrioIn.interrupt
+  ctrlBlock.io.robio.toCSR.wfiEvent := csrioIn.wfi_event
+  csrioIn.memExceptionVAddr := exuBlock.io.lsqio.exceptionAddr.vaddr
 
   csrioIn.externalInterrupt.msip := outer.clint_int_sink.in.head._1(0)
   csrioIn.externalInterrupt.mtip := outer.clint_int_sink.in.head._1(1)
@@ -165,12 +165,15 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
 
   exuBlock.io.lsqio.rob := ctrlBlock.io.robio.lsq
   exuBlock.io.lsqio.exceptionAddr.isStore := CommitType.lsInstIsStore(ctrlBlock.io.robio.exception.bits.uop.ctrl.commitType)
+  exuBlock.io.pcMemWrite := RegNext(frontend.io.backend.fromFtq.pc_mem_wen, false.B)
+  exuBlock.io.pcMemWrite.addr := RegEnable(frontend.io.backend.fromFtq.pc_mem_waddr, frontend.io.backend.fromFtq.pc_mem_wen)
+  exuBlock.io.pcMemWrite.data := RegEnable(frontend.io.backend.fromFtq.pc_mem_wdata, frontend.io.backend.fromFtq.pc_mem_wen)
 
   private val itlbRepeater1 = PTWRepeater(frontend.io.ptw, fenceio.sfence, csrioIn.tlb)
   private val itlbRepeater2 = PTWRepeater(itlbRepeater1.io.ptw, ptw.io.tlb(0), fenceio.sfence, csrioIn.tlb)
   private val dtlbRepeater1  = PTWFilter(exuBlock.io.ptw, fenceio.sfence, csrioIn.tlb, l2tlbParams.filterSize)
   private val dtlbRepeater2  = PTWRepeaterNB(passReady = false, dtlbRepeater1.io.ptw, ptw.io.tlb(1), fenceio.sfence, csrioIn.tlb)
-  ptw.io.sfence <> fenceio.sfence
+  ptw.io.sfence := fenceio.sfence
   ptw.io.csr.tlb <> csrioIn.tlb
   ptw.io.csr.distribute_csr <> csrioIn.customCtrl.distribute_csr
   ptw.io.csr.prefercache <> csrioIn.customCtrl.ptw_prefercache_enable

@@ -25,7 +25,7 @@ import xiangshan.ExceptionNO._
 import xiangshan._
 import xiangshan.backend.execute.fu.FuConfigs.staCfg
 import xiangshan.backend.execute.fu.PMPRespBundle
-import xiangshan.backend.issue.{RSFeedback, RSFeedbackType}
+import xiangshan.backend.issue.{RSFeedback, RSFeedbackType, RsIdx}
 import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 
 // Store Pipeline Stage 0
@@ -33,7 +33,7 @@ import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
 class StoreUnit_S0(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new ExuInput))
-    val rsIdx = Input(UInt(log2Up(IssQueSize).W))
+    val rsIdx = Input(new RsIdx)
     val isFirstIssue = Input(Bool())
     val out = Decoupled(new LsPipelineBundle)
     val dtlbReq = DecoupledIO(new TlbReq)
@@ -205,7 +205,7 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
     val feedbackSlow = ValidIO(new RSFeedback)
     val tlb = new TlbRequestIO()
     val pmp = Flipped(new PMPRespBundle())
-    val rsIdx = Input(UInt(log2Up(IssQueSize).W))
+    val rsIdx = Input(new RsIdx)
     val isFirstIssue = Input(Bool())
     val lsq = ValidIO(new LsPipelineBundle)
     val lsq_replenish = Output(new LsPipelineBundle())

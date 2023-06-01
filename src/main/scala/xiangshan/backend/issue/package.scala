@@ -3,7 +3,6 @@ package xiangshan.backend
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
-import execute.fu.fpu.FMAMidResultIO
 import xiangshan.backend.rob.RobPtr
 import xiangshan.{ExuInput, FuType, SrcState, SrcType, XSBundle}
 

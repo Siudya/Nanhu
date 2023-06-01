@@ -30,8 +30,8 @@ class DispatchQueuePayload(entryNum:Int, enqNum:Int, deqNum:Int)(implicit p: Par
       val data: MicroOp = new MicroOp
     }))
     val r = Vec(deqNum, new Bundle{
-      val addrOH: UInt = UInt(entryNum.W)
-      val data: MicroOp = new MicroOp
+      val addrOH: UInt = Input(UInt(entryNum.W))
+      val data: MicroOp = Output(new MicroOp)
     })
     val redirect: Valid[Redirect] = Input(Valid(new Redirect))
     val flushVec: UInt = Output(UInt(entryNum.W))
@@ -68,7 +68,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   io.dqFull := validEntriesNum === size.U
 
   private def SqueezeEnqueue(in:Vec[Valid[MicroOp]]):Vec[Valid[MicroOp]] = {
-    val validMatrix = Vec(in.length, Vec(in.length, Bool()))
+    val validMatrix = Wire(Vec(in.length + 1, Vec(in.length, Bool())))
     validMatrix.head.zip(in.map(_.valid)).foreach({case(a, b) => a := b})
     val dst = Wire(Vec(in.length, Valid(new MicroOp)))
     dst.zipWithIndex.foreach({case(o, idx) =>
