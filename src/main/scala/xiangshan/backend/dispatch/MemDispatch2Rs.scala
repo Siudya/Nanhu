@@ -49,11 +49,11 @@ class MemDispatch2Rs(implicit p: Parameters) extends XSModule{
     enqCtrl.req(i).bits := io.in(i).bits
 
     is_blocked(i) := isBlocked(i)
-    io.out(i).valid := io.in(i).valid && !is_blocked(i) && io.enqLsq.canAccept
+    io.out(i).valid := io.in(i).valid && !is_blocked(i) && enqCtrl.canAccept
     io.out(i).bits := io.in(i).bits
     io.out(i).bits.lqIdx := enqCtrl.resp(i).lqIdx
     io.out(i).bits.sqIdx := enqCtrl.resp(i).sqIdx
 
-    io.in(i).ready := io.out(i).ready && !is_blocked(i) && io.enqLsq.canAccept
+    io.in(i).ready := io.out(i).ready && !is_blocked(i) && enqCtrl.canAccept
   }
 }

@@ -238,12 +238,6 @@ class Redirect(implicit p: Parameters) extends XSBundle {
   // def isException() = RedirectLevel.isException(level)
 }
 
-class Dp1ToDp2IO(implicit p: Parameters) extends XSBundle {
-  val intDqToDp2 = Vec(dpParams.IntDqDeqWidth, DecoupledIO(new MicroOp))
-  val fpDqToDp2 = Vec(dpParams.FpDqDeqWidth, DecoupledIO(new MicroOp))
-  val lsDqToDp2 = Vec(dpParams.LsDqDeqWidth, DecoupledIO(new MicroOp))
-}
-
 class ResetPregStateReq(implicit p: Parameters) extends XSBundle {
   // NOTE: set isInt and isFp both to 'false' when invalid
   val isInt = Bool()

@@ -26,7 +26,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
   val memoryReservationStation: MemoryReservationStation = LazyModule(new MemoryReservationStation)
   private val integerBlock = LazyModule(new IntegerBlock)
   private val floatingBlock = LazyModule(new FloatingBlock)
-  private val memoryBlock = LazyModule(new MemBlock)
+  val memoryBlock: MemBlock = LazyModule(new MemBlock)
   private val regFile = LazyModule(new RegFileTop)
   val writebackNetwork: WriteBackNetwork = LazyModule(new WriteBackNetwork)
   private val exuBlocks = integerBlock :: floatingBlock :: memoryBlock :: Nil
@@ -148,7 +148,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
 
     private val perfFromUnits = Seq(memoryBlock.module).flatMap(_.getPerfEvents)
     private val allPerfInc = perfFromUnits.map(_._2.asTypeOf(new PerfEvent))
-    val perfEvents = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
+    val perfEvents: Seq[(String, UInt)] = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
 
     private val resetTree = ResetGenNode(
       Seq(

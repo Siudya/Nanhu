@@ -22,16 +22,15 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import utils._
 import xiangshan._
-import xiangshan.backend.decode.{DecodeStage, FusionDecoder, ImmUnion}
-import xiangshan.backend.dispatch.{Dispatch, DispatchQueue, MemDispatch2Rs}
+import xiangshan.backend.decode.{DecodeStage, FusionDecoder}
+import xiangshan.backend.dispatch.{Dispatch, MemDispatch2Rs, DispatchQueue}
 import xiangshan.backend.execute.fu.csr.PFEvent
 import xiangshan.backend.rename.{Rename, RenameTableWrapper}
 import xiangshan.backend.rob.{Rob, RobCSRIO, RobLsqIO}
-import xiangshan.frontend.{FtqPtr, FtqRead, Ftq_RF_Components}
 import xiangshan.mem.mdp.{LFST, SSIT, WaitTable}
 import xiangshan.ExceptionNO._
 import xiangshan.backend.issue.DqDispatchNode
-import xiangshan.mem.{LsqEnqCtrl, LsqEnqIO}
+import xiangshan.mem.LsqEnqIO
 import xs.utils._
 
 class CtrlToFtqIO(implicit p: Parameters) extends XSBundle {

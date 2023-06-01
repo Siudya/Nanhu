@@ -20,7 +20,7 @@ import Chisel.log2Ceil
 import chipsalliance.rocketchip.config.{Field, Parameters}
 import freechips.rocketchip.tile.XLen
 import system.SoCParamsKey
-import xiangshan.backend.fu.{MMPMAConfig, MMPMAMethod}
+import xiangshan.backend.execute.fu.{MMPMAConfig, MMPMAMethod}
 
 case object PMParameKey extends Field[PMParameters]
 

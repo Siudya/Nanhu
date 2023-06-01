@@ -30,11 +30,8 @@ import xs.utils.{ModuleNode, ResetGen, ResetGenNode, DFTResetSignals}
 import system.HasSoCParameter
 import utils._
 import xiangshan.backend._
-import xiangshan.backend.exu.{ExuConfig, Wb2Ctrl, WbArbiterWrapper}
 import xiangshan.cache.mmu._
 import xiangshan.frontend._
-
-import scala.collection.mutable.ListBuffer
 
 abstract class XSModule(implicit val p: Parameters) extends MultiIOModule
   with HasXSParameter

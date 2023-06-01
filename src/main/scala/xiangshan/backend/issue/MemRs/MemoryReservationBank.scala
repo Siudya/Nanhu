@@ -4,7 +4,7 @@ import chipsalliance.rocketchip.config.Parameters
 import xiangshan.backend.issue._
 import chisel3._
 import chisel3.util._
-import xiangshan.{FuType, MicroOp, Redirect}
+import xiangshan.{FuType, LSUOpType, MicroOp, Redirect, SrcState, SrcType}
 import xiangshan.backend.issue.MemRs.EntryState._
 import xiangshan.backend.issue.{EarlyWakeUpInfo, WakeUpInfo}
 import xiangshan.backend.rob.RobPtr
@@ -50,13 +50,14 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
     val stIssueHit = io.stIssued.map(st => st.valid && st.bits === in.cf.waitForRobIdx).reduce(_|_)
     val shouldWait = in.ctrl.fuType === FuType.ldu && in.cf.loadWaitBit && in.cf.waitForRobIdx > io.stLastCompelet.bits && !stIssueHit
+    val isCbo = LSUOpType.isCbo(in.ctrl.fuOpType) || in.ctrl.fuOpType === LSUOpType.cbo_zero
     val enqEntry = Wire(new MemoryStatusArrayEntry)
     enqEntry.psrc(0) := in.psrc(0)
     enqEntry.psrc(1) := in.psrc(1)
     enqEntry.srcType(0) := in.ctrl.srcType(0)
     enqEntry.srcType(1) := in.ctrl.srcType(1)
-    enqEntry.srcState(0) := in.srcState(0)
-    enqEntry.srcState(1) := in.srcState(1)
+    enqEntry.srcState(0) := Mux(in.ctrl.srcType(0) === SrcType.reg, in.ctrl.srcType(0), SrcState.rdy)
+    enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.reg || in.ctrl.srcType(1) === SrcType.fp, in.ctrl.srcType(1), SrcState.rdy)
     enqEntry.pdest := in.pdest
     enqEntry.lpv.foreach(_.foreach(_ := 0.U))
     enqEntry.fuType := in.ctrl.fuType
@@ -64,7 +65,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     enqEntry.fpWen := in.ctrl.fpWen
     enqEntry.robIdx := in.robIdx
     enqEntry.staLoadState := Mux(shouldWait, s_wait_st, s_ready)
-    enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu, s_ready, s_issued)
+    enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu, Mux(isCbo, s_issued, s_ready), s_issued)
     enqEntry.waitTarget := in.cf.waitForRobIdx
     enqEntry.isFirstIssue := false.B
     enqEntry.counter := 0.U

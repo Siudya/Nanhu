@@ -106,7 +106,7 @@ class XSTile(val parentName:String = "Unknown")(implicit p: Parameters) extends 
 
   val l1d_to_l2_bufferOpt = coreParams.dcacheParametersOpt.map { _ =>
     val buffer = LazyModule(new TLBuffer)
-    misc.l1d_logger := buffer.node := core.memBlock.dcache.clientNode
+    misc.l1d_logger := buffer.node := core.exuBlock.memoryBlock.dcache.clientNode
     buffer
   }
 
@@ -139,13 +139,13 @@ class XSTile(val parentName:String = "Unknown")(implicit p: Parameters) extends 
       misc.l2_binder.get :*= l2.node :*= TLBuffer() :*= TLBuffer() :*= misc.l1_xbar
       l2.pf_recv_node.map(recv => {
         println("Connecting L1 prefetcher to L2!")
-        recv := core.memBlock.pf_sender_opt.get
+        recv := core.exuBlock.memoryBlock.pf_sender_opt.get
       })
     case None =>
   }
 
   misc.i_mmio_port := core.frontend.instrUncache.clientNode
-  misc.d_mmio_port := core.memBlock.uncache.clientNode
+  misc.d_mmio_port := core.exuBlock.memoryBlock.uncache.clientNode
 
   lazy val module = new XSTileImp(this)
 }

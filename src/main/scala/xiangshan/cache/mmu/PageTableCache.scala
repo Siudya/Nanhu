@@ -23,6 +23,7 @@ import chisel3.internal.naming.chiselName
 import xs.utils.mbist.MBISTPipeline
 import xiangshan._
 import utils._
+import xiangshan.backend.execute.fu.fence.SfenceBundle
 import xs.utils._
 import xs.utils.sram.SRAMTemplate
 

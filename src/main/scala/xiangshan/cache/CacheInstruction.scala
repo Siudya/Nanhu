@@ -6,7 +6,7 @@ import xiangshan._
 import xiangshan.frontend.icache._
 import xs.utils._
 import chipsalliance.rocketchip.config.Parameters
-import xiangshan.backend.fu.util.HasCSRConst
+import xiangshan.backend.execute.fu.csr.HasCSRConst
 
 object CacheOpMap{
   def apply(opcode: String, optype: String,  name: String ): Map[String, String] = {

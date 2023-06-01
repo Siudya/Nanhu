@@ -23,7 +23,7 @@ import chisel3.internal.naming.chiselName
 import xiangshan._
 import utils._
 import xs.utils._
-import xiangshan.backend.fu.{PMPReqBundle, PMPRespBundle}
+import xiangshan.backend.execute.fu.{PMPReqBundle, PMPRespBundle}
 
 /** Page Table Walk is divided into two parts
   * One,   PTW: page walk for pde, except for leaf entries, one by one

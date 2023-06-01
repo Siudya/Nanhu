@@ -26,10 +26,10 @@ import freechips.rocketchip.tile.{BusErrorUnit, BusErrorUnitParams, XLen}
 import xiangshan.frontend.icache.ICacheParameters
 import freechips.rocketchip.devices.debug._
 import freechips.rocketchip.tile.MaxHartIdBits
-import xiangshan.backend.dispatch.DispatchParameters
-import xiangshan.backend.exu.ExuParameters
 import xiangshan.cache.DCacheParameters
 import xiangshan.cache.mmu.{L2TLBParameters, TLBParameters}
+import xiangshan.backend.dispatch.DispatchParameters
+import xiangshan.backend.execute.exublock.ExuParameters
 import device.{EnableJtag, XSDebugModuleParams}
 import huancun._
 
@@ -39,7 +39,7 @@ class BaseConfig(n: Int) extends Config((site, here, up) => {
   case SoCParamsKey => SoCParameters()
   case PMParameKey => PMParameters()
   case XSTileKey => Seq.tabulate(n){
-    i => XSCoreParameters(HartId = i, hasMbist = true, hasShareBus = true)
+    i => XSCoreParameters(HartId = i, hasMbist = true, hasShareBus = false)
   }
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))
   case DebugModuleKey => Some(XSDebugModuleParams(site(XLen)))
@@ -74,22 +74,9 @@ class MinimalConfig(n: Int = 1) extends Config(
         dpParams = DispatchParameters(
           IntDqSize = 12,
           FpDqSize = 12,
-          LsDqSize = 12,
-          IntDqDeqWidth = 4,
-          FpDqDeqWidth = 4,
-          LsDqDeqWidth = 4
+          LsDqSize = 12
         ),
-        exuParameters = ExuParameters(
-          JmpCnt = 1,
-          AluCnt = 2,
-          MulCnt = 0,
-          MduCnt = 1,
-          FmacCnt = 1,
-          FmiscCnt = 1,
-          FmiscDivSqrtCnt = 0,
-          LduCnt = 2,
-          StuCnt = 2
-        ),
+        exuParameters = ExuParameters(),
         prefetcher = None,
         icacheParameters = ICacheParameters(
           nSets = 64, // 16KB ICache

@@ -18,7 +18,7 @@ package xiangshan.cache.mmu
 import chisel3._
 import chisel3.util._
 import chipsalliance.rocketchip.config.Parameters
-import xiangshan.{SfenceBundle, XSModule}
+import xiangshan.XSModule
 import utils._
 import xs.utils.ValidHold
 

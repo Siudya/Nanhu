@@ -238,7 +238,6 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   private val walkPtr = walkPtrVec(0)
 
   private val isEmpty = enqPtr === deqPtr
-  private val isReplaying = io.redirect.valid && RedirectLevel.flushItself(io.redirect.bits.level)
 
   /**
     * states of Rob
@@ -438,18 +437,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   }).reduce(_|_)
   val dirty_fs = io.commits.isCommit && VecInit(fpWen).asUInt.orR
 
-  // when mispredict branches writeback, stop commit in the next 2 cycles
-  // TODO: don't check all exu write back
-  val misPredWb = Cat(VecInit(exuWriteback.map(wb =>
-    wb.bits.redirect.cfiUpdate.isMisPred && wb.bits.redirectValid
-  ))).orR
-  val misPredBlockCounter = Reg(UInt(3.W))
-  misPredBlockCounter := Mux(misPredWb,
-    "b111".U,
-    misPredBlockCounter >> 1.U
-  )
-  val misPredBlock = misPredBlockCounter(0)
-  val blockCommit = misPredBlock || isReplaying || hasWFI || exceptionWaitingRedirect
+  val blockCommit = hasWFI || exceptionWaitingRedirect
 
   io.commits.isWalk := state =/= s_idle
   io.commits.isCommit := state === s_idle && !blockCommit

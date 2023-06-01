@@ -3,7 +3,7 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.fu.fpu.FMAMidResult
-import xiangshan.{MicroOp, Redirect, XSModule}
+import xiangshan.{MicroOp, Redirect, SrcState, SrcType, XSModule}
 import xiangshan.backend.issue.{EarlyWakeUpInfo, PayloadArray, SelectInfo, WakeUpInfo}
 
 class FloatingReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(implicit p: Parameters) extends XSModule{
@@ -33,7 +33,9 @@ class FloatingReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loa
     val enqEntry = Wire(new FloatingStatusArrayEntry)
     enqEntry.psrc := in.psrc
     enqEntry.srcType := in.ctrl.srcType
-    enqEntry.srcState := in.srcState
+    enqEntry.srcState(0) := Mux(in.ctrl.srcType(0) === SrcType.fp, in.ctrl.srcType(0), SrcState.rdy)
+    enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.fp, in.ctrl.srcType(1), SrcState.rdy)
+    enqEntry.srcState(2) := Mux(in.ctrl.srcType(2) === SrcType.fp, in.ctrl.srcType(2), SrcState.rdy)
     enqEntry.pdest := in.pdest
     enqEntry.lpv.foreach(_.foreach(_ := 0.U))
     enqEntry.fuType := in.ctrl.fuType
