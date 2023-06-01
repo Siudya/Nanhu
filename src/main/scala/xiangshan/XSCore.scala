@@ -165,7 +165,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
 
   exuBlock.io.lsqio.rob := ctrlBlock.io.robio.lsq
   exuBlock.io.lsqio.exceptionAddr.isStore := CommitType.lsInstIsStore(ctrlBlock.io.robio.exception.bits.uop.ctrl.commitType)
-  exuBlock.io.pcMemWrite := RegNext(frontend.io.backend.fromFtq.pc_mem_wen, false.B)
+  exuBlock.io.pcMemWrite.en := RegNext(frontend.io.backend.fromFtq.pc_mem_wen, false.B)
   exuBlock.io.pcMemWrite.addr := RegEnable(frontend.io.backend.fromFtq.pc_mem_waddr, frontend.io.backend.fromFtq.pc_mem_wen)
   exuBlock.io.pcMemWrite.data := RegEnable(frontend.io.backend.fromFtq.pc_mem_wdata, frontend.io.backend.fromFtq.pc_mem_wen)
 

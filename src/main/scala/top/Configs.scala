@@ -238,7 +238,8 @@ class WithNKBL2
         sramDepthDiv = 2,
         tagECC = None,
         dataECC = None,
-        hasShareBus = true,
+        hasShareBus = false,
+        hasMbist = false,
         simulation = !site(DebugOptionsKey).FPGAPlatform
       )),
       L2NBanks = banks
@@ -273,7 +274,8 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
         sramDepthDiv = 4,
         tagECC = None,
         dataECC = None,
-        hasShareBus = true,
+        hasShareBus = false,
+        hasMbist = false,
         simulation = !site(DebugOptionsKey).FPGAPlatform
       ))
     )

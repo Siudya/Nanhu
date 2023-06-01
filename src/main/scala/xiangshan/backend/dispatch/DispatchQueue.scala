@@ -74,12 +74,10 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     dst.zipWithIndex.foreach({case(o, idx) =>
       val validVec = validMatrix(idx).drop(idx)
       val validVecNext = validMatrix(idx + 1).drop(idx)
-      val selOH = ParallelPriorityMux(validVec, validVec.indices.map(i => (1 << i).U(validVec.length.W)))
-      if(idx < in.length){
-        validVecNext.zip(validVec).zip(selOH.asBools).foreach({case((n, p), s) =>
-          n := p && (!s)
-        })
-      }
+      val selOH = ParallelPriorityMux(validVec, validVec.indices.map(i => (1 << (i + idx)).U(in.length.W)))
+      validVecNext.zip(validVec).zip(selOH.asBools).foreach({ case ((n, p), s) =>
+        n := p && (!s)
+      })
       o.valid := validVec.reduce(_|_)
       o.bits := Mux1H(selOH, in.map(_.bits))
     })
