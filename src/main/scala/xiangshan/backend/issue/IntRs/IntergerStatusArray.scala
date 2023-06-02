@@ -25,7 +25,6 @@ import chisel3.experimental.ChiselAnnotation
 import chisel3.util._
 import xiangshan.{Redirect, SrcState, SrcType, XSModule}
 import xiangshan.backend.issue._
-import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
 import firrtl.passes.InlineAnnotation
 import xiangshan.backend.issue.IntRs.EntryState._
@@ -120,8 +119,8 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       }
     }
   }
-  xs_assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
-  xs_assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
+  assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
+  assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
 
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}
 
@@ -151,7 +150,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      xs_assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
+      assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -235,10 +234,10 @@ class IntegerStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnit
     }
   }
 
-  xs_assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
-  xs_assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
-  xs_assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
+  assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
+  assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
+  assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   for(iss <- io.issue){
-    xs_assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
+    assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
   }
 }

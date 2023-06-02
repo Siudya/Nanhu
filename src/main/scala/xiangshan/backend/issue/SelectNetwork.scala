@@ -25,7 +25,6 @@ import chisel3.util._
 import xiangshan.backend.execute.exu.ExuConfig
 import xiangshan.backend.rob.RobPtr
 import xiangshan.{FuType, Redirect, XSBundle, XSModule}
-import xs.utils.Assertion.xs_assert
 import xs.utils.{LogicShiftRight, ParallelOperation}
 
 class SelectInfo(implicit p: Parameters) extends XSBundle{
@@ -180,6 +179,6 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
   private val flatInputInfoVec = VecInit(io.selectInfo.map(_.reverse).reverse.reduce(_++_))
   for(outPort <- io.issueInfo){
     val selectedInfo = Mux1H(UIntToOH(OHToUInt(outPort.bits.bankIdxOH) * entryNum.U + OHToUInt(outPort.bits.entryIdxOH)), flatInputInfoVec)
-    xs_assert(Mux(outPort.valid, selectedInfo.valid & fuTypeList.map(_ === selectedInfo.bits.fuType).reduce(_|_), true.B))
+    assert(Mux(outPort.valid, selectedInfo.valid & fuTypeList.map(_ === selectedInfo.bits.fuType).reduce(_|_), true.B))
   }
 }

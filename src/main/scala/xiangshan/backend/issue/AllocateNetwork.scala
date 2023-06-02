@@ -25,7 +25,6 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.MicroOp
-import xs.utils.Assertion.xs_assert
 import xs.utils.PickOneLow
 
 class Switch2[T <: Data](gen:T) extends Module{
@@ -224,78 +223,78 @@ class AllocateNetwork(bankNum:Int, entryNumPerBank:Int, name:Option[String] = No
     port.ready := sig.valid
   }
   //Start of randomization network function points assertions
-  xs_assert(randomizer.io.out(0).bits =/= randomizer.io.out(1).bits)
-  xs_assert(randomizer.io.out(0).bits =/= randomizer.io.out(2).bits)
-  xs_assert(randomizer.io.out(0).bits =/= randomizer.io.out(3).bits)
-  xs_assert(randomizer.io.out(1).bits =/= randomizer.io.out(2).bits)
-  xs_assert(randomizer.io.out(1).bits =/= randomizer.io.out(3).bits)
-  xs_assert(randomizer.io.out(2).bits =/= randomizer.io.out(3).bits)
+  assert(randomizer.io.out(0).bits =/= randomizer.io.out(1).bits)
+  assert(randomizer.io.out(0).bits =/= randomizer.io.out(2).bits)
+  assert(randomizer.io.out(0).bits =/= randomizer.io.out(3).bits)
+  assert(randomizer.io.out(1).bits =/= randomizer.io.out(2).bits)
+  assert(randomizer.io.out(1).bits =/= randomizer.io.out(3).bits)
+  assert(randomizer.io.out(2).bits =/= randomizer.io.out(3).bits)
 
   private val randomizerInValidBitVec = Cat(randomizer.io.in.map(_.valid).reverse)
   private val randomizerOutValidBitVec = Cat(randomizer.io.out.map(_.valid).reverse)
   private val rov = randomizer.io.out.map(i => Mux(i.valid, i.bits, 0.U))
   private val riv = randomizer.io.in.map(i => Mux(i.valid, i.bits, 0.U))
-  xs_assert(PopCount(randomizerInValidBitVec) === PopCount(randomizerOutValidBitVec))
-  xs_assert(riv(0) === rov(0) || riv(0) === rov(1) || riv(0) === rov(2) || riv(0) === rov(3))
-  xs_assert(riv(1) === rov(0) || riv(1) === rov(1) || riv(1) === rov(2) || riv(1) === rov(3))
-  xs_assert(riv(2) === rov(0) || riv(2) === rov(1) || riv(2) === rov(2) || riv(2) === rov(3))
-  xs_assert(riv(3) === rov(0) || riv(3) === rov(1) || riv(3) === rov(2) || riv(3) === rov(3))
+  assert(PopCount(randomizerInValidBitVec) === PopCount(randomizerOutValidBitVec))
+  assert(riv(0) === rov(0) || riv(0) === rov(1) || riv(0) === rov(2) || riv(0) === rov(3))
+  assert(riv(1) === rov(0) || riv(1) === rov(1) || riv(1) === rov(2) || riv(1) === rov(3))
+  assert(riv(2) === rov(0) || riv(2) === rov(1) || riv(2) === rov(2) || riv(2) === rov(3))
+  assert(riv(3) === rov(0) || riv(3) === rov(1) || riv(3) === rov(2) || riv(3) === rov(3))
   //End of randomization network function points assertions
 
   //Start of squeeze network function points assertions
-  xs_assert(squeezer.io.out(0).bits =/= squeezer.io.out(1).bits)
-  xs_assert(squeezer.io.out(0).bits =/= squeezer.io.out(2).bits)
-  xs_assert(squeezer.io.out(0).bits =/= squeezer.io.out(3).bits)
-  xs_assert(squeezer.io.out(1).bits =/= squeezer.io.out(2).bits)
-  xs_assert(squeezer.io.out(1).bits =/= squeezer.io.out(3).bits)
-  xs_assert(squeezer.io.out(2).bits =/= squeezer.io.out(3).bits)
+  assert(squeezer.io.out(0).bits =/= squeezer.io.out(1).bits)
+  assert(squeezer.io.out(0).bits =/= squeezer.io.out(2).bits)
+  assert(squeezer.io.out(0).bits =/= squeezer.io.out(3).bits)
+  assert(squeezer.io.out(1).bits =/= squeezer.io.out(2).bits)
+  assert(squeezer.io.out(1).bits =/= squeezer.io.out(3).bits)
+  assert(squeezer.io.out(2).bits =/= squeezer.io.out(3).bits)
 
   private val squeezerInValidBitVec = Cat(squeezer.io.in.map(_.valid).reverse)
   private val squeezerOutValidBitVec = Cat(squeezer.io.out.map(_.valid).reverse)
-  xs_assert(Mux(PopCount(squeezerOutValidBitVec) === 1.U, squeezerOutValidBitVec === "b0001".U, true.B))
-  xs_assert(Mux(PopCount(squeezerOutValidBitVec) === 2.U, squeezerOutValidBitVec === "b0011".U, true.B))
-  xs_assert(Mux(PopCount(squeezerOutValidBitVec) === 3.U, squeezerOutValidBitVec === "b0111".U, true.B))
-  xs_assert(Mux(PopCount(squeezerOutValidBitVec) === 4.U, squeezerOutValidBitVec === "b1111".U, true.B))
+  assert(Mux(PopCount(squeezerOutValidBitVec) === 1.U, squeezerOutValidBitVec === "b0001".U, true.B))
+  assert(Mux(PopCount(squeezerOutValidBitVec) === 2.U, squeezerOutValidBitVec === "b0011".U, true.B))
+  assert(Mux(PopCount(squeezerOutValidBitVec) === 3.U, squeezerOutValidBitVec === "b0111".U, true.B))
+  assert(Mux(PopCount(squeezerOutValidBitVec) === 4.U, squeezerOutValidBitVec === "b1111".U, true.B))
 
 
   private val so = squeezer.io.out.map(_.bits)
   private val si = squeezer.io.in.map(_.bits)
-  xs_assert(Mux(squeezerInValidBitVec === "b0001".U, so(0) === si(0),                                       true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0010".U, so(0) === si(1),                                       true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0011".U, so(0) === si(0) && so(1) === si(1),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0100".U, so(0) === si(2),                                       true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0101".U, so(0) === si(0) && so(1) === si(2),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0110".U, so(0) === si(1) && so(1) === si(2),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b0111".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(2), true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1000".U, so(0) === si(3),                                       true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1001".U, so(0) === si(0) && so(1) === si(3),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1010".U, so(0) === si(1) && so(1) === si(3),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1011".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(3), true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1100".U, so(0) === si(2) && so(1) === si(3),                    true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1101".U, so(0) === si(0) && so(1) === si(2) && so(2) === si(3), true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1110".U, so(0) === si(1) && so(1) === si(2) && so(2) === si(3), true.B))
-  xs_assert(Mux(squeezerInValidBitVec === "b1111".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(2) && so(3) === si(3), true.B))
+  assert(Mux(squeezerInValidBitVec === "b0001".U, so(0) === si(0),                                       true.B))
+  assert(Mux(squeezerInValidBitVec === "b0010".U, so(0) === si(1),                                       true.B))
+  assert(Mux(squeezerInValidBitVec === "b0011".U, so(0) === si(0) && so(1) === si(1),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b0100".U, so(0) === si(2),                                       true.B))
+  assert(Mux(squeezerInValidBitVec === "b0101".U, so(0) === si(0) && so(1) === si(2),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b0110".U, so(0) === si(1) && so(1) === si(2),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b0111".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(2), true.B))
+  assert(Mux(squeezerInValidBitVec === "b1000".U, so(0) === si(3),                                       true.B))
+  assert(Mux(squeezerInValidBitVec === "b1001".U, so(0) === si(0) && so(1) === si(3),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b1010".U, so(0) === si(1) && so(1) === si(3),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b1011".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(3), true.B))
+  assert(Mux(squeezerInValidBitVec === "b1100".U, so(0) === si(2) && so(1) === si(3),                    true.B))
+  assert(Mux(squeezerInValidBitVec === "b1101".U, so(0) === si(0) && so(1) === si(2) && so(2) === si(3), true.B))
+  assert(Mux(squeezerInValidBitVec === "b1110".U, so(0) === si(1) && so(1) === si(2) && so(2) === si(3), true.B))
+  assert(Mux(squeezerInValidBitVec === "b1111".U, so(0) === si(0) && so(1) === si(1) && so(2) === si(2) && so(3) === si(3), true.B))
   //End of squeeze network function points assertions
 
   //Start of enqueue routing function points assertions
-  xs_assert(Mux(io.enqToRs(0).valid && squeezer.io.out(0).bits === 0.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(0).valid && squeezer.io.out(1).bits === 0.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(0).valid && squeezer.io.out(2).bits === 0.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(0).valid && squeezer.io.out(3).bits === 0.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(0).valid && squeezer.io.out(0).bits === 0.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(0).valid && squeezer.io.out(1).bits === 0.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(0).valid && squeezer.io.out(2).bits === 0.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(0).valid && squeezer.io.out(3).bits === 0.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(0).bits.uop.robIdx, true.B))
 
-  xs_assert(Mux(io.enqToRs(1).valid && squeezer.io.out(0).bits === 1.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(1).valid && squeezer.io.out(1).bits === 1.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(1).valid && squeezer.io.out(2).bits === 1.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(1).valid && squeezer.io.out(3).bits === 1.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(1).valid && squeezer.io.out(0).bits === 1.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(1).valid && squeezer.io.out(1).bits === 1.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(1).valid && squeezer.io.out(2).bits === 1.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(1).valid && squeezer.io.out(3).bits === 1.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(1).bits.uop.robIdx, true.B))
 
-  xs_assert(Mux(io.enqToRs(2).valid && squeezer.io.out(0).bits === 2.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(2).valid && squeezer.io.out(1).bits === 2.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(2).valid && squeezer.io.out(2).bits === 2.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(2).valid && squeezer.io.out(3).bits === 2.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(2).valid && squeezer.io.out(0).bits === 2.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(2).valid && squeezer.io.out(1).bits === 2.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(2).valid && squeezer.io.out(2).bits === 2.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(2).valid && squeezer.io.out(3).bits === 2.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(2).bits.uop.robIdx, true.B))
 
-  xs_assert(Mux(io.enqToRs(3).valid && squeezer.io.out(0).bits === 3.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(3).valid && squeezer.io.out(1).bits === 3.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(3).valid && squeezer.io.out(2).bits === 3.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
-  xs_assert(Mux(io.enqToRs(3).valid && squeezer.io.out(3).bits === 3.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(3).valid && squeezer.io.out(0).bits === 3.U, io.enqFromDispatch(0).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(3).valid && squeezer.io.out(1).bits === 3.U, io.enqFromDispatch(1).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(3).valid && squeezer.io.out(2).bits === 3.U, io.enqFromDispatch(2).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
+  assert(Mux(io.enqToRs(3).valid && squeezer.io.out(3).bits === 3.U, io.enqFromDispatch(3).bits.robIdx === io.enqToRs(3).bits.uop.robIdx, true.B))
   //End of enqueue routing function points assertions
 }

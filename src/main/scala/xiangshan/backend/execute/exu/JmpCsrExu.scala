@@ -7,7 +7,6 @@ import xiangshan.backend.execute.fu.fence.{SfenceBundle, _}
 import xiangshan.backend.execute.fu.jmp._
 import xiangshan.backend.execute.fu.{FUWithRedirect, FuConfigs, FunctionUnit}
 import xiangshan._
-import xs.utils.Assertion.xs_assert
 import xs.utils.{DelayN, ParallelMux}
 
 class FenceIO(implicit p: Parameters) extends XSBundle {
@@ -68,8 +67,8 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
 
     val isJmp = finalIssueSignals.bits.uop.ctrl.fuType === FuType.jmp
     val isExclusive = finalIssueSignals.bits.uop.ctrl.noSpecExec && finalIssueSignals.bits.uop.ctrl.blockBackward
-    xs_assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
-    xs_assert(isJmp || isExclusive)
+    assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
+    assert(isJmp || isExclusive)
   })
 
   private val fuOut = fuSeq.map(_.io.out)
@@ -82,7 +81,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   writebackPort.bits.uop := finalData.uop
   writebackPort.bits.data := finalData.data
 
-  xs_assert(PopCount(outSel) === 1.U || PopCount(outSel) === 0.U)
+  assert(PopCount(outSel) === 1.U || PopCount(outSel) === 0.U)
 
   io.issueToMou <> mou.issueToMou
   io.writebackFromMou <> mou.writebackFromMou
@@ -102,6 +101,6 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)
   csr.csrio.exception := Pipe(io.csrio.exception)
 
-  xs_assert(PopCount(redirectValids.asUInt) === 1.U || PopCount(redirectValids.asUInt) === 0.U)
+  assert(PopCount(redirectValids.asUInt) === 1.U || PopCount(redirectValids.asUInt) === 0.U)
   //TODO: this signals should connect to csr
 }

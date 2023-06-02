@@ -40,4 +40,5 @@ class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   writebackPort.bits.fflags := fmac.fflags
   writebackPort.bits.redirect := DontCare
   writebackPort.bits.redirectValid := false.B
+  writebackPort.bits.debug := DontCare
 }

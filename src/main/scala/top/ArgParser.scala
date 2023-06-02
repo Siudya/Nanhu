@@ -19,7 +19,6 @@ package top
 import chipsalliance.rocketchip.config.{Config, Parameters}
 import system.SoCParamsKey
 import xiangshan.{DebugOptionsKey, XSTileKey}
-import xs.utils.Assertion
 
 import scala.annotation.tailrec
 import scala.sys.exit
@@ -90,9 +89,6 @@ object ArgParser {
           nextOption(config.alter((site, here, up) => {
             case DebugOptionsKey => up(DebugOptionsKey).copy(EnableTopDown = true)
           }), tail)
-        case "remove-assert" :: tail =>
-          Assertion.set_enable(false)
-          nextOption(config, tail)
         case option :: tail =>
           // unknown option, maybe a firrtl option, skip
           firrtlOpts :+= option

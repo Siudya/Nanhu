@@ -5,7 +5,6 @@ import chisel3.util._
 import chipsalliance.rocketchip.config.Parameters
 import utils.HasPerfEvents
 import xiangshan._
-import xs.utils.Assertion.xs_assert
 import xs.utils.{CircularQueuePtr, HasCircularQueuePtrHelper, ParallelPriorityEncoder, ParallelPriorityMux, UIntToMask}
 
 class DispatchQueueIO(enqNum: Int, deqNum: Int)(implicit p: Parameters) extends XSBundle {
@@ -73,9 +72,8 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     val dst = Wire(Vec(in.length, Valid(new MicroOp)))
     dst.zipWithIndex.foreach({case(o, idx) =>
       val validVec = validMatrix(idx).drop(idx)
-      val validVecNext = validMatrix(idx + 1).drop(idx)
       val selOH = ParallelPriorityMux(validVec, validVec.indices.map(i => (1 << (i + idx)).U(in.length.W)))
-      validVecNext.zip(validVec).zip(selOH.asBools).foreach({ case ((n, p), s) =>
+      validMatrix(idx + 1).zip(validMatrix(idx)).zip(selOH.asBools).foreach({ case ((n, p), s) =>
         n := p && (!s)
       })
       o.valid := validVec.reduce(_|_)
@@ -113,20 +111,20 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val actualDeqNum = PopCount(io.deq.map(_.fire))
   deqPtr := Mux(io.redirect.valid, deqPtr + flushNum, deqPtr + actualDeqNum)
 
-  xs_assert(deqPtr <= enqPtrAux)
-  xs_assert(actualEnqNum <= emptyEntriesNum)
-  xs_assert(PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum)
+  assert(deqPtr <= enqPtrAux)
+  assert(actualEnqNum <= emptyEntriesNum)
+  assert(PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum)
   for(i <- io.enq.req.indices){
-    xs_assert(Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B))
+    assert(Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B))
   }
   for(i <- 1 until squeezedEnqs.length){
-    xs_assert(Mux(squeezedEnqs(i).valid, squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx, true.B))
+    assert(Mux(squeezedEnqs(i).valid, squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx, true.B))
   }
-  xs_assert(flushNum <= validEntriesNum)
+  assert(flushNum <= validEntriesNum)
   private val deqFlushNextMask = UIntToMask((deqPtr + flushNum).value, size)
   private val flushXorPresentMask = deqFlushNextMask ^ deqMask
   private val deqRollbackMask = Mux(deqPtr.value < (deqPtr + flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
-  xs_assert(Mux(io.redirect.valid, deqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
+  assert(Mux(io.redirect.valid, deqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
 
 
   val perfEvents = Seq(

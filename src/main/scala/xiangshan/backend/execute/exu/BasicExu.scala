@@ -6,7 +6,6 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import xiangshan.backend.issue.IssueBundle
 import xiangshan.{ExuInput, ExuOutput, Redirect, SrcType}
-import xs.utils.Assertion.xs_assert
 
 abstract class BasicExu(implicit p:Parameters) extends LazyModule{
   def issueNode: ExuInputNode
@@ -31,8 +30,8 @@ abstract class BasicExuImpl(outer:BasicExu) extends LazyModuleImp(outer){
       val bypassSrc0Data = Mux1H(bypassSrc0Hits, bypassData)
       val bypassSrc1Valid = Cat(bypassSrc1Hits).orR && issuePort.issue.bits.uop.ctrl.srcType(1) === SrcType.reg
       val bypassSrc1Data = Mux1H(bypassSrc1Hits, bypassData)
-      xs_assert(PopCount(Cat(bypassSrc0Hits)) === 1.U || Cat(bypassSrc0Hits) === 0.U)
-      xs_assert(PopCount(Cat(bypassSrc1Hits)) === 1.U || Cat(bypassSrc1Hits) === 0.U)
+      assert(PopCount(Cat(bypassSrc0Hits)) === 1.U || Cat(bypassSrc0Hits) === 0.U)
+      assert(PopCount(Cat(bypassSrc1Hits)) === 1.U || Cat(bypassSrc1Hits) === 0.U)
       finalIssueSignals.bits.src(0) := Mux(bypassSrc0Valid, bypassSrc0Data, issuePort.issue.bits.src(0))
       finalIssueSignals.bits.src(1) := Mux(bypassSrc1Valid, bypassSrc1Data, issuePort.issue.bits.src(1))
     }

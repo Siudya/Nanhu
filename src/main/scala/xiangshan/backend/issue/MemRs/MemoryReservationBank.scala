@@ -8,6 +8,7 @@ import xiangshan.{FuType, LSUOpType, MicroOp, Redirect, SrcState, SrcType}
 import xiangshan.backend.issue.MemRs.EntryState._
 import xiangshan.backend.issue.{EarlyWakeUpInfo, WakeUpInfo}
 import xiangshan.backend.rob.RobPtr
+import xiangshan.mem.SqPtr
 
 class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends Module{
   private val issueWidth = 3
@@ -35,7 +36,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     val storeReplay = Input(Vec(2, Valid(new Replay(entryNum))))
 
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
-    val stLastCompelet = Input(Valid(new RobPtr))
+    val stLastCompelet = Input(new SqPtr)
 
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(lduNum, Valid(new EarlyWakeUpInfo)))
@@ -48,7 +49,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
 
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
     val stIssueHit = io.stIssued.map(st => st.valid && st.bits === in.cf.waitForRobIdx).reduce(_|_)
-    val shouldWait = in.ctrl.fuType === FuType.ldu && in.cf.loadWaitBit && in.cf.waitForRobIdx > io.stLastCompelet.bits && !stIssueHit
+    val shouldWait = in.ctrl.fuType === FuType.ldu && in.cf.loadWaitBit && in.sqIdx > io.stLastCompelet && !stIssueHit
     val isCbo = LSUOpType.isCbo(in.ctrl.fuOpType) || in.ctrl.fuOpType === LSUOpType.cbo_zero
     val enqEntry = Wire(new MemoryStatusArrayEntry)
     enqEntry.psrc(0) := in.psrc(0)
@@ -63,6 +64,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     enqEntry.rfWen := in.ctrl.rfWen
     enqEntry.fpWen := in.ctrl.fpWen
     enqEntry.robIdx := in.robIdx
+    enqEntry.sqIdx := in.sqIdx
     enqEntry.staLoadState := Mux(shouldWait, s_wait_st, s_ready)
     enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu, Mux(isCbo, s_issued, s_ready), s_issued)
     enqEntry.waitTarget := in.cf.waitForRobIdx
@@ -88,6 +90,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup
   statusArray.io.earlyWakeUpCancel := io.earlyWakeUpCancel
+  statusArray.io.stLastCompelet := io.stLastCompelet
 
   payloadArray.io.write.en := io.enq.valid
   payloadArray.io.write.addr := io.enq.bits.addrOH

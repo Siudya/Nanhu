@@ -11,7 +11,6 @@ import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, Write
 import xiangshan._
 import xiangshan.backend.execute.fu.fpu.FMAMidResult
 import xiangshan.backend.rename.BusyTable
-import xs.utils.Assertion.xs_assert
 
 class FloatingReservationStation(implicit p: Parameters) extends LazyModule with HasXSParameter {
   private val entryNum = p(XSCoreParamsKey).fpRsDepth
@@ -118,7 +117,7 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     sink.bits.srcState(2) := Mux(source.bits.ctrl.srcType(2) === SrcType.fp, rport2.resp, SrcState.rdy)
     source.ready := sink.ready
     busyTableReadIdx = busyTableReadIdx + 3
-    xs_assert(Mux(source.valid, FuType.floatingTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    assert(Mux(source.valid, FuType.floatingTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs

@@ -26,7 +26,6 @@ import chisel3.util._
 import firrtl.passes.InlineAnnotation
 import xiangshan.{Redirect, SrcState, SrcType, XSModule}
 import xiangshan.backend.issue.{BasicStatusArrayEntry, EarlyWakeUpInfo, SelectInfo, WakeUpInfo}
-import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
 import xiangshan.backend.issue.FpRs.EntryState._
 
@@ -78,7 +77,6 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
-    val midResultReceived = Input(Bool())
     val redirect = Input(Valid(new Redirect))
   })
 
@@ -86,7 +84,6 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
   private val miscNext = WireInit(io.entry)
   private val enqNext = Wire(Valid(new FloatingStatusArrayEntry))
   private val enqUpdateEn = WireInit(false.B)
-  private val isFma = io.entry.bits.isFma
 
   //Start of wake up
   private val pregMatch = io.entry.bits.psrc
@@ -128,8 +125,8 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
       }
     }
   }
-  xs_assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
-  xs_assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
+  assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
+  assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}
   //End of issue and cancel
 
@@ -155,7 +152,7 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      xs_assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
+      assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -191,7 +188,6 @@ class FloatingStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUni
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
-    val midResultReceived = Input(Valid(UInt(entryNum.W)))
   })
 
   private val statusArray = Reg(Vec(entryNum, new FloatingStatusArrayEntry))
@@ -229,7 +225,6 @@ class FloatingStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUni
     updateNetwork.io.wakeup := io.wakeup
     updateNetwork.io.loadEarlyWakeup := io.loadEarlyWakeup
     updateNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
-    updateNetwork.io.midResultReceived := io.midResultReceived.valid & io.midResultReceived.bits(idx)
     updateNetwork.io.redirect := io.redirect
 
     val en = updateNetwork.io.updateEnable
@@ -240,10 +235,10 @@ class FloatingStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUni
     }
   }
 
-  xs_assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
-  xs_assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
-  xs_assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
+  assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
+  assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
+  assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   for(iss <- io.issue){
-    xs_assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
+    assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
   }
 }

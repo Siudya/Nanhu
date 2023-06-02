@@ -18,7 +18,7 @@ TOP = XSTop
 SIM_TOP   = SimTop
 FPGATOP = top.TopMain
 BUILD_DIR ?= ./build
-TOP_V = $(BUILD_DIR)/$(TOP).v
+TOP_V = $(BUILD_DIR)/$(TOP).sv
 SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
 TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
 MEM_GEN = ./scripts/vlsi_mem_gen
@@ -66,8 +66,8 @@ ifeq ($(MFC),1)
 RELEASE_ARGS += -X none -E chirrtl --output-file $(TOP).chirrtl.fir
 DEBUG_ARGS += -X none -E chirrtl --output-file $(SIM_TOP).chirrtl.fir
 else
-RELEASE_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(TOP).v
-DEBUG_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(SIM_TOP).v
+RELEASE_ARGS += --emission-options disableRegisterRandomization -X sverilog --output-file $(TOP)
+DEBUG_ARGS += --emission-options disableRegisterRandomization -X sverilog --output-file $(SIM_TOP)
 endif
 
 ifeq ($(RELEASE),1)
@@ -108,7 +108,7 @@ endif
 
 verilog: $(TOP_V)
 
-SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).v
+SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).sv
 $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
 	mkdir -p $(@D)
 	@echo "\n[mill] Generating Verilog files..." > $(@D)/time.log
@@ -117,7 +117,7 @@ $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(SIM_ARGS)
 ifeq ($(RELEASE),1)
-	mv $(BUILD_DIR)/$(TOP).v $(BUILD_DIR)/$(SIM_TOP).v
+	mv $(BUILD_DIR)/$(TOP).v $(BUILD_DIR)/$(SIM_TOP_V)
 endif
 ifeq ($(MFC),1)
 	time -a -o $(@D)/time.log firtool --disable-all-randomization --disable-annotation-unknown \
@@ -136,11 +136,12 @@ endif
 	@cat .__head__ .__diff__ $@ > .__out__
 	@mv .__out__ $@
 	@rm .__head__ .__diff__
-	sed -i -e 's/$$fatal/xs_assert(`__LINE__)/g' $(SIM_TOP_V)
+	sed -i 's/Assertion failed/Assertion failed %m @ %t/g' $(SIM_TOP_V)
 
 FILELIST := $(ABS_WORK_DIR)/build/cpu_flist.f
 sim-verilog: $(SIM_TOP_V)
 	find $(ABS_WORK_DIR)/build -name "*.v" > $(FILELIST)
+	find $(ABS_WORK_DIR)/build -name "*.sv" >> $(FILELIST)
 
 clean:
 	$(MAKE) -C ./difftest clean

@@ -5,7 +5,6 @@ import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.fu.fpu.FMAMidResult
 import xiangshan.{MicroOp, Redirect, XSModule}
-import xs.utils.Assertion.xs_assert
 import xs.utils.{CircularQueuePtr, HasCircularQueuePtrHelper, LogicShiftRight}
 sealed class TwoEntryQueuePtr extends CircularQueuePtr[TwoEntryQueuePtr](entries = 2) with HasCircularQueuePtrHelper
 sealed class PipelineEntry(bankIdxWidth:Int, entryIdxWidth:Int)(implicit p: Parameters) extends Bundle{
@@ -60,7 +59,7 @@ class DecoupledPipeline(implementQueue:Boolean, bankIdxWidth:Int, entryIdxWidth:
   } else {
     //ready should be true all the time
     io.enq.ready := io.deq.ready
-    xs_assert(io.deq.ready)
+    assert(io.deq.ready)
     val deqValidDriverReg = RegNext(io.enq.valid, false.B)
     val deqDataDriverReg = RegEnable(io.enq.bits, io.enq.valid)
     val shouldBeFlushed = deqDataDriverReg.uop.robIdx.needFlush(io.redirect)
@@ -70,5 +69,5 @@ class DecoupledPipeline(implementQueue:Boolean, bankIdxWidth:Int, entryIdxWidth:
     io.deq.bits.uop.lpv.zip(deqDataDriverReg.uop.lpv).foreach({case(a,b) => a := LogicShiftRight(b, 1)})
   }
 
-  xs_assert(Mux(io.deq.valid, !io.deq.bits.uop.robIdx.needFlush(io.redirect), true.B))
+  assert(Mux(io.deq.valid, !io.deq.bits.uop.robIdx.needFlush(io.redirect), true.B))
 }

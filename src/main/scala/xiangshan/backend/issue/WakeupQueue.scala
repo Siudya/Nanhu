@@ -3,7 +3,6 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.{Redirect, SrcType, XSModule}
-import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
 class WakeupQueue(latency:Int)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
@@ -26,7 +25,7 @@ class WakeupQueue(latency:Int)(implicit p: Parameters) extends XSModule{
     res
   }
   io.out := DelayInput(io.in, latency)
-  xs_assert(Mux(io.out.valid, !io.out.bits.robPtr.needFlush(io.redirect), true.B))
+  assert(Mux(io.out.valid, !io.out.bits.robPtr.needFlush(io.redirect), true.B))
 }
 
 object WakeupQueue {

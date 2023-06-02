@@ -22,7 +22,6 @@ import chisel3.util._
 import xiangshan.ExceptionNO.illegalInstr
 import xiangshan.{RedirectLevel, XSBundle}
 import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit}
-import xs.utils.Assertion.xs_assert
 
 class FenceToSbuffer extends Bundle {
   val flushSb = Output(Bool())
@@ -106,5 +105,5 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.isLoadStore := false.B
   redirectOut.isFlushPipe := uop.ctrl.flushPipe
 
-  xs_assert(!(io.out.valid && io.out.bits.uop.ctrl.rfWen))
+  assert(!(io.out.valid && io.out.bits.uop.ctrl.rfWen))
 }

@@ -26,10 +26,10 @@ import chisel3.util._
 import firrtl.passes.InlineAnnotation
 import xiangshan.backend.issue.{BasicStatusArrayEntry, EarlyWakeUpInfo, SelectInfo, WakeUpInfo}
 import xiangshan.{FuType, Redirect, SrcState, XSBundle, XSModule}
-import xs.utils.Assertion.xs_assert
 import xs.utils.LogicShiftRight
 import xiangshan.backend.issue.MemRs.EntryState._
 import xiangshan.backend.rob.RobPtr
+import xiangshan.mem.SqPtr
 
 protected[MemRs] object EntryState{
   def s_ready:UInt = 0.U
@@ -79,6 +79,7 @@ class MemoryStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEnt
   val counter = UInt(7.W)
   val isFirstIssue = Bool()
   val waitTarget = new RobPtr
+  val sqIdx = new SqPtr
 }
 
 class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends XSModule {
@@ -96,7 +97,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val replay = Input(Valid(UInt(5.W)))
     val redirect = Input(Valid(new Redirect))
-    val stLastCompelet = Input(Valid(new RobPtr))
+    val stLastCompelet = Input(new SqPtr)
   })
 
   io.entryNext := io.entry
@@ -139,7 +140,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
 
   switch(staLoadState) {
     is(s_wait_st) {
-      when(stIssueHit || io.stLastCompelet.bits >= io.entry.bits.waitTarget) {
+      when(stIssueHit || io.stLastCompelet >= io.entry.bits.sqIdx) {
         staLoadStateNext := s_ready
       }
     }
@@ -197,17 +198,17 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
     counterNext := LogicShiftRight(counter, 1)
   }
 
-  xs_assert(Mux(staLoadIssued, io.entry.valid && staLoadState === s_ready, true.B))
-  xs_assert(Mux(stdIssued, io.entry.valid && stdState === s_ready && imStore, true.B))
-  xs_assert(Mux(io.entry.valid && imLoad, stdState === s_issued, true.B))
-  xs_assert(Mux(io.entry.valid,
+  assert(Mux(staLoadIssued, io.entry.valid && staLoadState === s_ready, true.B))
+  assert(Mux(stdIssued, io.entry.valid && stdState === s_ready && imStore, true.B))
+  assert(Mux(io.entry.valid && imLoad, stdState === s_issued, true.B))
+  assert(Mux(io.entry.valid,
     staLoadState === s_wait_st ||
       staLoadState === s_ready ||
       staLoadState === s_wait_cancel ||
       staLoadState === s_wait_counter ||
       staLoadState === s_wait_replay ||
       staLoadState === s_issued, true.B))
-  xs_assert(Mux(io.entry.valid && imStore, stdState === s_ready || stdState === s_wait_cancel || stdState === s_issued, true.B))
+  assert(Mux(io.entry.valid && imStore, stdState === s_ready || stdState === s_wait_cancel || stdState === s_issued, true.B))
 
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}
   //End of issue and cancel
@@ -235,7 +236,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      xs_assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
+      assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -283,7 +284,7 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
     val loadReplay = Input(Vec(2, Valid(new Replay(entryNum))))
     val storeReplay = Input(Vec(2, Valid(new Replay(entryNum))))
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
-    val stLastCompelet = Input(Valid(new RobPtr))
+    val stLastCompelet = Input(new SqPtr)
   })
 
   private val statusArray = Reg(Vec(entryNum, new MemoryStatusArrayEntry))
@@ -336,7 +337,7 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
     updateNetwork.io.replay.valid := replaySels.reduce(_|_)
     updateNetwork.io.replay.bits := Mux1H(replaySels, replayVals)
     updateNetwork.io.redirect := io.redirect
-    xs_assert(PopCount(replaySels) === 1.U || PopCount(replaySels) === 0.U)
+    assert(PopCount(replaySels) === 1.U || PopCount(replaySels) === 0.U)
     updateNetwork.io.stIssued := io.stIssued
     updateNetwork.io.stLastCompelet := io.stLastCompelet
 
@@ -348,11 +349,11 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
     }
   }
 
-  xs_assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
-  xs_assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
-  xs_assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
+  assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
+  assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
+  assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   private val issues = Seq(io.staIssue, io.stdIssue, io.lduIssue)
   for(iss <- issues){
-    xs_assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
+    assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
   }
 }

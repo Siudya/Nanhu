@@ -5,7 +5,6 @@ import chisel3._
 import freechips.rocketchip.diplomacy.LazyModule
 import xiangshan.FuType
 import xiangshan.backend.execute.exu.{AluExu, DivExu, ExuType}
-import xs.utils.Assertion.xs_assert
 
 class AluDivComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
   val alu = LazyModule(new AluExu(id, "AluDivComplex", bypassNum))
@@ -32,6 +31,6 @@ class AluDivComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueDiv.issue.ready)
 
     private val issueFuHit = issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_|_)
-    xs_assert(Mux(issueIn.issue.valid, issueFuHit, true.B))
+    assert(Mux(issueIn.issue.valid, issueFuHit, true.B))
   }
 }

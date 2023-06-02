@@ -152,7 +152,6 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   csrioIn.exception := ctrlBlock.io.robio.exception
   ctrlBlock.io.robio.toCSR.intrBitSet := csrioIn.interrupt
   ctrlBlock.io.robio.toCSR.wfiEvent := csrioIn.wfi_event
-  csrioIn.memExceptionVAddr := exuBlock.io.lsqio.exceptionAddr.vaddr
 
   csrioIn.externalInterrupt.msip := outer.clint_int_sink.in.head._1(0)
   csrioIn.externalInterrupt.mtip := outer.clint_int_sink.in.head._1(1)
@@ -163,8 +162,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   csrioIn.distributedUpdate(1).w.valid := frontend.io.csrUpdate.w.valid
   csrioIn.distributedUpdate(1).w.bits := frontend.io.csrUpdate.w.bits
 
-  exuBlock.io.lsqio.rob := ctrlBlock.io.robio.lsq
-  exuBlock.io.lsqio.exceptionAddr.isStore := CommitType.lsInstIsStore(ctrlBlock.io.robio.exception.bits.uop.ctrl.commitType)
+  exuBlock.io.rob := ctrlBlock.io.robio.lsq
   exuBlock.io.pcMemWrite.en := RegNext(frontend.io.backend.fromFtq.pc_mem_wen, false.B)
   exuBlock.io.pcMemWrite.addr := RegEnable(frontend.io.backend.fromFtq.pc_mem_waddr, frontend.io.backend.fromFtq.pc_mem_wen)
   exuBlock.io.pcMemWrite.data := RegEnable(frontend.io.backend.fromFtq.pc_mem_wdata, frontend.io.backend.fromFtq.pc_mem_wen)

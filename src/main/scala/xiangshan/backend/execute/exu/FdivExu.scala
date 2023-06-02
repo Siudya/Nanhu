@@ -6,7 +6,6 @@ import chisel3.util._
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.execute.fu.fpu.FDivSqrt
 import xiangshan.{ExuOutput, HasXSParameter}
-import xs.utils.Assertion.xs_assert
 import xs.utils.PickOneHigh
 
 class FdivExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicExu with HasXSParameter{
@@ -45,8 +44,9 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     arbIn.bits.fflags := fu.fflags
     arbIn.bits.redirect := DontCare
     arbIn.bits.redirectValid := false.B
+    arbIn.bits.debug := DontCare
   })
-  xs_assert(Mux(issuePort.issue.valid, fuSel.valid, true.B))
+  assert(Mux(issuePort.issue.valid, fuSel.valid, true.B))
   writebackPort.valid := outputArbiter.io.out.valid
   writebackPort.bits := outputArbiter.io.out.bits
   outputArbiter.io.out.ready := true.B

@@ -4,7 +4,6 @@ import chisel3._
 import chisel3.util._
 import xiangshan.Redirect
 import xiangshan.backend.rob.RobPtr
-import xs.utils.Assertion.xs_assert
 import xs.utils.PickOneLow
 class TokenAllocatorEntry(pdestWidth:Int)(implicit val p: Parameters) extends Bundle{
   val robPtr = new RobPtr
@@ -35,6 +34,6 @@ class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit val p: Parameters) e
       when(io.alloc.valid && en){
         d := io.alloc.bits
       }
-      xs_assert(Mux(en, !v, true.B))
+      assert(Mux(en, !v, true.B))
   })
 }

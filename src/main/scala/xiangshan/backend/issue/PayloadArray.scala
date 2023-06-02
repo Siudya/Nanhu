@@ -3,7 +3,6 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.XSModule
-import xs.utils.Assertion.xs_assert
 class PayloadArrayReadIO[T <: Data](gen:T, entryNum:Int) extends Bundle {
   val addr = Input(UInt(entryNum.W))
   val data = Output(gen)
@@ -36,6 +35,6 @@ class PayloadArray[T <: Data](gen:T, entryNum:Int, deqNum:Int, name:String)(impl
     }
   }
 
-  io.read.foreach(r => xs_assert(PopCount(r.addr) === 1.U))
-  xs_assert(Mux(io.write.en, PopCount(io.write.addr) === 1.U, true.B))
+  io.read.foreach(r => assert(PopCount(r.addr) === 1.U))
+  assert(Mux(io.write.en, PopCount(io.write.addr) === 1.U, true.B))
 }

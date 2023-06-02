@@ -5,7 +5,6 @@ import chisel3.util._
 import xiangshan.backend.execute.fu.mdu.DividerWrapper
 import xiangshan.backend.execute.fu.{FuConfigs, FuOutput}
 import xiangshan.{ExuOutput, HasXSParameter}
-import xs.utils.Assertion.xs_assert
 import xs.utils.PickOneHigh
 
 class DivExu(id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu with HasXSParameter{
@@ -41,7 +40,7 @@ class DivExuImpl(outer:DivExu, exuCfg:ExuConfig) extends BasicExuImpl(outer) wit
     div.io.in.bits.uop := finalIssueSignals.bits.uop
     div.io.in.bits.src := finalIssueSignals.bits.src
     arbIn <> div.io.out
-    xs_assert(Mux(div.io.in.valid, div.io.in.ready, true.B))
+    assert(Mux(div.io.in.valid, div.io.in.ready, true.B))
   }
   outputArbiter.io.out.ready := true.B
   writebackPort.bits := DontCare

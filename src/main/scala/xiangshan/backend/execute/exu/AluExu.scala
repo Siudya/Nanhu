@@ -5,7 +5,6 @@ import chisel3.util._
 import xiangshan.ExuOutput
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.execute.fu.alu.Alu
-import xs.utils.Assertion.xs_assert
 
 class AluExu(id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu{
   private val cfg  = ExuConfig(
@@ -43,5 +42,5 @@ class AluExuImpl(outer:AluExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   writebackPort.bits.data := alu.io.out.bits.data
   writebackPort.bits.redirectValid := alu.redirectOutValid
   writebackPort.bits.redirect := alu.redirectOut
-  xs_assert(alu.io.in.ready)
+  assert(alu.io.in.ready)
 }

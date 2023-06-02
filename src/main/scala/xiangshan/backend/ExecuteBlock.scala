@@ -8,7 +8,7 @@ import regfile.{PcMem, PcWritePort, RegFileTop}
 import system.HasSoCParameter
 import utils.{HPerfMonitor, HasPerfEvents, PerfEvent}
 import xiangshan.backend.execute.exu.FenceIO
-import xiangshan.{ExuInput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect}
+import xiangshan.{CommitType, ExuInput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect}
 import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemBlock}
 import xiangshan.backend.execute.fu.csr.{CSRFileIO, PFEvent}
 import xiangshan.backend.issue.FpRs.FloatingReservationStation
@@ -52,10 +52,8 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
       val stIn = Vec(exuParameters.StuCnt, ValidIO(new ExuInput))
       val enqLsq = new LsqEnqIO
       val ptw = new BTlbPtwIO(ld_tlb_ports + exuParameters.StuCnt)
-      val lsqio = new Bundle {
-        val exceptionAddr = new ExceptionAddrIO // to csr
-        val rob = Flipped(new RobLsqIO) // rob to lsq
-      }
+      val rob = Flipped(new RobLsqIO) // rob to lsq
+
       val memInfo = new Bundle {
         val sqFull = Output(Bool())
         val lqFull = Output(Bool())
@@ -79,87 +77,99 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
       val csrio = new CSRFileIO
       val dfx_reset = Input(new DFTResetSignals())
     })
-    private val localRedirect = writebackNetwork.module.io.redirectOut
+    private val intRs = integerReservationStation.module
+    private val fpRs = floatingReservationStation.module
+    private val memRs = memoryReservationStation.module
+    private val intBlk = integerBlock.module
+    private val fpBlk = floatingBlock.module
+    private val memBlk = memoryBlock.module
+    private val rf = regFile.module
+    private val writeback = writebackNetwork.module
+
+    private val localRedirect = writeback.io.redirectOut
     exuBlocks.foreach(_.module.redirectIn := Pipe(localRedirect))
+    
+    intRs.io.redirect := Pipe(localRedirect)
+    intRs.io.loadEarlyWakeup := memRs.io.loadEarlyWakeup
+    intRs.io.earlyWakeUpCancel := memBlk.io.earlyWakeUpCancel(0)
+    intRs.io.integerAllocPregs := io.integerAllocPregs
 
+    fpRs.io.redirect := Pipe(localRedirect)
+    fpRs.io.loadEarlyWakeup := memRs.io.loadEarlyWakeup
+    fpRs.io.earlyWakeUpCancel := memBlk.io.earlyWakeUpCancel(1)
+    fpRs.io.floatingAllocPregs := io.floatingAllocPregs
+    fpBlk.io.csr_frm := intBlk.io.csrio.fpu.frm
 
-    integerReservationStation.module.io.redirect := Pipe(localRedirect)
-    integerReservationStation.module.io.loadEarlyWakeup := memoryReservationStation.module.io.loadEarlyWakeup
-    integerReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(0)
-    integerReservationStation.module.io.integerAllocPregs := io.integerAllocPregs
+    memRs.io.redirect := Pipe(localRedirect)
+    memRs.io.specWakeup.zip(intRs.io.specWakeup).foreach({case(a, b) => a := Pipe(b)})
+    memRs.io.earlyWakeUpCancel := memBlk.io.earlyWakeUpCancel(2)
+    memRs.io.integerAllocPregs := io.integerAllocPregs
+    memRs.io.floatingAllocPregs := io.floatingAllocPregs
+    memRs.io.stLastCompelet := memBlk.io.stIssuePtr
 
-    floatingReservationStation.module.io.redirect := Pipe(localRedirect)
-    floatingReservationStation.module.io.loadEarlyWakeup := memoryReservationStation.module.io.loadEarlyWakeup
-    floatingReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(1)
-    floatingReservationStation.module.io.floatingAllocPregs := io.floatingAllocPregs
-    floatingBlock.module.io.csr_frm := integerBlock.module.io.csrio.fpu.frm
+    intBlk.io.csrio.distributedUpdate(0) := memBlk.io.csrUpdate
+    memBlk.io.csrCtrl <> intBlk.io.csrio.customCtrl
+    memBlk.io.fenceToSbuffer <> intBlk.io.fenceio.sbuffer
+    memBlk.io.sfence := intBlk.io.fenceio.sfence
+    memBlk.io.tlbCsr <> intBlk.io.csrio.tlb
 
-    memoryReservationStation.module.io.redirect := Pipe(localRedirect)
-    memoryReservationStation.module.io.specWakeup.zip(integerReservationStation.module.io.specWakeup).foreach({case(a, b) => a := Pipe(b)})
-    memoryReservationStation.module.io.earlyWakeUpCancel := memoryBlock.module.io.earlyWakeUpCancel(2)
-    memoryReservationStation.module.io.integerAllocPregs := io.integerAllocPregs
-    memoryReservationStation.module.io.floatingAllocPregs := io.floatingAllocPregs
-
-
-    integerBlock.module.io.csrio.distributedUpdate(0) := memoryBlock.module.io.csrUpdate
-    memoryBlock.module.io.csrCtrl <> integerBlock.module.io.csrio.customCtrl
-    memoryBlock.module.io.fenceToSbuffer <> integerBlock.module.io.fenceio.sbuffer
-    memoryBlock.module.io.sfence := integerBlock.module.io.fenceio.sfence
-    memoryBlock.module.io.tlbCsr <> integerBlock.module.io.csrio.tlb
-
-    memoryBlock.module.io.perfEventsPTW := io.perfEventsPTW
-    io.memInfo := memoryBlock.module.io.memInfo
-    io.ptw <> memoryBlock.module.io.ptw
-    io.l1Error := memoryBlock.module.io.error
-    io.lqCancelCnt := memoryBlock.module.io.lqCancelCnt
-    io.sqCancelCnt := memoryBlock.module.io.sqCancelCnt
-    io.sqDeq := memoryBlock.module.io.sqDeq
-    io.stIn := memoryBlock.module.io.stIn
-    io.enqLsq <> memoryBlock.module.io.enqLsq
-    io.lsqio <> memoryBlock.module.io.lsqio
+    memBlk.io.perfEventsPTW := io.perfEventsPTW
+    io.memInfo := memBlk.io.memInfo
+    io.ptw <> memBlk.io.ptw
+    io.l1Error := memBlk.io.error
+    io.lqCancelCnt := memBlk.io.lqCancelCnt
+    io.sqCancelCnt := memBlk.io.sqCancelCnt
+    io.sqDeq := memBlk.io.sqDeq
+    io.stIn := memBlk.io.stIn
+    io.enqLsq <> memBlk.io.enqLsq
+    io.rob <> memBlk.io.lsqio.rob
 
     //issue + redirect + exception
-    private val pcReadPortNum = regFile.module.pcReadNum + writebackNetwork.module.io.pcReadData.length + 1
+    private val pcReadPortNum = rf.pcReadNum + writeback.io.pcReadData.length + 1
     private val pcMem = Module(new PcMem(pcReadPortNum, 1))
     pcMem.io.write.head := io.pcMemWrite
 
-    pcMem.io.read.take(pcReadPortNum - 1).zip(regFile.module.io.pcReadAddr ++ writebackNetwork.module.io.pcReadAddr).foreach({ case (r, addr) => r.addr := addr })
-    (regFile.module.io.pcReadData ++ writebackNetwork.module.io.pcReadData).zip(pcMem.io.read.take(pcReadPortNum - 1)).foreach({ case (data, r) => data := r.data })
+    pcMem.io.read.take(pcReadPortNum - 1).zip(rf.io.pcReadAddr ++ writeback.io.pcReadAddr).foreach({ case (r, addr) => r.addr := addr })
+    (rf.io.pcReadData ++ writeback.io.pcReadData).zip(pcMem.io.read.take(pcReadPortNum - 1)).foreach({ case (data, r) => data := r.data })
 
-    private val exceptionInUop = io.csrio.exception.bits.uop
-    integerBlock.module.io.fenceio <> io.fenceio
-    integerBlock.module.io.csrio <> io.csrio
+    private val exceptionReg = Pipe(io.csrio.exception)
+    private val exceptionInUop = exceptionReg.bits.uop
+    intBlk.io.fenceio <> io.fenceio
+    intBlk.io.csrio <> io.csrio
+    intBlk.io.csrio.exception := exceptionReg
     pcMem.io.read.last.addr := exceptionInUop.cf.ftqPtr.value
-    integerBlock.module.io.csrio.exception.bits.uop.cf.pc := pcMem.io.read.last.data.getPc(exceptionInUop.cf.ftqOffset)
+    intBlk.io.csrio.exception.bits.uop.cf.pc := pcMem.io.read.last.data.getPc(exceptionInUop.cf.ftqOffset)
+    intBlk.io.csrio.memExceptionVAddr := memBlk.io.lsqio.exceptionAddr.vaddr
+    memBlk.io.lsqio.exceptionAddr.isStore := CommitType.lsInstIsStore(exceptionReg.bits.uop.ctrl.commitType)
 
-    memoryBlock.module.io.issueToMou <> integerBlock.module.io.issueToMou
-    memoryBlock.module.io.writebackFromMou <> integerBlock.module.io.writebackFromMou
+    memBlk.io.issueToMou <> intBlk.io.issueToMou
+    memBlk.io.writebackFromMou <> intBlk.io.writebackFromMou
 
-    memoryBlock.module.redirectIn := Pipe(localRedirect)
-    integerBlock.module.redirectIn := Pipe(localRedirect)
-    floatingBlock.module.redirectIn := Pipe(localRedirect)
+    memBlk.redirectIn := Pipe(localRedirect)
+    intBlk.redirectIn := Pipe(localRedirect)
+    fpBlk.redirectIn := Pipe(localRedirect)
 
-    io.redirectOut := writebackNetwork.module.io.redirectOut
-    io.memPredUpdate := writebackNetwork.module.io.memPredUpdate
+    io.redirectOut := writeback.io.redirectOut
+    io.memPredUpdate := writeback.io.memPredUpdate
 
     private val pfevent = Module(new PFEvent)
-    pfevent.io.distribute_csr := integerBlock.module.io.csrio.customCtrl.distribute_csr.delay()
+    pfevent.io.distribute_csr := intBlk.io.csrio.customCtrl.distribute_csr.delay()
     private val csrevents = pfevent.io.hpmevent.slice(16,24)
 
-    private val perfFromUnits = Seq(memoryBlock.module).flatMap(_.getPerfEvents)
+    private val perfFromUnits = Seq(memBlk).flatMap(_.getPerfEvents)
     private val allPerfInc = perfFromUnits.map(_._2.asTypeOf(new PerfEvent))
     val perfEvents: Seq[(String, UInt)] = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
 
     private val resetTree = ResetGenNode(
       Seq(
-        ModuleNode(integerReservationStation.module),
-        ModuleNode(floatingReservationStation.module),
-        ModuleNode(memoryReservationStation.module),
-        ModuleNode(regFile.module),
-        ModuleNode(writebackNetwork.module),
-        ModuleNode(integerBlock.module),
-        ModuleNode(floatingBlock.module),
-        ModuleNode(memoryBlock.module),
+        ModuleNode(intRs),
+        ModuleNode(fpRs),
+        ModuleNode(memRs),
+        ModuleNode(rf),
+        ModuleNode(writeback),
+        ModuleNode(intBlk),
+        ModuleNode(fpBlk),
+        ModuleNode(memBlk),
         ModuleNode(pcMem)
       )
     )

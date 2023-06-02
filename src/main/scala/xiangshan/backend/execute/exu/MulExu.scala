@@ -7,7 +7,6 @@ import xiangshan.backend.execute.fu.bku.Bku
 import xiangshan.backend.execute.fu.fpu.IntToFP
 import xiangshan.backend.execute.fu.mdu.{ArrayMultiplier, MDUOpType}
 import xiangshan.{ExuOutput, HasXSParameter}
-import xs.utils.Assertion.xs_assert
 import xs.utils.{LookupTree, ParallelMux, SignExt, ZeroExt}
 
 class MulExu(id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu{
@@ -44,7 +43,7 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
     m.io.in.bits.uop := finalIssueSignals.bits.uop
     m.io.in.bits.src := finalIssueSignals.bits.src
     m.io.out.ready := true.B
-    xs_assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
+    assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
   })
   i2f.rm := finalIssueSignals.bits.uop.ctrl.fpu.rm
 
@@ -99,8 +98,8 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   io.bypassOut.valid := writebackPort.valid && writebackPort.bits.uop.ctrl.rfWen
   io.bypassOut.bits := writebackPort.bits
 
-  xs_assert(mul.io.in.ready)
-  xs_assert(bku.io.in.ready)
-  xs_assert(i2f.io.in.ready)
-  xs_assert(PopCount(outSel) === 1.U || PopCount(outSel) === 0.U)
+  assert(mul.io.in.ready)
+  assert(bku.io.in.ready)
+  assert(i2f.io.in.ready)
+  assert(PopCount(outSel) === 1.U || PopCount(outSel) === 0.U)
 }

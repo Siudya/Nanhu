@@ -9,8 +9,6 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
 import xiangshan.backend.issue._
 import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
-import xs.utils.Assertion.xs_assert
-
 
 class IntegerReservationStation(implicit p: Parameters) extends LazyModule with HasXSParameter{
   private val entryNum = p(XSCoreParamsKey).intRsDepth
@@ -122,7 +120,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     sink.bits.srcState(1) := Mux(source.bits.ctrl.srcType(1) === SrcType.reg, rport1.resp, SrcState.rdy)
     source.ready := sink.ready
     busyTableReadIdx = busyTableReadIdx + 2
-    xs_assert(Mux(source.valid, FuType.integerTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    assert(Mux(source.valid, FuType.integerTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs

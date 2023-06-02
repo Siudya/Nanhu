@@ -6,7 +6,6 @@ import chisel3.util._
 import xiangshan.{ExuInput, Redirect, SrcType, XSBundle, XSModule}
 import freechips.rocketchip.config.Parameters
 import xiangshan.backend.issue.RsIdx
-import xs.utils.Assertion.xs_assert
 
 class WritePort(dataWidth:Int, hasMask:Boolean)(implicit p: Parameters) extends XSBundle {
   val addr = Input(UInt(PhyRegIdxWidth.W))

@@ -11,8 +11,7 @@ import xiangshan.backend.issue._
 import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.rob.RobPtr
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
-import xs.utils.Assertion.xs_assert
-
+import xiangshan.mem.SqPtr
 
 class MemoryReservationStation(implicit p: Parameters) extends LazyModule{
   private val entryNum = p(XSCoreParamsKey).memRsDepth
@@ -55,7 +54,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     val specWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.specWakeUpNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Output(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
-    val stLastCompelet = Input(Valid(new RobPtr))
+    val stLastCompelet = Input(new SqPtr)
     val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
     val floatingAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
   })
@@ -81,22 +80,22 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod.io.stIssued := stIssuedWires
-    mod.io.stLastCompelet := Pipe(io.stLastCompelet)
+    mod.io.stLastCompelet := RegNext(io.stLastCompelet)
     mod
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemoryAllocateNetwork")))
 
-  private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf)
-  private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf)
+  private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf).map(_._1) ++ io.specWakeup
+  private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf).map(_._1) ++ io.specWakeup
   private val floatingBusyTable = Module(new BusyTable(param.bankNum, wakeupFp.length))
   floatingBusyTable.io.allocPregs := io.floatingAllocPregs
-  floatingBusyTable.io.wbPregs.zip(wakeupFp.map(_._1)).foreach({ case (bt, wb) =>
+  floatingBusyTable.io.wbPregs.zip(wakeupFp).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.fp
     bt.bits := wb.bits.pdest
   })
   private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.specWakeup.length))
   integerBusyTable.io.allocPregs := io.integerAllocPregs
-  integerBusyTable.io.wbPregs.zip(wakeupInt.map(_._1) ++ io.specWakeup).foreach({ case (bt, wb) =>
+  integerBusyTable.io.wbPregs.zip(wakeupInt ++ io.specWakeup).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.reg
     bt.bits := wb.bits.pdest
   })
@@ -124,8 +123,8 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   })
   lduSelectNetwork.io.redirect := io.redirect
 
-  private val fpBusyTableReadIdx = 0
-  private val intBusyTableReadIdx = 0
+  private var fpBusyTableReadIdx = 0
+  private var intBusyTableReadIdx = 0
   allocateNetwork.io.enqFromDispatch.zip(enq).foreach({case(sink, source) =>
     val fread = floatingBusyTable.io.read(fpBusyTableReadIdx)
     val iread0 = integerBusyTable.io.read(intBusyTableReadIdx)
@@ -140,7 +139,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     sink.bits.srcState(0) := Mux(type0 === SrcType.reg, iread0.resp, SrcState.rdy)
     sink.bits.srcState(1) := Mux(type1 === SrcType.reg, iread1.resp, Mux(type1 === SrcType.fp, fread.resp, SrcState.rdy))
     source.ready := sink.ready
-    xs_assert(Mux(source.valid, FuType.memoryTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    fpBusyTableReadIdx = fpBusyTableReadIdx + 1
+    intBusyTableReadIdx = intBusyTableReadIdx + 2
+    assert(Mux(source.valid, FuType.memoryTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs
@@ -156,7 +157,6 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   private var staPortIdx = 0
   private var stdPortIdx = 0
   private var lduPortIdx = 0
-  private var replayPortIdx = 0
   private val staIssBankNum = param.bankNum / staIssuePortNum
   private val stdIssBankNum = param.bankNum / stdIssuePortNum
   private val lduIssBankNum = param.bankNum / lduIssuePortNum
