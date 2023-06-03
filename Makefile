@@ -136,7 +136,7 @@ endif
 	@cat .__head__ .__diff__ $@ > .__out__
 	@mv .__out__ $@
 	@rm .__head__ .__diff__
-	sed -i -e 's/Assertion failed/Assertion failed %m @ %t/g' $(SIM_TOP_V)
+	python3 scripts/assertion_alter.py -o $(SIM_TOP_V) $(SIM_TOP_V)
 
 FILELIST := $(ABS_WORK_DIR)/build/cpu_flist.f
 sim-verilog: $(SIM_TOP_V)
