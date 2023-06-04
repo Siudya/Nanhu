@@ -354,6 +354,6 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
   assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   private val issues = Seq(io.staIssue, io.stdIssue, io.lduIssue)
   for(iss <- issues){
-    assert(PopCount(Mux(iss.valid, iss.bits, 0.U) & Cat(statusArrayValid.reverse)) === 1.U)
+    assert(Mux(iss.valid, PopCount(iss.bits & Cat(statusArrayValid.reverse)) === 1.U, true.B))
   }
 }
