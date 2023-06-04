@@ -56,8 +56,8 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     enqEntry.psrc(1) := in.psrc(1)
     enqEntry.srcType(0) := in.ctrl.srcType(0)
     enqEntry.srcType(1) := in.ctrl.srcType(1)
-    enqEntry.srcState(0) := Mux(in.ctrl.srcType(0) === SrcType.reg, in.ctrl.srcType(0), SrcState.rdy)
-    enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.reg || in.ctrl.srcType(1) === SrcType.fp, in.ctrl.srcType(1), SrcState.rdy)
+    enqEntry.srcState(0) := Mux(in.ctrl.srcType(0) === SrcType.reg, in.srcState(0), SrcState.rdy)
+    enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.reg || in.srcState(1) === SrcType.fp, in.srcState(1), SrcState.rdy)
     enqEntry.pdest := in.pdest
     enqEntry.lpv.foreach(_.foreach(_ := 0.U))
     enqEntry.fuType := in.ctrl.fuType

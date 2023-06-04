@@ -44,7 +44,7 @@ if __name__ == "__main__":
       is_begin = match(line, rex_assert_begin)
       if(is_single_line):
         if(match(line, rex_assert_body)):
-          f.write(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\\n\", $time);\n")
+          f.write(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
           line = line.replace("Assertion failed", "")
 
         f.write(line)
@@ -65,7 +65,7 @@ if __name__ == "__main__":
           if(match(line, rex_assert_end)):
             if(is_assert):
               ol = assertion_queue.get()
-              f.write(gen_prefix(ol) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\\n\", $time);\n")
+              f.write(gen_prefix(ol) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
               f.write(ol)
 
             while(not assertion_queue.empty()):

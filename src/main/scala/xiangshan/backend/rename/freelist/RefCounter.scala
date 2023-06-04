@@ -55,7 +55,7 @@ class RefCounter(size: Int)(implicit p: Parameters) extends XSModule {
     val isFreed = refCounter(de.bits) + refCounterInc(de.bits) === refCounterDec(de.bits)
     io.freeRegs(i).valid := RegNext(isNonZero && !blockedByDup) && RegNext(isFreed)
     val isFreed1 = refCounter(RegNext(de.bits)) === 0.U
-    XSError(RegNext(isFreed) =/= isFreed1, p"why isFreed ${RegNext(isFreed)} $isFreed1\n")
+    XSError(RegNext(isFreed) =/= isFreed1 && RegNext(de.valid), p"why isFreed ${RegNext(isFreed)} $isFreed1\n")
     io.freeRegs(i).bits := RegNext(deallocate(i).bits)
   }
 
