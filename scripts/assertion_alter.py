@@ -22,15 +22,10 @@ if __name__ == "__main__":
 
   if(not os.path.exists(file_path)):
     print("Input file not exsist!")
-    os._exit()
-  
-  if(not os.path.exists(out_path)):
-    print("Output file not exsist!")
-    os._exit()
-    
+    os._exit() 
 
   rex_assert_begin = re.compile("\$fwrite\(32'h80000002")
-  rex_assert_body = re.compile("Assertion faild:")
+  rex_assert_body = re.compile("Assertion failed")
   rex_assert_end = re.compile("\);")
   assertion_queue = queue.Queue()
   file_queue = queue.Queue()
@@ -42,7 +37,6 @@ if __name__ == "__main__":
     for line in file_lines:
       file_queue.put(line)
       
-  idx = 0
   with open(out_path,"w") as f:
     while(True):
       line = file_queue.get()
@@ -50,28 +44,29 @@ if __name__ == "__main__":
       is_begin = match(line, rex_assert_begin)
       if(is_single_line):
         if(match(line, rex_assert_body)):
-          f.write(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion faild: %m @ %t\", $time);\n")
-          line = line.replace("Assertion faild:", "")
+          print(line)
+          f.write(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
+          line = line.replace("Assertion failed", "")
 
         f.write(line)
 
       elif(is_begin):
         is_assert = False
         if(match(line, rex_assert_body)):
-          line = line.replace("Assertion faild:", "")
+          line = line.replace("Assertion failed", "")
           is_assert = True
         assertion_queue.put(line)
         while(True):
           line = file_queue.get()
           if(match(line, rex_assert_body)):
             is_assert = True
-            line = line.replace("Assertion faild:", "")
+            line = line.replace("Assertion failed", "")
 
           assertion_queue.put(line)
           if(match(line, rex_assert_end)):
             if(is_assert):
               ol = assertion_queue.get()
-              f.write(gen_prefix(ol) + "$fwrite(32'h80000002, \"Assertion faild: %m @ %t\", $time);\n")
+              f.write(gen_prefix(ol) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
               f.write(ol)
 
             while(not assertion_queue.empty()):
