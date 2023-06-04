@@ -88,7 +88,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val enqMask = UIntToMask(enqPtrAux.value, size)
   private val deqMask = UIntToMask(deqPtr.value, size)
   private val enqXorDeq = enqMask ^ deqMask
-  private val validsMask = Mux(deqPtr.value < enqPtrAux.value, enqXorDeq, (~enqXorDeq).asUInt)
+  private val validsMask = Mux(deqPtr.value <= enqPtrAux.value, enqXorDeq, (~enqXorDeq).asUInt)
   private val redirectMask = validsMask & payloadArray.io.flushVec
   private val flushNum = PopCount(redirectMask)
 
