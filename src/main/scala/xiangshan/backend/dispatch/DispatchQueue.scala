@@ -123,7 +123,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   assert(flushNum <= validEntriesNum)
   private val deqFlushNextMask = UIntToMask((deqPtr + flushNum).value, size)
   private val flushXorPresentMask = deqFlushNextMask ^ deqMask
-  private val deqRollbackMask = Mux(deqPtr.value < (deqPtr + flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
+  private val deqRollbackMask = Mux(deqPtr.value <= (deqPtr + flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
   assert(Mux(io.redirect.valid, deqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
 
 

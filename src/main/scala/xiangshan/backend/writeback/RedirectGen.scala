@@ -33,18 +33,18 @@ object RedirectGen{
     res
   }
 
-  def selectOldestRedirect(in: Seq[Valid[ExuOutput]], p:Parameters): (Valid[ExuOutput], UInt) = {
+  def selectOldestRedirect(in: Seq[Valid[Redirect]], p:Parameters): (Valid[Redirect], UInt) = {
     val idxWidth = in.length
     val selectInfo = in.zipWithIndex.map({case(r, idx) =>
       val res = Wire(Valid(new RedirectSelectBundle(idxWidth)(p)))
       res.valid := r.valid
-      res.bits.robIdx := r.bits.uop.robIdx
+      res.bits.robIdx := r.bits.robIdx
       res.bits.idxOH := 1.U << idx
       res
     })
     val op = oldestSelect(_, _, idxWidth, p)
     val selRes = ParallelOperation(selectInfo, op)
-    val res = Wire(Valid(new ExuOutput()(p)))
+    val res = Wire(Valid(new Redirect()(p)))
     res.valid := selRes.valid
     res.bits := Mux1H(selRes.bits.idxOH, in.map(_.bits))
     (res, selRes.bits.idxOH)
@@ -65,10 +65,10 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   })
 
   private val allWb = io.jmpWbIn ++ io.aluWbIn ++ io.memWbIn
-  private val allRedirect = allWb.map(getRedirect(_, p)).map(_.bits)
-  private val (exuOutSel, redirectIdxOH) = selectOldestRedirect(allWb, p)
-  private val redirectSel = Mux1H(redirectIdxOH, allRedirect)
-  private val redirectValid = exuOutSel.valid && !exuOutSel.bits.uop.robIdx.needFlush(io.redirectIn)
+  private val allRedirect = allWb.map(getRedirect(_, p))
+  private val (redirectSel, redirectIdxOH) = selectOldestRedirect(allRedirect, p)
+  private val redirectValid = redirectSel.valid && !redirectSel.bits.robIdx.needFlush(io.redirectIn)
+  private val exuOutSel = Mux1H(redirectIdxOH, allWb)
 
   private var addrIdx = 0
   private val isJmp = redirectIdxOH(jmpRedirectNum + addrIdx - 1, addrIdx).orR
@@ -78,15 +78,15 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   private val isMem = redirectIdxOH(memRedirectNum + addrIdx - 1, addrIdx).orR
   addrIdx = addrIdx + memRedirectNum
 
-  io.pcReadAddr(0) := exuOutSel.bits.uop.cf.ftqPtr.value
+  io.pcReadAddr(0) := redirectSel.bits.ftqIdx.value
   private val s1_isJmpReg = RegEnable(isJmp, redirectValid)
   private val s1_isMemReg = RegEnable(isMem, redirectValid)
-  private val s1_pcReadReg = RegEnable(io.pcReadData(0).getPc(exuOutSel.bits.uop.cf.ftqOffset), redirectValid)
+  private val s1_pcReadReg = RegEnable(io.pcReadData(0).getPc(redirectSel.bits.ftqOffset), redirectValid)
   private val s1_jmpTargetReg = RegEnable(io.jmpWbIn.head.bits.redirect.cfiUpdate.target, redirectValid)
   private val s1_imm12Reg = RegEnable(exuOutSel.bits.uop.ctrl.imm(11, 0), redirectValid)
   private val s1_pdReg = RegEnable(exuOutSel.bits.uop.cf.pd, redirectValid)
-  private val s1_robIdxReg = RegEnable(exuOutSel.bits.uop.robIdx, redirectValid)
-  private val s1_redirectBitsReg = RegEnable(redirectSel, redirectValid)
+  private val s1_robIdxReg = RegEnable(redirectSel.bits.robIdx, redirectValid)
+  private val s1_redirectBitsReg = RegEnable(redirectSel.bits, redirectValid)
   private val s1_redirectValidReg = RegNext(redirectValid, false.B)
 
   private val branchTarget = s1_pcReadReg + SignExt(ImmUnion.B.toImm32(s1_imm12Reg), XLEN)

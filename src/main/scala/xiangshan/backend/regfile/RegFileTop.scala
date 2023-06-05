@@ -54,7 +54,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
     private val intWriteBackSinks = intRf.io.write ++ intRf.io.bypassWrite
     private val intWriteBackSources = writeIntRf ++ writeIntRfBypass
     intWriteBackSinks.zip(intWriteBackSources.map(_._1)).foreach({case(sink, source) =>
-      sink.en := source.valid && source.bits.uop.ctrl.rfWen && source.bits.uop.ctrl.ldest =/= 0.U
+      sink.en := source.valid && source.bits.uop.ctrl.rfWen && source.bits.uop.pdest =/= 0.U
       sink.addr := source.bits.uop.pdest
       sink.data := source.bits.data
     })
@@ -85,7 +85,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
           val srcNum = exuComplexParam.intSrcNum
           for((d, addr) <- issueBundle.src.zip(bi.issue.bits.uop.psrc).take(srcNum)){
             intRf.io.read(intRfReadIdx).addr := addr
-            d := Mux(bi.issue.bits.uop.ctrl.ldest === 0.U, 0.U, intRf.io.read(intRfReadIdx).data)
+            d := Mux(addr === 0.U, 0.U, intRf.io.read(intRfReadIdx).data)
             intRfReadIdx = intRfReadIdx + 1
           }
           if(exuComplexParam.hasJmp){
