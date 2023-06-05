@@ -44,7 +44,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
   memoryReservationStation.wakeupNode := writebackNetwork.node
   lazy val module = new LazyModuleImp(this) with HasSoCParameter with HasPerfEvents{
     val io = IO(new Bundle {
-      val hartId = UInt(64.W)
+      val hartId = Input(UInt(64.W))
       //Mem Block
       val l1Error = new L1CacheErrorInfo
       val lqCancelCnt = Output(UInt(log2Up(LoadQueueSize + 1).W))

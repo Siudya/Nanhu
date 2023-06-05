@@ -24,7 +24,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
     println("Regfile Writeback Info:")
 
     val io = IO(new Bundle{
-      val hartId = UInt(64.W)
+      val hartId = Input(UInt(64.W))
       val pcReadAddr = Output(Vec(pcReadNum, UInt(log2Ceil(FtqSize).W)))
       val pcReadData = Input(Vec(pcReadNum, new Ftq_RF_Components))
       val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
