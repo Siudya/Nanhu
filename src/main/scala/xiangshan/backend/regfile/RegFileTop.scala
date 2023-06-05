@@ -59,7 +59,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
     private val intWriteBackSinks = intRf.io.write ++ intRf.io.bypassWrite
     private val intWriteBackSources = writeIntRf ++ writeIntRfBypass
     intWriteBackSinks.zip(intWriteBackSources.map(_._1)).foreach({case(sink, source) =>
-      sink.en := source.valid && source.bits.uop.ctrl.rfWen && source.bits.uop.ctrl.ldest =/= 0.U
+      sink.en := source.valid && source.bits.uop.ctrl.rfWen && source.bits.uop.pdest =/= 0.U
       sink.addr := source.bits.uop.pdest
       sink.data := source.bits.data
     })
@@ -195,6 +195,5 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
       difftestArchFp.io.coreid := io.hartId
       difftestArchFp.io.fpr := DelayN(VecInit(debugFpRegfile.io.read.map(_.data)), 2)
     }
-
   }
 }

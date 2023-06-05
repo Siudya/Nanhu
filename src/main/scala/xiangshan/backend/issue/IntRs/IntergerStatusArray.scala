@@ -75,7 +75,6 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
     val redirect = Input(Valid(new Redirect))
   })
 
-  io.entryNext := io.entry
   private val miscNext = WireInit(io.entry)
   private val enqNext = Wire(Valid(new IntegerStatusArrayEntry))
   private val enqUpdateEn = WireInit(false.B)
@@ -103,7 +102,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       l.map(elm => Mux(st === SrcType.reg, elm.orR, false.B)).reduce(_ | _)
     }).reduce(_ | _)
   private val state = io.entry.bits.state
-  private val stateNext = io.entryNext.bits.state
+  private val stateNext = miscNext.bits.state
 
   switch(state){
     is(s_ready){
@@ -150,7 +149,8 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
+      assert(Mux(io.entry.valid, PopCount(lpvUpdateHitsVec) === 1.U || PopCount(lpvUpdateHitsVec) === 0.U, true.B))
+      assert(Mux(wakeupLpvValid & io.entry.valid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)

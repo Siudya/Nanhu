@@ -100,7 +100,6 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
     val stLastCompelet = Input(new SqPtr)
   })
 
-  io.entryNext := io.entry
   private val miscNext = WireInit(io.entry)
   private val enqNext = Wire(Valid(new MemoryStatusArrayEntry))
   private val enqUpdateEn = WireInit(false.B)
@@ -132,8 +131,8 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
   private val stdIssued = io.stdIssue
   private val staLoadState = io.entry.bits.staLoadState
   private val stdState = io.entry.bits.stdState
-  private val staLoadStateNext = io.entryNext.bits.staLoadState
-  private val stdStateNext = io.entryNext.bits.stdState
+  private val staLoadStateNext = miscNext.bits.staLoadState
+  private val stdStateNext = miscNext.bits.stdState
   private val miscUpdateEnCancelOrIssue = WireInit(false.B)
   private val shouldBeCanceled = srcShouldBeCancelled.reduce(_ | _)
   miscUpdateEnCancelOrIssue := needReplay || counter.orR || src0HasSpecWakeup || src1HasSpecWakeup || stIssueHit || staLoadIssued || stdIssued || shouldBeCanceled
@@ -236,7 +235,8 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      assert(Mux(wakeupLpvValid, !(ol.orR), true.B))
+      assert(Mux(io.entry.valid, PopCount(lpvUpdateHitsVec) === 1.U || PopCount(lpvUpdateHitsVec) === 0.U, true.B))
+      assert(Mux(wakeupLpvValid & io.entry.valid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -337,7 +337,7 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
     updateNetwork.io.replay.valid := replaySels.reduce(_|_)
     updateNetwork.io.replay.bits := Mux1H(replaySels, replayVals)
     updateNetwork.io.redirect := io.redirect
-    assert(PopCount(replaySels) === 1.U || PopCount(replaySels) === 0.U)
+    assert(Mux(v, PopCount(replaySels) === 1.U || PopCount(replaySels) === 0.U, true.B))
     updateNetwork.io.stIssued := io.stIssued
     updateNetwork.io.stLastCompelet := io.stLastCompelet
 

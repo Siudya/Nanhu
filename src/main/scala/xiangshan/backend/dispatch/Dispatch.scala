@@ -241,7 +241,7 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
     io.allocPregs(i).isFp  := io.fromRename(i).valid && io.fromRename(i).bits.ctrl.fpWen
     io.allocPregs(i).preg  := io.fromRename(i).bits.pdest
   }
-  val renameFireCnt = PopCount(io.recv)
+  val renameFireCnt = PopCount(io.recv.zip(io.fromRename).map({case(a, b) => a && b.valid}))
   val enqFireCnt = PopCount(io.toIntDq.req.map(_.valid && io.toIntDq.canAccept)) +
     PopCount(io.toFpDq.req.map(_.valid && io.toFpDq.canAccept)) +
     PopCount(io.toLsDq.req.map(_.valid && io.toLsDq.canAccept))
