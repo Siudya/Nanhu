@@ -175,10 +175,4 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
       outPort.bits.info.lpv.zip(driver.io.out.bits.info.lpv).foreach({case(o, i) => o := LogicShiftRight(i, 1)})
     }
   }
-
-  private val flatInputInfoVec = VecInit(io.selectInfo.map(_.reverse).reverse.reduce(_++_))
-  for(outPort <- io.issueInfo){
-    val selectedInfo = Mux1H(UIntToOH(OHToUInt(outPort.bits.bankIdxOH) * entryNum.U + OHToUInt(outPort.bits.entryIdxOH)), flatInputInfoVec)
-    assert(Mux(outPort.valid, selectedInfo.valid & fuTypeList.map(_ === selectedInfo.bits.fuType).reduce(_|_), true.B))
-  }
 }

@@ -25,6 +25,9 @@ object ImmExtractor {
   private def JumpImmExtractor(in:ExuInput, jump_pc:UInt, jalr_target:UInt)(implicit p: Parameters):ExuInput = {
     val immExtractedRes = WireInit(in)
     immExtractedRes.uop.cf.pc := jump_pc
+    when(SrcType.isPc(in.uop.ctrl.srcType(0))) {
+      immExtractedRes.src(0) := SignExt(jump_pc, p(XSCoreParamsKey).XLEN)
+    }
     // when src1 is reg (like sfence's asid) do not let data_out(1) be the jalr_target
     when(SrcType.isPcOrImm(in.uop.ctrl.srcType(1))) {
       immExtractedRes.src(1) := jalr_target
