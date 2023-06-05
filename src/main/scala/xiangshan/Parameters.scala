@@ -131,19 +131,19 @@ case class XSCoreParameters
   FtqSize: Int = 64,
   EnableLoadFastWakeUp: Boolean = true, // NOTE: not supported now, make it false
   IssQueSize: Int = 16,
-  NRPhyRegs: Int = 128,
+  NRPhyRegs: Int = 192,
   LoadQueueSize: Int = 80,
   LoadQueueNWriteBanks: Int = 8,
   StoreQueueSize: Int = 64,
   StoreQueueNWriteBanks: Int = 8,
-  RobSize: Int = 160,
+  RobSize: Int = 256,
   dpParams: DispatchParameters = DispatchParameters(
     IntDqSize = 16,
     FpDqSize = 16,
     LsDqSize = 16
   ),
-  intRsDepth:Int = 32,
-  fpRsDepth:Int = 32,
+  intRsDepth:Int = 48,
+  fpRsDepth:Int = 48,
   memRsDepth:Int = 48,
   rsBankNum:Int = 4,
   exuParameters: ExuParameters = ExuParameters(),

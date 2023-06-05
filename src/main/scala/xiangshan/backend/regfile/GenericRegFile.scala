@@ -19,7 +19,7 @@ class ReadPort(dataWidth:Int)(implicit p: Parameters) extends XSBundle {
   val data = Output(UInt(dataWidth.W))
 }
 
-class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNum:Int, dataWidth:Int, moduleName:String, hasMask:Boolean = false)(implicit p: Parameters) extends XSModule{
+class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNum:Int, dataWidth:Int, moduleName:String, hasZero:Boolean, hasMask:Boolean = false)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val read = Vec(readPortNum, new ReadPort(dataWidth))
     val write = Vec(writeBackNum, new WritePort(dataWidth, hasMask))
@@ -29,6 +29,7 @@ class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNu
   println(s"${moduleName} read ports: $readPortNum regular write ports: $writeBackNum bypass write ports $bypassNum")
 
   if(hasMask) {
+    require(!hasZero)
     val bankNum = dataWidth / 8
     val mem = Mem(entriesNum, Vec(bankNum, UInt(8.W)))
     (io.write ++ io.bypassWrite).foreach(w => {
@@ -51,15 +52,21 @@ class GenericRegFile(entriesNum:Int, writeBackNum:Int, bypassNum:Int, readPortNu
       }
     })
   } else {
-    val mem = Mem(entriesNum, UInt(dataWidth.W))
-    (io.write ++ io.bypassWrite).foreach(w => {
-      when(w.en) {
-        mem.write(w.addr, w.data)
+    val mem = Reg(Vec(entriesNum, UInt(dataWidth.W)))
+    val writes = io.write ++ io.bypassWrite
+    mem.zipWithIndex.foreach({case(m, i) =>
+      val hitVec = writes.map(w => w.en && w.addr === i.U)
+      val dataSel = Mux1H(hitVec, writes.map(_.data))
+      val wen = Cat(hitVec).orR
+      when(wen){
+        m := dataSel
       }
     })
 
+    if(hasZero) mem(0) := 0.U
+
     io.read.foreach(r => {
-      val memReadData = mem(r.addr)
+      val memReadData = Mux1H(UIntToOH(r.addr), mem)
       if (bypassNum > 0) {
         val bypassHits = io.bypassWrite.map(w => w.en && w.addr === r.addr)
         val bypassData = Mux1H(bypassHits, io.bypassWrite.map(_.data))

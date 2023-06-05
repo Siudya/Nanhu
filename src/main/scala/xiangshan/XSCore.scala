@@ -107,6 +107,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   exuBlock.io.csrio.hartId := io.hartId
   io.cpu_halt := ctrlBlock.io.cpu_halt
   exuBlock.io.dfx_reset := io.dfx_reset
+  exuBlock.io.hartId := io.hartId
 
   io.beu_errors.icache := frontend.io.error.toL1BusErrorUnitInfo()
   io.beu_errors.dcache := exuBlock.io.l1Error.toL1BusErrorUnitInfo()
@@ -131,6 +132,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     i.bits := r.preg
   })
   ctrlBlock.io.memPredUpdate := exuBlock.io.memPredUpdate
+  exuBlock.io.debug_int_rat := ctrlBlock.io.debug_int_rat
+  exuBlock.io.debug_fp_rat := ctrlBlock.io.debug_fp_rat
 
   exuBlock.io.perfEventsPTW  := ptw.getPerf
 

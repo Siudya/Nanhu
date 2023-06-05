@@ -5,11 +5,13 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import chipsalliance.rocketchip.config.Parameters
 import chisel3.experimental.prefix
+import difftest.{DifftestArchFpRegState, DifftestArchIntRegState, DifftestFpWriteback, DifftestIntWriteback}
 import xiangshan.{ExuInput, FuType, HasXSParameter, MicroOp, Redirect, SrcType}
 import xiangshan.frontend.Ftq_RF_Components
 import xiangshan.backend.execute.fu.fpu.FMAMidResult
 import xiangshan.backend.issue.RsIdx
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
+import xs.utils.DelayN
 
 class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
   val issueNode = new RegFileNode
@@ -22,8 +24,11 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
     println("Regfile Writeback Info:")
 
     val io = IO(new Bundle{
+      val hartId = UInt(64.W)
       val pcReadAddr = Output(Vec(pcReadNum, UInt(log2Ceil(FtqSize).W)))
       val pcReadData = Input(Vec(pcReadNum, new Ftq_RF_Components))
+      val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
+      val debug_fp_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
     })
     require(issueNode.in.count(_._2._1.isIntRs) <= 1)
     require(issueNode.in.count(_._2._1.isMemRs) <= 1)
@@ -48,8 +53,8 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
     private val writeFpRfBypass = wb.filter(i => i._2.bypassFpRegfile)
     private val writeFpRf = wb.filter(i => !i._2.bypassFpRegfile && i._2.writeFpRf)
 
-    private val intRf = Module(new GenericRegFile(NRPhyRegs, writeIntRf.length, writeIntRfBypass.length, needIntSrc.map(_._2.intSrcNum).sum, XLEN, "IntegerRegFile"))
-    private val fpRf = Module(new GenericRegFile(NRPhyRegs, writeFpRf.length, writeFpRfBypass.length, needFpSrc.map(_._2.fpSrcNum).sum, XLEN, "FloatingRegFile"))
+    private val intRf = Module(new GenericRegFile(NRPhyRegs, writeIntRf.length, writeIntRfBypass.length, needIntSrc.map(_._2.intSrcNum).sum, XLEN, "IntegerRegFile", true))
+    private val fpRf = Module(new GenericRegFile(NRPhyRegs, writeFpRf.length, writeFpRfBypass.length, needFpSrc.map(_._2.fpSrcNum).sum, XLEN, "FloatingRegFile", false))
 
     private val intWriteBackSinks = intRf.io.write ++ intRf.io.bypassWrite
     private val intWriteBackSources = writeIntRf ++ writeIntRfBypass
@@ -85,7 +90,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
           val srcNum = exuComplexParam.intSrcNum
           for((d, addr) <- issueBundle.src.zip(bi.issue.bits.uop.psrc).take(srcNum)){
             intRf.io.read(intRfReadIdx).addr := addr
-            d := Mux(bi.issue.bits.uop.ctrl.ldest === 0.U, 0.U, intRf.io.read(intRfReadIdx).data)
+            d := intRf.io.read(intRfReadIdx).data
             intRfReadIdx = intRfReadIdx + 1
           }
           if(exuComplexParam.hasJmp){
@@ -151,5 +156,45 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         bi.issue.ready := allowPipe
       }
     }
+
+    if (env.EnableDifftest || env.AlwaysBasicDiff) {
+      val intWriteNum = (intRf.io.write ++ intRf.io.bypassWrite).length
+      val debugIntRegfile = Module(new GenericRegFile(NRPhyRegs, intWriteNum, 0, 32, XLEN, "DebugIntegerRegFile", true))
+      debugIntRegfile.io.write.zip(intRf.io.write ++ intRf.io.bypassWrite).foreach({ case (a, b) => a := b })
+      debugIntRegfile.io.read.zip(io.debug_int_rat).foreach(e => e._1.addr := e._2)
+
+      val fpWriteNum = (fpRf.io.write ++ fpRf.io.bypassWrite).length
+      val debugFpRegfile = Module(new GenericRegFile(NRPhyRegs, fpWriteNum, 0, 32, XLEN, "DebugFloatingRegFile", false))
+      debugFpRegfile.io.write.zip(fpRf.io.write ++ fpRf.io.bypassWrite).foreach({ case (a, b) => a := b })
+      debugFpRegfile.io.read.zip(io.debug_fp_rat).foreach(e => e._1.addr := e._2)
+
+      debugIntRegfile.io.write.foreach(w => prefix("IntRf"){
+        val difftest = Module(new DifftestIntWriteback)
+        difftest.io.clock := clock
+        difftest.io.coreid := io.hartId
+        difftest.io.valid := w.en
+        difftest.io.dest := w.addr
+        difftest.io.data := w.data
+      })
+      debugFpRegfile.io.write.foreach(w => prefix("FpRf") {
+        val difftest = Module(new DifftestFpWriteback)
+        difftest.io.clock := clock
+        difftest.io.coreid := io.hartId
+        difftest.io.valid := w.en
+        difftest.io.dest := w.addr
+        difftest.io.data := w.data
+      })
+
+      val difftestArchInt = Module(new DifftestArchIntRegState)
+      difftestArchInt.io.clock := clock
+      difftestArchInt.io.coreid := io.hartId
+      difftestArchInt.io.gpr := DelayN(VecInit(debugIntRegfile.io.read.map(_.data)), 2)
+
+      val difftestArchFp = Module(new DifftestArchFpRegState)
+      difftestArchFp.io.clock := clock
+      difftestArchFp.io.coreid := io.hartId
+      difftestArchFp.io.fpr := DelayN(VecInit(debugFpRegfile.io.read.map(_.data)), 2)
+    }
+
   }
 }

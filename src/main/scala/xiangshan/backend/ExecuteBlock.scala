@@ -44,6 +44,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
   memoryReservationStation.wakeupNode := writebackNetwork.node
   lazy val module = new LazyModuleImp(this) with HasSoCParameter with HasPerfEvents{
     val io = IO(new Bundle {
+      val hartId = UInt(64.W)
       //Mem Block
       val l1Error = new L1CacheErrorInfo
       val lqCancelCnt = Output(UInt(log2Up(LoadQueueSize + 1).W))
@@ -76,6 +77,9 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
       val fenceio = new FenceIO
       val csrio = new CSRFileIO
       val dfx_reset = Input(new DFTResetSignals())
+
+      val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
+      val debug_fp_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
     })
     private val intRs = integerReservationStation.module
     private val fpRs = floatingReservationStation.module
@@ -86,6 +90,9 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     private val rf = regFile.module
     private val writeback = writebackNetwork.module
 
+    rf.io.hartId := io.hartId
+    rf.io.debug_int_rat := io.debug_int_rat
+    rf.io.debug_fp_rat := io.debug_fp_rat
     private val localRedirect = writeback.io.redirectOut
     exuBlocks.foreach(_.module.redirectIn := Pipe(localRedirect))
     
