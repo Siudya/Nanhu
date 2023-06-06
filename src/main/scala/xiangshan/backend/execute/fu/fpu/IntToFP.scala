@@ -79,7 +79,7 @@ class IntToFPDataModule(latency: Int)(implicit p: Parameters) extends FPUDataMod
 }
 
 class IntToFP(implicit p: Parameters) extends FPUSubModule with HasPipelineReg {
-  override def latency: Int = i2fCfg.latency
+  override def latency: Int = 2
   override val dataModule = Module(new IntToFPDataModule(latency))
   connectDataModule
   dataModule.regEnables := VecInit((1 to latency) map (i => regEnable(i)))
