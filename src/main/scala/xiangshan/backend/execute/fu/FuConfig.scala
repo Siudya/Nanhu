@@ -135,7 +135,7 @@ object FuConfigs{
     writeFpRf = true,
     writeVecRf = false,
     writeFflags = true,
-    latency = 2,
+    latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
     trigger = false,
     hasRedirect = false
   )
@@ -164,7 +164,7 @@ object FuConfigs{
     writeFpRf = false,
     writeVecRf = false,
     writeFflags = true,
-    latency = 2,
+    latency = Int.MaxValue, //No fast wakeup
     trigger = false,
     hasRedirect = false
   )
@@ -179,7 +179,7 @@ object FuConfigs{
     writeFpRf = true,
     writeVecRf = false,
     writeFflags = true,
-    latency = 2,
+    latency = Int.MaxValue, //No fast wakeup
     trigger = false,
     hasRedirect = false
   )

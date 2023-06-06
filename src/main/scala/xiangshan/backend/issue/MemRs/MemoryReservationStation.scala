@@ -51,7 +51,8 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
 
   val io = IO(new Bundle{
     val redirect = Input(Valid(new Redirect))
-    val specWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.specWakeUpNum, Valid(new WakeUpInfo)))
+    val mulSpecWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.mulNum, Valid(new WakeUpInfo)))
+    val aluSpecWakeup = Input(Vec(2 * p(XSCoreParamsKey).exuParameters.aluNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Output(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
     val stLastCompelet = Input(new SqPtr)
@@ -74,9 +75,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   private val stIssuedWires = Wire(Vec(staIssuePortNum, Valid(new RobPtr)))
 
   private val rsBankSeq = Seq.tabulate(param.bankNum)( _ => {
-    val mod = Module(new MemoryReservationBank(entriesNumPerBank, staIssuePortNum, lduIssuePortNum, (wakeupSignals ++ io.specWakeup).length))
+    val mod = Module(new MemoryReservationBank(entriesNumPerBank, staIssuePortNum, lduIssuePortNum, (wakeupSignals ++ io.mulSpecWakeup ++ io.aluSpecWakeup).length))
     mod.io.redirect := io.redirect
-    mod.io.wakeup := wakeupSignals ++ io.specWakeup
+    mod.io.wakeup := wakeupSignals ++ io.mulSpecWakeup ++ io.aluSpecWakeup
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod.io.stIssued := stIssuedWires
@@ -85,17 +86,17 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemoryAllocateNetwork")))
 
-  private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf).map(_._1) ++ io.specWakeup
-  private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf).map(_._1) ++ io.specWakeup
+  private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf).map(_._1)
+  private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf).map(_._1)
   private val floatingBusyTable = Module(new BusyTable(param.bankNum, wakeupFp.length))
   floatingBusyTable.io.allocPregs := io.floatingAllocPregs
-  floatingBusyTable.io.wbPregs.zip(wakeupFp).foreach({ case (bt, wb) =>
+  floatingBusyTable.io.wbPregs.zip(wakeupFp ++ io.mulSpecWakeup).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.fp
     bt.bits := wb.bits.pdest
   })
-  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.specWakeup.length))
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.mulSpecWakeup.length + io.aluSpecWakeup.length))
   integerBusyTable.io.allocPregs := io.integerAllocPregs
-  integerBusyTable.io.wbPregs.zip(wakeupInt ++ io.specWakeup).foreach({ case (bt, wb) =>
+  integerBusyTable.io.wbPregs.zip(wakeupInt ++ io.aluSpecWakeup ++ io.mulSpecWakeup).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.reg
     bt.bits := wb.bits.pdest
   })
