@@ -108,7 +108,8 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     fpBlk.io.csr_frm := intBlk.io.csrio.fpu.frm
 
     memRs.io.redirect := Pipe(localRedirect)
-    memRs.io.specWakeup.zip(intRs.io.specWakeup).foreach({case(a, b) => a := Pipe(b)})
+    memRs.io.aluSpecWakeup.zip(intRs.io.aluSpecWakeup).foreach({case(a, b) => a := b})
+    memRs.io.mulSpecWakeup.zip(intRs.io.mulSpecWakeup).foreach({case(a, b) => a := b})
     memRs.io.earlyWakeUpCancel := memBlk.io.earlyWakeUpCancel(2)
     memRs.io.integerAllocPregs := io.integerAllocPregs
     memRs.io.floatingAllocPregs := io.floatingAllocPregs
