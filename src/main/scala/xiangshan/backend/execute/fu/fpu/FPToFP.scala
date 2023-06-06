@@ -121,7 +121,7 @@ class FPToFPDataModule(latency: Int)(implicit p: Parameters) extends FPUDataModu
 
 class FPToFP(implicit p: Parameters) extends FPUPipelineModule {
 
-  override def latency: Int = f2fCfg.latency
+  override def latency: Int = 2
 
   override val dataModule = Module(new FPToFPDataModule(latency))
   connectDataModule
