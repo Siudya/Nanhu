@@ -61,7 +61,9 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   private val internalAluWakeupSignals = Wire(Vec(2 * aluIssuePortNum, Valid(new WakeUpInfo)))
   private val internalMulWakeupSignals = Wire(Vec(mulIssuePortNum, Valid(new WakeUpInfo)))
   io.mulSpecWakeup.zip(internalMulWakeupSignals).foreach({case(a, b) =>
-    a := Pipe(b) //Add an pipe here for there is no bypass from mul to load/store units.
+    //Add an pipe here for there is no bypass from mul to load/store units.
+    a.bits := RegEnable(b.bits, b.valid)
+    a.valid := RegNext(b.valid, false.B) && !a.bits.robPtr.needFlush(io.redirect)
     assert(Mux(a.valid, Cat(a.bits.lpv).orR === false.B, true.B))
   })
 
@@ -104,13 +106,14 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     val delayValidReg = RegNext(shouldHold && wb.valid, false.B)
     val delayBitsReg = RegEnable(wb.bits, shouldHold && wb.valid)
     val shouldBeCancelled = delayBitsReg.lpv.zip(io.earlyWakeUpCancel).map({case(l,c) => l(0) && c}).reduce(_||_)
-    busyTableAluWbPorts(aluWbPortIdx + 1).valid := delayValidReg && delayBitsReg.destType === SrcType.reg && !shouldBeCancelled
+    val shouldBeFlushed = delayBitsReg.robPtr.needFlush(io.redirect)
+    busyTableAluWbPorts(aluWbPortIdx + 1).valid := delayValidReg && delayBitsReg.destType === SrcType.reg && !shouldBeCancelled && !shouldBeFlushed
     busyTableAluWbPorts(aluWbPortIdx + 1).bits := delayBitsReg.pdest
 
-    internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).valid := delayValidReg && !shouldBeCancelled
+    internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).valid := delayValidReg && !shouldBeCancelled && !shouldBeFlushed
     internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits := delayBitsReg
     internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits.lpv.foreach(_ := 0.U)
-    io.aluSpecWakeup(ioAluWkpPortIdx + 1).valid := delayValidReg && !shouldBeCancelled
+    io.aluSpecWakeup(ioAluWkpPortIdx + 1).valid := delayValidReg && !shouldBeCancelled && !shouldBeFlushed
     io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits := delayBitsReg
     io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits.lpv.foreach(_ := 0.U)
     aluWbPortIdx = aluWbPortIdx + 2
