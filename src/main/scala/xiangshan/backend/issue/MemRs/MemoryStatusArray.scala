@@ -70,7 +70,7 @@ class StaLoadIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGe
 }
 
 class StdIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
-  readyToIssue := ib.srcState(1) === SrcState.rdy && ib.stdState === EntryState.s_ready
+  readyToIssue := (ib.srcState(1) === SrcState.rdy || (ib.isCboZero && ib.srcState(0) === SrcState.rdy)) && ib.stdState === EntryState.s_ready
 }
 
 class MemoryStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEntry(2){
@@ -80,6 +80,8 @@ class MemoryStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEnt
   val isFirstIssue = Bool()
   val waitTarget = new RobPtr
   val sqIdx = new SqPtr
+  val isCbo = Bool()
+  val isCboZero = Bool()
 }
 
 class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends XSModule {

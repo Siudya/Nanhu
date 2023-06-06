@@ -250,7 +250,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
         earlyWakeupQueue.io.in.bits.destType := Mux(res.bits.info.fpWen, SrcType.fp, Mux(res.bits.info.rfWen, SrcType.reg, SrcType.default))
         earlyWakeupQueue.io.redirect := io.redirect
 
-        earlyWakeupQueue.io.in.bits.lpv(lduPortIdx) := res.bits.info.lpv(lduPortIdx) | (1 << 5).U
+        earlyWakeupQueue.io.in.bits.lpv(lduPortIdx) := res.bits.info.lpv(lduPortIdx) | (1 << (LpvLength - 1)).U
         io.loadEarlyWakeup(earlyWkpPortIdx).valid := earlyWakeupQueue.io.out.valid
         io.loadEarlyWakeup(earlyWkpPortIdx).bits.robPtr := earlyWakeupQueue.io.out.bits.robPtr
         io.loadEarlyWakeup(earlyWkpPortIdx).bits.pdest := earlyWakeupQueue.io.out.bits.pdest
