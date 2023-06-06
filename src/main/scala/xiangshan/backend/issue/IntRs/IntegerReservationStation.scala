@@ -86,7 +86,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     mod
   })
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("IntegerAllocateNetwork")))
-  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupWidth + aluIssuePortNum))
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupWidth))
   integerBusyTable.io.allocPregs := io.integerAllocPregs
   integerBusyTable.io.wbPregs.take((wakeupSignals ++ internalMulWakeupSignals).length).zip(wakeupSignals ++ internalMulWakeupSignals).foreach({case(bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.reg
