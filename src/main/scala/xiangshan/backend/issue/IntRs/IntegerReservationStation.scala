@@ -99,7 +99,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     busyTableAluWbPorts(aluWbPortIdx).valid := wb.valid && wb.bits.destType === SrcType.reg && !shouldHold
     busyTableAluWbPorts(aluWbPortIdx).bits := wb.bits.pdest
     io.aluSpecWakeup(ioAluWkpPortIdx).valid := wb.valid && !shouldHold
-    io.aluSpecWakeup(ioAluWkpPortIdx).bits := wb.bits.pdest
+    io.aluSpecWakeup(ioAluWkpPortIdx).bits := wb.bits
 
     val delayValidReg = RegNext(shouldHold && wb.valid, false.B)
     val delayBitsReg = RegEnable(wb.bits, shouldHold && wb.valid)
@@ -111,7 +111,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits := delayBitsReg
     internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits.lpv.foreach(_ := 0.U)
     io.aluSpecWakeup(ioAluWkpPortIdx + 1).valid := delayValidReg && !shouldBeCancelled
-    io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits := delayBitsReg.pdest
+    io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits := delayBitsReg
     io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits.lpv.foreach(_ := 0.U)
     aluWbPortIdx = aluWbPortIdx + 2
     aluWkpPortAuxIdx = aluWkpPortAuxIdx + 1
