@@ -1,5 +1,6 @@
 package xiangshan.backend.execute.exublock
 
+import chisel3.util.Pipe
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import xiangshan.backend.execute.exucx.{FmaDivComplex, FmaMiscComplex, FmacComplex}
@@ -18,7 +19,7 @@ class FloatingBlock(implicit p:Parameters) extends BasicExuBlock{
     val io = IO(new Bundle{
       val csr_frm: UInt = Input(UInt(3.W))
     })
-    fpComplexes.foreach(_.module.redirectIn := redirectIn)
+    fpComplexes.foreach(_.module.redirectIn := Pipe(redirectIn))
     fmacs.foreach(_.module.csr_frm := RegNext(io.csr_frm))
     fmacDivs.foreach(_.module.csr_frm := RegNext(io.csr_frm))
     fmaMiscs.foreach(_.module.csr_frm := RegNext(io.csr_frm))

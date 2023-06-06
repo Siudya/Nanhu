@@ -154,8 +154,8 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     memBlk.io.writebackFromMou <> intBlk.io.writebackFromMou
 
     memBlk.redirectIn := Pipe(localRedirect)
-    intBlk.redirectIn := Pipe(localRedirect)
-    fpBlk.redirectIn := Pipe(localRedirect)
+    intBlk.redirectIn := localRedirect
+    fpBlk.redirectIn := localRedirect
 
     io.redirectOut := writeback.io.redirectOut
     io.memPredUpdate := writeback.io.memPredUpdate

@@ -33,7 +33,11 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   issuePort.issue.ready := fuSel.valid
   fdivSqrts.zipWithIndex.zip(outputArbiter.io.in).foreach({case((fu,idx), arbIn) =>
     fu.io.redirectIn := redirectIn
-    fu.io.in.valid := issuePort.issue.valid & fuSel.bits(idx) & issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType
+    fu.io.in.valid := issuePort.issue.valid &&
+      fuSel.bits(idx) &&
+      issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType &&
+      !issuePort.issue.bits.uop.robIdx.needFlush(redirectIn)
+    assert(Mux(issuePort.issue.valid, issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, true.B))
     fu.io.in.bits.uop := issuePort.issue.bits.uop
     fu.io.in.bits.src := issuePort.issue.bits.src
     fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)

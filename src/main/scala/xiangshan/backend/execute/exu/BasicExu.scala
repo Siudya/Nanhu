@@ -18,7 +18,7 @@ abstract class BasicExuImpl(outer:BasicExu) extends LazyModuleImp(outer){
 
   def bypassSigGen(bypassIn:Seq[Valid[ExuOutput]], issuePort:IssueBundle, hasBypass:Boolean):Valid[ExuInput] = {
     val finalIssueSignals = Wire(Valid(new ExuInput))
-    finalIssueSignals.valid := issuePort.issue.valid
+    finalIssueSignals.valid := issuePort.issue.valid && !issuePort.issue.bits.uop.robIdx.needFlush(redirectIn)
     finalIssueSignals.bits.uop := issuePort.issue.bits.uop
     finalIssueSignals.bits.src := issuePort.issue.bits.src
     if(hasBypass) {
