@@ -125,6 +125,10 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val flushXorPresentMask = deqFlushNextMask ^ deqMask
   private val deqRollbackMask = Mux(deqPtr.value <= (deqPtr + flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
   assert(Mux(io.redirect.valid, deqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
+  private val readyNum = PopCount(io.deq.map(_.ready))
+  for (i <- 1 until io.deq.length) {
+    assert(Mux(i.U < readyNum, io.deq(i).ready === true.B, io.deq(i).ready === false.B))
+  }
 
 
   val perfEvents = Seq(
