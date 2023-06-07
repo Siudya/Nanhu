@@ -199,6 +199,9 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   println(s"stdPorts: ${stdWb.map(_._1.name)}")
   println(s"fflags: ${wbWithFFlag.map(_._1.name)}")
   println(s"exception from exu: ${wbWithException.map(_._1.name)}")
+  writebackIn.zipWithIndex.foreach({case((p,_),i) =>
+    println(s"Wirteback Port #$i from ${p.name}")
+  })
 
   private val exuWriteback = exuWb.map(_._2)
   private val stdWriteback = stdWb.map(_._2)

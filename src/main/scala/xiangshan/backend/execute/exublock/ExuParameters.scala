@@ -11,6 +11,8 @@ case class ExuParameters
   LduCnt:Int = 2,
   StuCnt:Int = 2
 ){
+  val aluNum:Int = AluMulCnt + AluDivCnt + AluJmpCnt
+  val mulNum:Int = AluMulCnt
   val LsExuCnt:Int = LduCnt + StuCnt
-  val specWakeUpNum:Int = AluMulCnt * 2 + AluDivCnt + AluJmpCnt
+  val specWakeUpNum:Int = aluNum * 2 + mulNum
 }

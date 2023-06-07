@@ -50,7 +50,8 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
     val stIssueHit = io.stIssued.map(st => st.valid && st.bits === in.cf.waitForRobIdx).reduce(_|_)
     val shouldWait = in.ctrl.fuType === FuType.ldu && in.cf.loadWaitBit && in.sqIdx > io.stLastCompelet && !stIssueHit
-    val isCbo = LSUOpType.isCbo(in.ctrl.fuOpType) || in.ctrl.fuOpType === LSUOpType.cbo_zero
+    val isCbo = LSUOpType.isCbo(in.ctrl.fuOpType)
+    val isCboZero = in.ctrl.fuOpType === LSUOpType.cbo_zero
     val enqEntry = Wire(new MemoryStatusArrayEntry)
     enqEntry.psrc(0) := in.psrc(0)
     enqEntry.psrc(1) := in.psrc(1)
@@ -65,11 +66,15 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     enqEntry.fpWen := in.ctrl.fpWen
     enqEntry.robIdx := in.robIdx
     enqEntry.sqIdx := in.sqIdx
-    enqEntry.staLoadState := Mux(shouldWait, s_wait_st, s_ready)
-    enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu, Mux(isCbo, s_issued, s_ready), s_issued)
+    //STAState handles LOAD, STORE, CBO.INVAL, CBO.FLUSH, CBO.CLEAN, PREFECTH.R, PREFETCH.W
+    enqEntry.staLoadState := Mux(in.ctrl.fuType === FuType.stu && isCboZero, s_issued, Mux(shouldWait, s_wait_st, s_ready))
+    //STDState handles STORE,CBO.ZERO
+    enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu && !isCbo, s_ready, s_issued)
     enqEntry.waitTarget := in.cf.waitForRobIdx
     enqEntry.isFirstIssue := false.B
     enqEntry.counter := 0.U
+    enqEntry.isCbo := isCbo
+    enqEntry.isCboZero := isCboZero
     enqEntry
   }
 

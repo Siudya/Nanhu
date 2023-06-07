@@ -811,8 +811,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.lsq.trigger.hitLoadAddrTriggerHitVec := hitLoadAddrTriggerHitVec
 
   private val s1_cancel = RegInit(false.B)
-  s1_cancel := load_s1.io.in.valid && load_s1.io.rsFeedback.valid
-  io.cancel := s1_cancel || (load_s2.io.in.valid && load_s2.io.rsFeedback.valid)
+  s1_cancel := load_s1.io.in.valid && (!load_s1.io.out.valid || load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  io.cancel := s1_cancel || (load_s2.io.in.valid && (!hitLoadOut.valid || load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)))
 
   val perfEvents = Seq(
     ("load_s0_in_fire         ", load_s0.io.in.fire                                                                                                              ),

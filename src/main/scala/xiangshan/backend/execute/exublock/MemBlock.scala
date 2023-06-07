@@ -219,13 +219,19 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   private val ldExeWbReqs = loadUnits.map(_.io.ldout)
   private val staExeWbReqs = storeUnits.map(_.io.stout)
   private val stdExeWbReqs = stdUnits.map(_.io.out)
-  (lduWritebacks ++ staWritebacks ++ stdWritebacks)
-    .zip(ldExeWbReqs ++ staExeWbReqs ++ stdExeWbReqs)
+  (lduWritebacks ++ staWritebacks)
+    .zip(ldExeWbReqs ++ staExeWbReqs)
     .foreach({case(wb, out) =>
       wb.valid := out.valid
       wb.bits := out.bits
       out.ready := true.B
   })
+  stdWritebacks.zip(stdExeWbReqs)
+    .foreach({ case (wb, out) =>
+      wb.valid := RegNext(out.valid, false.B)
+      wb.bits := RegEnable(out.bits, out.valid)
+      out.ready := true.B
+    })
   lduWritebacks.zip(ldExeWbReqs).foreach({case(wb, out) =>
     val redirect_wb = wb.bits.redirect
     val uop_out = out.bits.uop

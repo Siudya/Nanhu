@@ -27,7 +27,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
       val issueToMou = Decoupled(new ExuInput)
       val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     })
-    intComplexes.foreach(_.module.redirectIn := redirectIn)
+    intComplexes.foreach(_.module.redirectIn := Pipe(redirectIn))
 
     (aluJmps ++ aluDivs).foreach(cplx => cplx.module.bypassIn.zip(aluMuls.map(_.module.io.bypassOut)).foreach({ case (a, b) => a := b }))
 

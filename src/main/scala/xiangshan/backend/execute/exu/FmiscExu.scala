@@ -30,7 +30,7 @@ class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) exte
   fuList.zip(exuCfg.fuConfigs).foreach({case(fu,cfg) =>
     fu.io.redirectIn := redirectIn
     fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
-    fu.io.in.valid := issuePort.issue.valid & issuePort.issue.bits.uop.ctrl.fuType === cfg.fuType
+    fu.io.in.valid := issuePort.issue.valid && issuePort.issue.bits.uop.ctrl.fuType === cfg.fuType && !issuePort.issue.bits.uop.robIdx.needFlush(redirectIn)
     fu.io.in.bits.uop := issuePort.issue.bits.uop
     fu.io.in.bits.src := issuePort.issue.bits.src
     fu.io.out.ready := true.B

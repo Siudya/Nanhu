@@ -63,7 +63,7 @@ case class ExuConfig
   val writeFpRf = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val writeVecRf = fuConfigs.map(_.writeVecRf).reduce(_||_)
   val wakeUpIntRs = fuConfigs.map(_.writeIntRf).reduce(_||_) && !hasFastWakeup
-  val wakeUpFpRs = fuConfigs.map(_.writeFpRf).reduce(_||_) && !hasFastWakeup
+  val wakeUpFpRs = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val wakeUpMemRs =  fuConfigs.map(e => e.writeIntRf || e.writeFpRf).reduce(_||_) && !hasFastWakeup
   val hasRedirectOut = fuConfigs.map(_.hasRedirect).reduce(_||_)
   val isIntType = ExuType.intTypes.contains(exuType)
