@@ -782,7 +782,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     // We replay that load inst from RS
     io.loadViolationQuery.map(i => i.req.ready :=
       // use lsu side release2cycle_dup_lsu paddr for better timing
-      !i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset)
+      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset))
     )
     // io.loadViolationQuery.map(i => i.req.ready := false.B) // For better timing
   }
