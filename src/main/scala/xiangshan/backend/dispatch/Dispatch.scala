@@ -205,17 +205,17 @@ class Dispatch(implicit p: Parameters) extends XSModule with HasPerfEvents {
     val doesNotNeedExec = io.fromRename(i).bits.eliminatedMove
     io.toIntDq.needAlloc(i) := io.fromRename(i).valid && isInt(i) && !doesNotNeedExec
     io.toIntDq.req(i).valid := io.fromRename(i).valid && isInt(i) && !doesNotNeedExec &&
-                               canEnterDpq && io.toFpDq.canAccept && io.toLsDq.canAccept
+                               canEnterDpq && io.toFpDq.canAccept && io.toLsDq.canAccept && io.toIntDq.canAccept
     io.toIntDq.req(i).bits  := updatedUop(i)
 
     io.toFpDq.needAlloc(i)  := io.fromRename(i).valid && isFp(i)
     io.toFpDq.req(i).valid  := io.fromRename(i).valid && isFp(i) &&
-                               canEnterDpq && io.toIntDq.canAccept && io.toLsDq.canAccept
+                               canEnterDpq && io.toFpDq.canAccept && io.toLsDq.canAccept && io.toIntDq.canAccept
     io.toFpDq.req(i).bits   := updatedUop(i)
 
     io.toLsDq.needAlloc(i)  := io.fromRename(i).valid && isMem(i)
     io.toLsDq.req(i).valid  := io.fromRename(i).valid && isMem(i) &&
-                               canEnterDpq && io.toIntDq.canAccept && io.toFpDq.canAccept
+                               canEnterDpq && io.toFpDq.canAccept && io.toLsDq.canAccept && io.toIntDq.canAccept
     io.toLsDq.req(i).bits   := updatedUop(i)
 
     XSDebug(io.toIntDq.req(i).valid, p"pc 0x${Hexadecimal(io.toIntDq.req(i).bits.cf.pc)} int index $i\n")

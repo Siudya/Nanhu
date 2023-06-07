@@ -398,22 +398,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
         loadUnits(i).io.prefetch_train.valid && loadUnits(i).io.prefetch_train.bits.miss
       )
       pf.io.ld_in(i).bits := loadUnits(i).io.prefetch_train.bits
-      pf.io.ld_in(i).bits.uop.cf.pc := Mux(loadUnits(i).io.s2IsPointerChasing,
-        pcDelay1Bits,
-        pcDelay2Bits)
+      pf.io.ld_in(i).bits.uop.cf.pc := pcDelay2Bits
     })
-
-    // load to load fast forward: load(i) prefers data(i)
-    val fastPriority = (i until exuParameters.LduCnt) ++ (0 until i)
-    val fastValidVec = fastPriority.map(j => loadUnits(j).io.fastpathOut.valid)
-    val fastDataVec = fastPriority.map(j => loadUnits(j).io.fastpathOut.data)
-    val fastMatchVec = fastPriority.map(j => false.B)
-    loadUnits(i).io.fastpathIn.valid := VecInit(fastValidVec).asUInt.orR
-    loadUnits(i).io.fastpathIn.data := ParallelPriorityMux(fastValidVec, fastDataVec)
-    val fastMatch = ParallelPriorityMux(fastValidVec, fastMatchVec)
-    loadUnits(i).io.loadFastMatch := fastMatch
-    loadUnits(i).io.loadFastImm := DontCare
-
     // Lsq to load unit's rs
 
     // passdown to lsq (load s1)
