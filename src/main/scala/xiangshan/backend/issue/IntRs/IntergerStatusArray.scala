@@ -38,15 +38,11 @@ class IntegerIssueInfoGenerator(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val in = Input(Valid(new IntegerStatusArrayEntry))
     val out = Output(Valid(new SelectInfo))
-    val redirect = Input(Valid(new Redirect))
-    val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
   })
   private val iv = io.in.valid
   private val ib = io.in.bits
-  private val shouldBeFlushed = ib.robIdx.needFlush(io.redirect)
-  private val shouldBeCanceled = ib.lpv.map(l => l.zip(io.earlyWakeUpCancel).map({ case (li, c) => li(1) && c }).reduce(_ || _)).reduce(_ || _)
   private val readyToIssue = ib.srcState(0) === SrcState.rdy & ib.srcState(1) === SrcState.rdy && ib.state === s_ready
-  io.out.valid := readyToIssue && iv && !shouldBeFlushed && !shouldBeCanceled
+  io.out.valid := readyToIssue && iv
   io.out.bits.fuType := ib.fuType
   io.out.bits.robPtr := ib.robIdx
   io.out.bits.pdest := ib.pdest
@@ -96,11 +92,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
   private val srcShouldBeCancelled = io.entry.bits.lpv.map(l => io.earlyWakeUpCancel.zip(l).map({ case(c, li) => li(0) & c}).reduce(_|_))
   private val shouldBeIssued = Cat(io.issue).orR
   private val shouldBeCancelled = srcShouldBeCancelled.reduce(_|_)
-  private val mayNeedReplay = io.entry.bits.lpv
-    .zip(io.entry.bits.srcType)
-    .map({ case (l, st) =>
-      l.map(elm => Mux(st === SrcType.reg, elm.orR, false.B)).reduce(_ | _)
-    }).reduce(_ | _)
+  private val mayNeedReplay = io.entryNext.bits.lpv.map(_.map(_.orR).reduce(_|_)).reduce(_|_)
   private val state = io.entry.bits.state
   private val stateNext = miscNext.bits.state
 
@@ -111,13 +103,10 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       }
     }
     is(s_wait_cancel){
-      when(!mayNeedReplay){
-        stateNext := s_issued
-      }.elsewhen(shouldBeCancelled){
-        stateNext := s_ready
-      }
+      stateNext := Mux(shouldBeCancelled, s_ready, s_issued)
     }
   }
+  assert(Mux(io.entry.valid, Cat(shouldBeCancelled, shouldBeIssued) <= 2.U, true.B))
   assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
   assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
 
@@ -150,7 +139,6 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
       assert(Mux(io.entry.valid, PopCount(lpvUpdateHitsVec) === 1.U || PopCount(lpvUpdateHitsVec) === 0.U, true.B))
-      assert(Mux(wakeupLpvValid & io.entry.valid, !(ol.orR), true.B))
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -165,10 +153,6 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
 
   io.updateEnable := Mux(io.entry.valid, miscUpdateEnWakeUp | miscUpdateEnCancelOrIssue | miscUpdateEnDequeueOrRedirect | miscUpdateEnLpvUpdate, enqUpdateEn)
   io.entryNext := Mux(enqUpdateEn, enqNext, miscNext)
-
-  chisel3.experimental.annotate(new ChiselAnnotation {
-    def toFirrtl = InlineAnnotation(toNamed)
-  })
 }
 
 class IntegerStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(implicit p: Parameters) extends XSModule{
@@ -200,8 +184,6 @@ class IntegerStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnit
     val entryToSelectInfoCvt = Module(new IntegerIssueInfoGenerator)
     entryToSelectInfoCvt.io.in.valid := saValid
     entryToSelectInfoCvt.io.in.bits := saEntry
-    entryToSelectInfoCvt.io.earlyWakeUpCancel := io.earlyWakeUpCancel
-    entryToSelectInfoCvt.io.redirect := io.redirect
     selInfo := entryToSelectInfoCvt.io.out
   }
   //End of select logic

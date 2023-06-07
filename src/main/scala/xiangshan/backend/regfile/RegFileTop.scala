@@ -154,6 +154,9 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         }
 
         bi.issue.ready := allowPipe
+        bi.rsFeedback.feedbackFast := bo.rsFeedback.feedbackFast
+        bi.rsFeedback.feedbackSlow := bo.rsFeedback.feedbackSlow
+        bo.rsFeedback.isFirstIssue := RegNext(bi.rsFeedback.isFirstIssue)
       }
     }
 

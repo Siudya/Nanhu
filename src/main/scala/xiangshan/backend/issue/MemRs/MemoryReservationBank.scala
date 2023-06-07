@@ -4,7 +4,7 @@ import chipsalliance.rocketchip.config.Parameters
 import xiangshan.backend.issue._
 import chisel3._
 import chisel3.util._
-import xiangshan.{FuType, LSUOpType, MicroOp, Redirect, SrcState, SrcType}
+import xiangshan.{FuType, LSUOpType, MicroOp, Redirect, SrcState, SrcType, XSCoreParamsKey}
 import xiangshan.backend.issue.MemRs.EntryState._
 import xiangshan.backend.issue.{EarlyWakeUpInfo, WakeUpInfo}
 import xiangshan.backend.rob.RobPtr
@@ -12,6 +12,8 @@ import xiangshan.mem.SqPtr
 
 class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(implicit p: Parameters) extends Module{
   private val issueWidth = 3
+  private val loadUnitNum = p(XSCoreParamsKey).exuParameters.LduCnt
+  private val storeUnitNum = p(XSCoreParamsKey).exuParameters.StuCnt
   val io = IO(new Bundle {
     val redirect = Input(Valid(new Redirect))
 
@@ -32,8 +34,8 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     val stdIssueUop = Output(new MicroOp)
     val lduIssueUop = Output(new MicroOp)
 
-    val loadReplay = Input(Vec(2, Valid(new Replay(entryNum))))
-    val storeReplay = Input(Vec(2, Valid(new Replay(entryNum))))
+    val loadReplay = Input(Vec(loadUnitNum, Valid(new Replay(entryNum))))
+    val storeReplay = Input(Vec(storeUnitNum, Valid(new Replay(entryNum))))
 
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(new SqPtr)

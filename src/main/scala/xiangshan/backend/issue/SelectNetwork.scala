@@ -124,6 +124,7 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
     val redirect = Input(Valid(new Redirect))
     val selectInfo = Input(Vec(bankNum,Vec(entryNum, Valid(new SelectInfo))))
     val issueInfo = Vec(issueNum, Decoupled(new SelectResp(bankNum, entryNum)))
+    val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
     val tokenRelease = if(cfg.needToken)Some(Input(Vec(issueNum,Valid(UInt(PhyRegIdxWidth.W))))) else None
   })
   override val desiredName:String = name.getOrElse("SelectNetwork")
@@ -160,7 +161,9 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
       ta.io.alloc.bits.pdest := driver.io.out.bits.info.pdest
       ta.io.alloc.bits.robPtr := driver.io.out.bits.info.robPtr
       ta.io.release := tr
-      outPort.valid := driver.io.out.valid && ta.io.allow
+      val shouldBeFlushed = driver.io.out.bits.info.robPtr.needFlush(io.redirect)
+      val shouldBeCancelled = driver.io.out.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
+      outPort.valid := driver.io.out.valid && ta.io.allow && !shouldBeCancelled && !shouldBeFlushed
       outPort.bits.bankIdxOH := driver.io.out.bits.bankIdxOH
       outPort.bits.entryIdxOH := driver.io.out.bits.entryIdxOH
       outPort.bits.info := driver.io.out.bits.info
@@ -168,7 +171,9 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
     }
   } else {
     for ((outPort, driver) <- io.issueInfo.zip(selectorSeq)) {
-      outPort.valid := driver.io.out.valid
+      val shouldBeFlushed = driver.io.out.bits.info.robPtr.needFlush(io.redirect)
+      val shouldBeCancelled = driver.io.out.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
+      outPort.valid := driver.io.out.valid && !shouldBeCancelled && !shouldBeFlushed
       outPort.bits.bankIdxOH := driver.io.out.bits.bankIdxOH
       outPort.bits.entryIdxOH := driver.io.out.bits.entryIdxOH
       outPort.bits.info := driver.io.out.bits.info

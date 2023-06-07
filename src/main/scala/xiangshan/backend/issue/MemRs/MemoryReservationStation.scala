@@ -112,16 +112,19 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   staSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.staSelectInfo
   })
+  staSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   staSelectNetwork.io.redirect := io.redirect
 
   stdSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.stdSelectInfo
   })
+  stdSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   stdSelectNetwork.io.redirect := io.redirect
 
   lduSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.lduSelectInfo
   })
+  lduSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   lduSelectNetwork.io.redirect := io.redirect
 
   private var fpBusyTableReadIdx = 0
@@ -291,6 +294,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       iss._1.issue.bits.src := DontCare
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
+      iss._1.rsFeedback.isFirstIssue := false.B
       issueDriver.io.deq.ready := iss._1.issue.ready
     }
   }

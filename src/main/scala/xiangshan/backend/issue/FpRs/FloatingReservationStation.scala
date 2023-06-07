@@ -99,6 +99,7 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     sn.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
       sink := source.io.selectInfo
     })
+    sn.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     sn.io.redirect := io.redirect
   })
 
