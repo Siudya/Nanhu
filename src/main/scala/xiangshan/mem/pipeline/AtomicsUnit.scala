@@ -130,8 +130,9 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
       exceptionVec(storeAddrMisaligned) := !addrAligned && !isLr
       exceptionVec(storePageFault)      := io.dtlb.resp.bits.excp(0).pf.st
       exceptionVec(loadPageFault)       := io.dtlb.resp.bits.excp(0).pf.ld
-      exceptionVec(storeAccessFault)    := io.dtlb.resp.bits.excp(0).af.st
-      exceptionVec(loadAccessFault)     := io.dtlb.resp.bits.excp(0).af.ld
+      //software is used to restrict atomic instructions from accessing mmio. Now if is_mmio is true,we treat it as an exception
+      exceptionVec(storeAccessFault)    := io.dtlb.resp.bits.excp(0).af.st || (is_mmio && !isLr)
+      exceptionVec(loadAccessFault)     := io.dtlb.resp.bits.excp(0).af.ld || (is_mmio && isLr)
       static_pm := io.dtlb.resp.bits.static_pm
 
       when (!io.dtlb.resp.bits.miss) {
