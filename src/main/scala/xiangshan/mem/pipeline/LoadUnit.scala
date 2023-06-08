@@ -422,7 +422,8 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
   // io.out.bits.uop.ctrl.replayInst := false.B
 
   io.out.bits.mmio := s2_mmio
-  io.out.bits.uop.ctrl.flushPipe := s2_mmio && io.sentFastUop
+//  io.out.bits.uop.ctrl.flushPipe := s2_mmio && io.sentFastUop
+    io.out.bits.uop.ctrl.flushPipe := DontCare  ///flushPipe logic is useless
   io.out.bits.uop.cf.exceptionVec := s2_exception_vec // cache error not included
 
   // For timing reasons, sometimes we can not let
