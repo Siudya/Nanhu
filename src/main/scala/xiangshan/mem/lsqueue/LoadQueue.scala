@@ -707,7 +707,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   io.rollback.bits.ftqOffset := rollbackUop.cf.ftqOffset
   io.rollback.bits.stFtqOffset := rollbackStFtqOffset
   io.rollback.bits.level := RedirectLevel.flush
-  io.rollback.bits.interrupt := DontCare
+  io.rollback.bits.interrupt := false.B
   io.rollback.bits.cfiUpdate := DontCare
   io.rollback.bits.cfiUpdate.target := rollbackUop.cf.pc
   io.rollback.bits.isException := false.B

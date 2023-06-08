@@ -45,7 +45,7 @@ endif
 RUN_OPTS += +diff=$(ABS_WORK_DIR)/ready-to-run/riscv64-nemu-interpreter-so
 # RUN_OPTS += +no-diff
 RUN_OPTS += -fgp=num_threads:4,num_fsdb_threads:4  -l sim.log
-#RUN_OPTS += -assert finish_maxfail=30 -assert global_finish_maxfail=3000 -assert report=assert.log
+RUN_OPTS += -assert finish_maxfail=30 -assert global_finish_maxfail=10000
 # co-simulation with DRAMsim3
 ifeq ($(WITH_DRAMSIM3),1)
 ifndef DRAMSIM3_HOME

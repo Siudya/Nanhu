@@ -50,8 +50,10 @@ class BusyTable(numReadPorts: Int, numWritePorts: Int)(implicit p: Parameters) e
   val tableAfterWb = table & (~wbMask).asUInt
   val tableAfterAlloc = tableAfterWb | allocMask
 
-  io.read.foreach(r => r.resp := !table(r.req))
-
+  //Only bypass wb data to read
+  io.read.foreach(r => {
+    r.resp := !Mux1H(UIntToOH(r.req), tableAfterWb)
+  })
   table := tableAfterAlloc
 
   val oddTable = table.asBools.zipWithIndex.filter(_._2 % 2 == 1).map(_._1)

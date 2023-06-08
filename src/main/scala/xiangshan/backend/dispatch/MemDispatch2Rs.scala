@@ -36,7 +36,9 @@ class MemDispatch2Rs(implicit p: Parameters) extends XSModule{
       val pairs = (0 until index).flatMap(i => (i + 1 until index).map(j => (i, j)))
       val foundLoad = pairs.map(x => io.in(x._1).valid && io.in(x._2).valid && !isStore(x._1) && !isStore(x._2)).reduce(_|_)
       val foundStore = pairs.map(x => io.in(x._1).valid && io.in(x._2).valid && isStore(x._1) && isStore(x._2)).reduce(_|_)
-      Mux(isStore(index), foundStore, foundLoad || isBlocked(index - 1))
+      val shouldBlockHere = Mux(isStore(index), foundStore, foundLoad)
+      //When instructions before are blocked, block this and successors.
+      shouldBlockHere || isBlocked(index - 1)
     }
     else {
       false.B

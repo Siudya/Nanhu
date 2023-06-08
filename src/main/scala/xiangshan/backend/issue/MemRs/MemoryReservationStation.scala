@@ -112,16 +112,19 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   staSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.staSelectInfo
   })
+  staSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   staSelectNetwork.io.redirect := io.redirect
 
   stdSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.stdSelectInfo
   })
+  stdSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   stdSelectNetwork.io.redirect := io.redirect
 
   lduSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.lduSelectInfo
   })
+  lduSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
   lduSelectNetwork.io.redirect := io.redirect
 
   private var fpBusyTableReadIdx = 0
@@ -189,15 +192,21 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
           val fSlow = iss._1.rsFeedback.feedbackSlow
           val faskBankIdxSel = fFast.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
           val fastFeedBackEn = fFast.valid && faskBankIdxSel(idx)
-          rp(0).valid := RegNext(fastFeedBackEn, false.B)
-          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
-          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
+//          rp(0).valid := RegNext(fastFeedBackEn, false.B)
+//          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
+//          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
+          rp(0).valid := fastFeedBackEn
+          rp(0).bits.entryIdxOH := fFast.bits.rsIdx.entryIdxOH
+          rp(0).bits.waitVal := fFast.bits.sourceType
 
           val slowBankIdxSel = fSlow.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
           val slowFeedBackEn = fSlow.valid && slowBankIdxSel(idx)
-          rp(1).valid := RegNext(slowFeedBackEn, false.B)
-          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
-          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
+//          rp(1).valid := RegNext(slowFeedBackEn, false.B)
+//          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
+//          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
+          rp(1).valid := slowFeedBackEn
+          rp(1).bits.entryIdxOH := fSlow.bits.rsIdx.entryIdxOH
+          rp(1).bits.waitVal := fSlow.bits.sourceType
         }
 
         staPortIdx = staPortIdx + 1
@@ -231,15 +240,21 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
           val fSlow = iss._1.rsFeedback.feedbackSlow
           val faskBankIdxSel = fFast.bits.rsIdx.bankIdxOH.asBools.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum)
           val fastFeedBackEn = fFast.valid && faskBankIdxSel(idx)
-          rp(0).valid := RegNext(fastFeedBackEn, false.B)
-          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
-          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
+//          rp(0).valid := RegNext(fastFeedBackEn, false.B)
+//          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
+//          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
+          rp(0).valid := fastFeedBackEn
+          rp(0).bits.entryIdxOH := fFast.bits.rsIdx.entryIdxOH
+          rp(0).bits.waitVal := fFast.bits.sourceType
 
           val slowBankIdxSel = fSlow.bits.rsIdx.bankIdxOH.asBools.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum)
           val slowFeedBackEn = fSlow.valid && slowBankIdxSel(idx)
-          rp(1).valid := RegNext(slowFeedBackEn, false.B)
-          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
-          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
+//          rp(1).valid := RegNext(slowFeedBackEn, false.B)
+//          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
+//          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
+          rp(1).valid := slowFeedBackEn
+          rp(1).bits.entryIdxOH := fSlow.bits.rsIdx.entryIdxOH
+          rp(1).bits.waitVal := fSlow.bits.sourceType
         }
 
         val earlyWakeupQueue = Module(new WakeupQueue(3))
@@ -291,6 +306,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       iss._1.issue.bits.src := DontCare
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
+      iss._1.rsFeedback.isFirstIssue := false.B
       issueDriver.io.deq.ready := iss._1.issue.ready
     }
   }

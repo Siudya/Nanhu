@@ -140,6 +140,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     sn.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
       sink := source.io.selectInfo
     })
+    sn.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     sn.io.redirect := io.redirect
   })
 
