@@ -76,10 +76,10 @@ package object issue {
   object RSFeedbackType {
     private val width = 5
     val tlbMiss: UInt = (1 << 3).U(width.W)
-    val mshrFull: UInt = (1 << 3).U(width.W)
-    val dataInvalid: UInt = (1 << 0).U(width.W)
-    val bankConflict: UInt = (1 << 0).U(width.W)
-    val ldVioCheckRedo: UInt = (1 << 0).U(width.W)
+    val mshrFull: UInt = (1 << 4).U(width.W)
+    val dataInvalid: UInt = (1 << 3).U(width.W)
+    val bankConflict: UInt = 0.U(width.W)
+    val ldVioCheckRedo: UInt = 0.U(width.W)
     val feedbackInvalid: UInt = (1 << 2).U(width.W)
 
     def apply(): UInt = UInt(width.W)
