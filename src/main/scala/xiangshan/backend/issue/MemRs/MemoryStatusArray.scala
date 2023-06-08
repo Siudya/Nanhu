@@ -55,18 +55,16 @@ sealed class BasicMemoryIssueInfoGenerator(implicit p: Parameters) extends XSMod
   io.out.bits.pdest := ib.pdest
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
-  io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.reduce(_|_)})
-  chisel3.experimental.annotate(new ChiselAnnotation {
-    def toFirrtl = InlineAnnotation(toNamed)
-  })
 }
 
 class StaLoadIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
   readyToIssue := ib.srcState(0) === SrcState.rdy && ib.staLoadState === EntryState.s_ready
+  io.out.bits.lpv := ib.lpv(0)
 }
 
 class StdIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
   readyToIssue := (ib.srcState(1) === SrcState.rdy || (ib.isCboZero && ib.srcState(0) === SrcState.rdy)) && ib.stdState === EntryState.s_ready
+  io.out.bits.lpv := Mux(ib.isCboZero, ib.lpv(0), ib.lpv(1))
 }
 
 class MemoryStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEntry(2){
