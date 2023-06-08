@@ -118,7 +118,8 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
     "b11".U   -> (s0_vaddr(2, 0) === 0.U)  //d
   ))
 
-  io.out.valid := io.in.valid && io.dcacheReq.ready
+  io.out.valid := io.in.valid
+  io.s0_cancel := !io.dcacheReq.ready
 
   io.out.bits := DontCare
   io.out.bits.vaddr := s0_vaddr
