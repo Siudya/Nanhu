@@ -125,7 +125,7 @@ class SqueezeCodeRom(addrWidth:Int, dataWidth:Int) extends Module{
     "b1001".U(addrWidth.W) -> "b001010".U(dataWidth.W),
     "b1010".U(addrWidth.W) -> "b001011".U(dataWidth.W),
     "b1011".U(addrWidth.W) -> "b000010".U(dataWidth.W),
-    "b1100".U(addrWidth.W) -> "b001101".U(dataWidth.W),
+    "b1100".U(addrWidth.W) -> "b011101".U(dataWidth.W),
     "b1101".U(addrWidth.W) -> "b010111".U(dataWidth.W),
     "b1110".U(addrWidth.W) -> "b101001".U(dataWidth.W),
     "b1111".U(addrWidth.W) -> "b000000".U(dataWidth.W),

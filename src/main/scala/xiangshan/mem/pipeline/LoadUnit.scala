@@ -560,6 +560,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s1.io.loadViolationQueryReq <> io.lsq.loadViolationQuery.req
   load_s1.io.dcacheBankConflict <> io.dcache.s1_bank_conflict
   load_s1.io.csrCtrl <> io.csrCtrl
+  load_s1.io.s1_cancel := RegEnable(load_s0.io.s0_cancel, load_s0.io.out.fire)
   assert(load_s1.io.in.ready)
 
   // provide paddr for lq
