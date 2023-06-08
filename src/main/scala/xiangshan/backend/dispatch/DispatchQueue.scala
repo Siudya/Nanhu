@@ -94,11 +94,11 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
 
   io.enq.canAccept := (PopCount(io.enq.needAlloc) < emptyEntriesNum) && !(io.redirect.valid || RegNext(io.redirect.valid, false.B))
   for(idx <- 0 until enqNum){
-    payloadArray.io.w(idx).en := squeezedEnqs(idx).valid
+    payloadArray.io.w(idx).en := squeezedEnqs(idx).valid && io.enq.canAccept
     payloadArray.io.w(idx).addrOH := UIntToOH((enqPtr + idx.U).value)
     payloadArray.io.w(idx).data := squeezedEnqs(idx).bits
   }
-  private val actualEnqNum = PopCount(io.enq.req.map(_.valid))
+  private val actualEnqNum = Mux(io.enq.canAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
   enqPtr := Mux(io.redirect.valid, enqPtr, enqPtr + actualEnqNum)
   enqPtrAux := Mux(io.redirect.valid, enqPtr, enqPtr + actualEnqNum)
 
@@ -113,9 +113,9 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
 
   assert(deqPtr <= enqPtrAux)
   assert(actualEnqNum <= emptyEntriesNum)
-  assert(PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum)
+  assert(Mux(io.enq.canAccept, PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum, true.B))
   for(i <- io.enq.req.indices){
-    assert(Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B))
+    assert(Mux(io.enq.canAccept, Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B), true.B))
   }
   for(i <- 1 until squeezedEnqs.length){
     assert(Mux(squeezedEnqs(i).valid, squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx, true.B))
