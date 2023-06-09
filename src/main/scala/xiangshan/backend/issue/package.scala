@@ -74,7 +74,7 @@ package object issue {
   }
 
   object RSFeedbackType {
-    private val width = 5
+    val width = 5
     val tlbMiss: UInt = (1 << 3).U(width.W)
     val mshrFull: UInt = (1 << 4).U(width.W)
     val dataInvalid: UInt = (1 << 3).U(width.W)

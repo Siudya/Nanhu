@@ -181,6 +181,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
     val needLdVioCheckRedo = Output(Bool())
     val s1_cancel = Input(Bool())
+    val bankConflictAvoidIn = Input(UInt(1.W))
   })
 
   val s1_uop = io.in.bits.uop
@@ -237,7 +238,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
   io.rsFeedback.valid := io.in.valid && (s1_bank_conflict || needLdVioCheckRedo || io.s1_cancel) && !io.s1_kill
   io.rsFeedback.bits.rsIdx := io.in.bits.rsIdx
   io.rsFeedback.bits.flushState := io.in.bits.ptwBack
-  io.rsFeedback.bits.sourceType := Mux(s1_bank_conflict, RSFeedbackType.bankConflict, RSFeedbackType.ldVioCheckRedo)
+  io.rsFeedback.bits.sourceType := Mux(s1_bank_conflict, Cat(0.U((RSFeedbackType.width - 1).W), io.bankConflictAvoidIn), RSFeedbackType.ldVioCheckRedo)
 
   // if replay is detected in load_s1,
   // load inst will be canceled immediately
@@ -526,6 +527,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
     val s2IsPointerChasing = Output(Bool())
     val cancel = Output(Bool())
+    val bankConflictAvoidIn = Input(UInt(1.W))
   })
 
   val load_s0 = Module(new LoadUnit_S0)
@@ -561,6 +563,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s1.io.dcacheBankConflict <> io.dcache.s1_bank_conflict
   load_s1.io.csrCtrl <> io.csrCtrl
   load_s1.io.s1_cancel := RegEnable(load_s0.io.s0_cancel, load_s0.io.out.fire)
+  load_s1.io.bankConflictAvoidIn := io.bankConflictAvoidIn
   assert(load_s1.io.in.ready)
 
   // provide paddr for lq
