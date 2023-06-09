@@ -184,8 +184,9 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
   }.elsewhen(counter.orR) {
     counterNext := LogicShiftRight(counter, 1)
   }
-  assert(Mux(io.entry.valid, Cat(shouldBeCanceled, staLoadIssued) <= 2.U, true.B))
-  assert(Mux(io.entry.valid, Cat(shouldBeCanceled, stdIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid, Cat(srcShouldBeCancelled(0), staLoadIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid && !io.entry.bits.isCboZero, Cat(srcShouldBeCancelled(1), stdIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid && io.entry.bits.isCboZero, Cat(srcShouldBeCancelled(0), stdIssued) <= 2.U, true.B))
   assert(Mux(staLoadIssued, io.entry.valid && staLoadState === s_ready, true.B))
   assert(Mux(stdIssued, io.entry.valid && stdState === s_ready && imStore, true.B))
   assert(Mux(io.entry.valid && imLoad, stdState === s_issued, true.B))
