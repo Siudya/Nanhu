@@ -99,8 +99,8 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     payloadArray.io.w(idx).data := squeezedEnqs(idx).bits
   }
   private val actualEnqNum = Mux(io.enq.canAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
-  enqPtr := Mux(io.redirect.valid, enqPtr, enqPtr + actualEnqNum)
-  enqPtrAux := Mux(io.redirect.valid, enqPtr, enqPtr + actualEnqNum)
+  enqPtr := Mux(io.redirect.valid, enqPtr - flushNum, enqPtr + actualEnqNum)
+  enqPtrAux := Mux(io.redirect.valid, enqPtr - flushNum, enqPtr + actualEnqNum)
 
 
   io.deq.zipWithIndex.foreach({case(deq, idx) =>
@@ -109,7 +109,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     deq.bits := payloadArray.io.r(idx).data
   })
   private val actualDeqNum = PopCount(io.deq.map(_.fire))
-  deqPtr := Mux(io.redirect.valid, deqPtr + flushNum, deqPtr + actualDeqNum)
+  deqPtr := Mux(io.redirect.valid, deqPtr, deqPtr + actualDeqNum)
 
   assert(deqPtr <= enqPtrAux)
   assert(actualEnqNum <= emptyEntriesNum)
@@ -121,10 +121,10 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     assert(Mux(squeezedEnqs(i).valid, squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx, true.B))
   }
   assert(flushNum <= validEntriesNum)
-  private val deqFlushNextMask = UIntToMask((deqPtr + flushNum).value, size)
-  private val flushXorPresentMask = deqFlushNextMask ^ deqMask
-  private val deqRollbackMask = Mux(deqPtr.value <= (deqPtr + flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
-  assert(Mux(io.redirect.valid, deqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
+  private val enqFlushNextMask = UIntToMask((enqPtr - flushNum).value, size)
+  private val flushXorPresentMask = enqFlushNextMask ^ enqMask
+  private val enqRollbackMask = Mux(enqPtr.value >= (enqPtr - flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
+  assert(Mux(io.redirect.valid, enqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
   private val readyNum = PopCount(io.deq.map(_.ready))
   for (i <- 1 until io.deq.length) {
     assert(Mux(i.U < readyNum, io.deq(i).ready === true.B, io.deq(i).ready === false.B))
