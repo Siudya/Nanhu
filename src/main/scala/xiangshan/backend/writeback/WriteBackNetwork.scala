@@ -60,11 +60,12 @@ class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
         val realSrc = WireInit(src)
         if(s._2._1.needWriteback && cfg.speculativeWakeup){
           val realValid = src.valid && !src.bits.uop.robIdx.needFlush(localRedirectReg)
-          realSrc.valid := RegNext(realValid, false.B)
           realSrc.bits.uop := RegEnable(src.bits.uop, realValid)
+          realSrc.valid := RegNext(realValid, false.B) && !realSrc.bits.uop.robIdx.needFlush(localRedirectReg)
         }
         if(s._2._1.isRob){
-          dst := Pipe(realSrc)
+          dst.bits := RegEnable(realSrc.bits, realSrc.valid)
+          dst.valid := RegNext(realSrc.valid, false.B) && !dst.bits.uop.robIdx.needFlush(localRedirectReg)
         } else {
           dst := realSrc
         }

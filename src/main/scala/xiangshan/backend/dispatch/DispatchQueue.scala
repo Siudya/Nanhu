@@ -92,7 +92,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val redirectMask = validsMask & payloadArray.io.flushVec
   private val flushNum = PopCount(redirectMask)
 
-  io.enq.canAccept := (PopCount(io.enq.needAlloc) < emptyEntriesNum) && !(io.redirect.valid || RegNext(io.redirect.valid, false.B))
+  io.enq.canAccept := (PopCount(io.enq.needAlloc) < emptyEntriesNum) && !io.redirect.valid
   for(idx <- 0 until enqNum){
     payloadArray.io.w(idx).en := squeezedEnqs(idx).valid && io.enq.canAccept
     payloadArray.io.w(idx).addrOH := UIntToOH((enqPtr + idx.U).value)
@@ -104,7 +104,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
 
 
   io.deq.zipWithIndex.foreach({case(deq, idx) =>
-    deq.valid := (deqPtr + idx.U) < enqPtrAux
+    deq.valid := ((deqPtr + idx.U) < enqPtrAux) && !io.redirect.valid
     payloadArray.io.r(idx).addrOH := UIntToOH((deqPtr + idx.U).value)
     deq.bits := payloadArray.io.r(idx).data
   })

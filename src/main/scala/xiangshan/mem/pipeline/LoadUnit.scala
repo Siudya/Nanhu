@@ -762,8 +762,10 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
 
   io.ldout.bits := s3_load_wb_meta_reg
   io.ldout.bits.data := Mux(RegNext(hitLoadOut.valid), s3_rdataPartialLoadDcache, s3_rdataPartialLoadLQ)
-  io.ldout.valid := RegNext(hitLoadOut.valid) && !RegNext(load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)) ||
-    RegNext(io.lsq.ldout.valid) && !RegNext(io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)) && !RegNext(hitLoadOut.valid)
+  private val pipelineOutputValidReg = RegNext(hitLoadOut.valid && (!load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)), false.B)
+  private val lsqOutputValidReg = RegNext(io.lsq.ldout.valid && (!io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)),false.B)
+  private val writebackShouldBeFlushed = s3_load_wb_meta_reg.uop.robIdx.needFlush(io.redirect)
+  io.ldout.valid := (!writebackShouldBeFlushed) && (pipelineOutputValidReg || lsqOutputValidReg)
 
   io.ldout.bits.uop.cf.exceptionVec(loadAccessFault) := s3_load_wb_meta_reg.uop.cf.exceptionVec(loadAccessFault) //||
     //RegNext(hitLoadOut.valid) && load_s2.io.s3_delayed_load_error

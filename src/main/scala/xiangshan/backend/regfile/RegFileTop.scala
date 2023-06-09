@@ -29,6 +29,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
       val pcReadData = Input(Vec(pcReadNum, new Ftq_RF_Components))
       val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
       val debug_fp_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
+      val redirect = Input(Valid(new Redirect))
     })
     require(issueNode.in.count(_._2._1.isIntRs) <= 1)
     require(issueNode.in.count(_._2._1.isMemRs) <= 1)
@@ -142,7 +143,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         val rsIdxReg = Reg(new RsIdx)
 
         val allowPipe = !issueValidReg || bo.issue.fire
-        bo.issue.valid := issueValidReg
+        bo.issue.valid := issueValidReg && !issueExuInReg.uop.robIdx.needFlush(io.redirect)
         bo.issue.bits := issueExuInReg
         bo.rsIdx := rsIdxReg
         when(allowPipe) {

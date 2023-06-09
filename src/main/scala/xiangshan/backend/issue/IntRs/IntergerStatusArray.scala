@@ -85,6 +85,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
       n := SrcState.rdy
     }
   }
+  pregMatch.foreach(hv => assert(Mux(io.entry.valid, PopCount(hv) <= 1.U, true.B)))
   private val miscUpdateEnWakeUp = pregMatch.map(_.reduce(_|_)).reduce(_|_)
   //End of wake up
 

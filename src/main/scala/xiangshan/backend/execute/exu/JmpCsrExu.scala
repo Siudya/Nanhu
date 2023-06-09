@@ -77,7 +77,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   private val finalData = ParallelMux(outSel, outData)
 
   writebackPort := DontCare
-  writebackPort.valid := outSel.reduce(_ || _)
+  writebackPort.valid := outSel.reduce(_ || _) && !finalData.uop.robIdx.needFlush(redirectIn)
   writebackPort.bits.uop := finalData.uop
   writebackPort.bits.data := finalData.data
 

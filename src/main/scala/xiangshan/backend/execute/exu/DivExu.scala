@@ -47,7 +47,7 @@ class DivExuImpl(outer:DivExu, exuCfg:ExuConfig) extends BasicExuImpl(outer) wit
   }
   outputArbiter.io.out.ready := true.B
   writebackPort.bits := DontCare
-  writebackPort.valid := outputArbiter.io.out.valid
+  writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.robIdx.needFlush(redirectIn)
   writebackPort.bits.uop := outputArbiter.io.out.bits
   private val dataOut = divs.map(_.io.out.bits.data)
   private val uopSel = RegEnable(UIntToOH(outputArbiter.io.chosen)(exuCfg.fuConfigs.length - 1, 0), outputArbiter.io.out.fire)

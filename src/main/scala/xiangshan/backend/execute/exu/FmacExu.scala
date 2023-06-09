@@ -36,7 +36,7 @@ class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   fmac.midResult.in.valid := false.B
   fmac.midResult.waitForAdd := false.B
 
-  writebackPort.valid := fmac.io.out.valid
+  writebackPort.valid := fmac.io.out.valid && !fmac.io.out.bits.uop.robIdx.needFlush(redirectIn)
   fmac.io.out.ready := true.B
   writebackPort.bits.uop := fmac.io.out.bits.uop
   writebackPort.bits.data := fmac.io.out.bits.data

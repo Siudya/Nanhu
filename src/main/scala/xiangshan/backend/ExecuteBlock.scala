@@ -90,10 +90,11 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     private val rf = regFile.module
     private val writeback = writebackNetwork.module
 
+    private val localRedirect = writeback.io.redirectOut
     rf.io.hartId := io.hartId
     rf.io.debug_int_rat := io.debug_int_rat
     rf.io.debug_fp_rat := io.debug_fp_rat
-    private val localRedirect = writeback.io.redirectOut
+    rf.io.redirect := Pipe(localRedirect)
     exuBlocks.foreach(_.module.redirectIn := Pipe(localRedirect))
     
     intRs.io.redirect := Pipe(localRedirect)
