@@ -49,7 +49,6 @@ class DivExuImpl(outer:DivExu, exuCfg:ExuConfig) extends BasicExuImpl(outer) wit
   writebackPort.bits := DontCare
   writebackPort.valid := outputArbiter.io.out.valid
   writebackPort.bits.uop := outputArbiter.io.out.bits
-  writebackPort.bits.data := outputArbiter.io.out.bits.data
   private val dataOut = divs.map(_.io.out.bits.data)
   private val uopSel = RegEnable(outputArbiter.io.chosen, outputArbiter.io.out.fire)
   writebackPort.bits.data := Mux1H(uopSel, dataOut)
