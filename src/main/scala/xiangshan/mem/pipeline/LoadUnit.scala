@@ -132,7 +132,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
     "b11".U   -> (s0_vaddr(2, 0) === 0.U)  //d
   ))
 
-  io.out.valid := (io.in.valid || tryFastpath) && io.dcacheReq.ready && !io.s0_kill
+  io.out.valid := (io.in.valid || tryFastpath)
 
   io.out.bits := DontCare
   io.out.bits.vaddr := s0_vaddr
@@ -144,7 +144,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
   io.out.bits.isSoftPrefetch := isSoftPrefetch
 
   io.in.ready := !io.in.valid || io.out.ready
-  io.s0_cancel := !io.dcacheReq.ready
+  io.s0_cancel := (!io.dcacheReq.ready) && io.s0_kill
 
   XSDebug(io.dcacheReq.fire,
     p"[DCACHE LOAD REQ] pc ${Hexadecimal(s0_uop.cf.pc)}, vaddr ${Hexadecimal(s0_vaddr)}\n"
@@ -422,8 +422,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
   // io.out.bits.uop.ctrl.replayInst := false.B
 
   io.out.bits.mmio := s2_mmio
-//  io.out.bits.uop.ctrl.flushPipe := s2_mmio && io.sentFastUop
-    io.out.bits.uop.ctrl.flushPipe := DontCare  ///flushPipe logic is useless
+  io.out.bits.uop.ctrl.flushPipe := false.B  ///flushPipe logic is useless
   io.out.bits.uop.cf.exceptionVec := s2_exception_vec // cache error not included
 
   // For timing reasons, sometimes we can not let
