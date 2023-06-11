@@ -38,7 +38,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
     val tag_read = DecoupledIO(new TagReadReq)
     val tag_resp = Input(Vec(nWays, UInt(encTagBits.W)))
 
-    val banked_data_read = DecoupledIO(new L1BankedDataReadReq)
+    val banked_data_read = DecoupledIO(new L1BankedDataReadLsuReq)
     val banked_data_resp = Input(Vec(DCacheBanks, new L1BankedDataReadResult()))
     val read_error_delayed = Input(Bool())
 
@@ -163,6 +163,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   io.banked_data_read.valid := s1_fire && !s1_nack
   io.banked_data_read.bits.addr := s1_vaddr
   io.banked_data_read.bits.way_en := s1_tag_match_way_dup_dc
+  io.banked_data_read.bits.robIdx := s1_req.robIdx
 
   // get s1_will_send_miss_req in lpad_s1
   val s1_has_permission = s1_hit_coh.onAccess(s1_req.cmd)._1

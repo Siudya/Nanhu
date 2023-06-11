@@ -21,12 +21,16 @@ import chisel3._
 import chisel3.util._
 import xs.utils.mbist.MBISTPipeline
 import utils.{XSDebug, XSPerfAccumulate}
+import xiangshan.backend.rob.RobPtr
 import xs.utils.sram.SRAMTemplate
 
 class L1BankedDataReadReq(implicit p: Parameters) extends DCacheBundle
 {
   val way_en = Bits(DCacheWays.W)
   val addr = Bits(PAddrBits.W)
+}
+class L1BankedDataReadLsuReq(implicit p: Parameters) extends L1BankedDataReadReq{
+  val robIdx = new RobPtr
 }
 
 class L1BankedDataReadLineReq(implicit p: Parameters) extends L1BankedDataReadReq
@@ -76,7 +80,7 @@ abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheMod
   val ReadlinePortErrorIndex = LoadPipelineWidth
   val io = IO(new DCacheBundle {
     // load pipeline read word req
-    val read = Vec(LoadPipelineWidth, Flipped(DecoupledIO(new L1BankedDataReadReq)))
+    val read = Vec(LoadPipelineWidth, Flipped(DecoupledIO(new L1BankedDataReadLsuReq)))
     // main pipeline read / write line req
     val readline_intend = Input(Bool())
     val readline = Flipped(DecoupledIO(new L1BankedDataReadLineReq))
@@ -256,7 +260,14 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   // )))
 
   data_banks.map(_.dump())
-
+  require(LoadPipelineWidth == 2)
+  private val readValids = Cat(io.read.map(_.valid).reverse)
+  //readSel is a selector between read #0 and #1, used when bank conflict happen.
+  //True: select #1 False:select #0
+  private val readSel = Mux(readValids === 1.U, false.B,
+    Mux(readValids === 2.U, true.B,
+      Mux(readValids === 3.U, io.read(0).bits.robIdx > io.read(1).bits.robIdx,
+        false.B)))
   val way_en = Wire(Vec(LoadPipelineWidth, io.read(0).bits.way_en.cloneType))
   val way_en_reg = RegNext(way_en)
   val set_addrs = Wire(Vec(LoadPipelineWidth, UInt()))
@@ -302,11 +313,12 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   val rw_bank_conflict = VecInit(Seq.tabulate(LoadPipelineWidth)(io.read(_).valid && rwhazard))
   val perf_multi_read = PopCount(io.read.map(_.valid)) >= 2.U
   (0 until LoadPipelineWidth).foreach(i => {
+    val highPriority = if(i == 0) !readSel else readSel
     io.bank_conflict_fast(i) := rw_bank_conflict(i) || rrl_bank_conflict(i) ||
-      (if (i == 0) 0.B else rr_bank_conflict)
+      (!highPriority && rr_bank_conflict)
     io.bank_conflict_slow(i) := RegNext(io.bank_conflict_fast(i))
     io.disable_ld_fast_wakeup(i) := rw_bank_conflict(i) || rrl_bank_conflict_intend(i) ||
-      (if (i == 0) 0.B else rr_bank_conflict)
+      (!highPriority && rr_bank_conflict)
   })
   XSPerfAccumulate("data_array_multi_read", perf_multi_read)
   XSPerfAccumulate("data_array_rr_bank_conflict", rr_bank_conflict)
@@ -345,11 +357,17 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     }
     val bank_way_en = Mux(readline_match,
       io.readline.bits.way_en,
-      Mux(bank_addr_matchs(0), way_en(0), way_en(1))
+      Mux(readSel,
+        Mux(bank_addr_matchs(1), way_en(1), way_en(0)),
+        Mux(bank_addr_matchs(0), way_en(0), way_en(1))
+      )
     )
     val bank_set_addr = Mux(readline_match,
       addr_to_dcache_set(io.readline.bits.addr),
-      Mux(bank_addr_matchs(0), set_addrs(0), set_addrs(1))
+      Mux(readSel,
+        Mux(bank_addr_matchs(1), set_addrs(1), set_addrs(0)),
+        Mux(bank_addr_matchs(0), set_addrs(0), set_addrs(1))
+      )
     )
 
     val read_enable = bank_addr_matchs.asUInt.orR || readline_match

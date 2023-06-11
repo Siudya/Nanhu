@@ -460,7 +460,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     }
   }
   io.uncache.req.valid := uncacheState === s_req
-
+  io.uncache.req.bits.robIdx := DontCare
   io.uncache.req.bits.cmd  := MemoryOpConstants.M_XWR
   io.uncache.req.bits.addr := paddrModule.io.rdata(0) // data(deqPtr) -> rdata(0)
   io.uncache.req.bits.data := dataModule.io.rdata(0).data
