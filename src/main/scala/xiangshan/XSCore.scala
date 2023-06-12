@@ -65,7 +65,7 @@ abstract class XSCoreBase(val parentName:String = "Unknown")(implicit p: config.
   val ptw = LazyModule(new PTWWrapper(parentName = parentName + "ptw_"))
   val ptw_to_l2_buffer = LazyModule(new TLBuffer)
   val csrOut = BundleBridgeSource(Some(() => new DistributedCSRIO()))
-  val exuBlock = LazyModule(new ExecuteBlock)
+  val exuBlock = LazyModule(new ExecuteBlock(parentName = parentName + "execute_"))
   val ctrlBlock = LazyModule(new CtrlBlock)
   exuBlock.integerReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   exuBlock.floatingReservationStation.dispatchNode :*= ctrlBlock.dispatchNode

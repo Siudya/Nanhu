@@ -55,18 +55,16 @@ sealed class BasicMemoryIssueInfoGenerator(implicit p: Parameters) extends XSMod
   io.out.bits.pdest := ib.pdest
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
-  io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.reduce(_|_)})
-  chisel3.experimental.annotate(new ChiselAnnotation {
-    def toFirrtl = InlineAnnotation(toNamed)
-  })
 }
 
 class StaLoadIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
   readyToIssue := ib.srcState(0) === SrcState.rdy && ib.staLoadState === EntryState.s_ready
+  io.out.bits.lpv := ib.lpv(0)
 }
 
 class StdIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
   readyToIssue := (ib.srcState(1) === SrcState.rdy || (ib.isCboZero && ib.srcState(0) === SrcState.rdy)) && ib.stdState === EntryState.s_ready
+  io.out.bits.lpv := Mux(ib.isCboZero, ib.lpv(0), ib.lpv(1))
 }
 
 class MemoryStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEntry(2){
@@ -112,6 +110,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
       n := SrcState.rdy
     }
   }
+  pregMatch.foreach(hv => assert(Mux(io.entry.valid, PopCount(hv) <= 1.U, true.B)))
   private val miscUpdateEnWakeUp = pregMatch.map(_.reduce(_ | _)).reduce(_ | _)
   //End of wake up
 
@@ -186,8 +185,9 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
   }.elsewhen(counter.orR) {
     counterNext := LogicShiftRight(counter, 1)
   }
-  assert(Mux(io.entry.valid, Cat(shouldBeCanceled, staLoadIssued) <= 2.U, true.B))
-  assert(Mux(io.entry.valid, Cat(shouldBeCanceled, stdIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid, Cat(srcShouldBeCancelled(0), staLoadIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid && !io.entry.bits.isCboZero, Cat(srcShouldBeCancelled(1), stdIssued) <= 2.U, true.B))
+  assert(Mux(io.entry.valid && io.entry.bits.isCboZero, Cat(srcShouldBeCancelled(0), stdIssued) <= 2.U, true.B))
   assert(Mux(staLoadIssued, io.entry.valid && staLoadState === s_ready, true.B))
   assert(Mux(stdIssued, io.entry.valid && stdState === s_ready && imStore, true.B))
   assert(Mux(io.entry.valid && imLoad, stdState === s_issued, true.B))

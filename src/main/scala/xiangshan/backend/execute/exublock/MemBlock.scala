@@ -364,9 +364,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   XSDebug(tEnable.asUInt.orR, "Debug Mode: At least one store trigger is enabled\n")
   for(j <- 0 until TriggerNum)
     PrintTriggerInfo(tEnable(j), tdata(j))
-
   // LoadUnit
   for (i <- 0 until exuParameters.LduCnt) {
+    loadUnits(i).io.bankConflictAvoidIn := (i % 2).U
     loadUnits(i).io.redirect := redirect
     lduIssues(i).rsFeedback.feedbackSlow := loadUnits(i).io.feedbackSlow
     lduIssues(i).rsFeedback.feedbackFast := loadUnits(i).io.feedbackFast

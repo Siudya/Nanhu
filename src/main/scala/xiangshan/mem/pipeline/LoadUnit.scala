@@ -113,6 +113,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
   }.otherwise {
     io.dcacheReq.bits.cmd  := MemoryOpConstants.M_XRD
   }
+  io.dcacheReq.bits.robIdx := io.in.bits.uop.robIdx
   io.dcacheReq.bits.addr := s0_vaddr
   io.dcacheReq.bits.mask := s0_mask
   io.dcacheReq.bits.data := DontCare
@@ -144,7 +145,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
   io.out.bits.isSoftPrefetch := isSoftPrefetch
 
   io.in.ready := !io.in.valid || io.out.ready
-  io.s0_cancel := (!io.dcacheReq.ready) && io.s0_kill
+  io.s0_cancel := (!io.dcacheReq.ready) || io.s0_kill
 
   XSDebug(io.dcacheReq.fire,
     p"[DCACHE LOAD REQ] pc ${Hexadecimal(s0_uop.cf.pc)}, vaddr ${Hexadecimal(s0_vaddr)}\n"
@@ -181,6 +182,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
     val needLdVioCheckRedo = Output(Bool())
     val s1_cancel = Input(Bool())
+    val bankConflictAvoidIn = Input(UInt(1.W))
   })
 
   val s1_uop = io.in.bits.uop
@@ -199,7 +201,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
   io.lsuPAddr := s1_paddr_dup_lsu
   io.dcachePAddr := s1_paddr_dup_dcache
   //io.dcacheKill := s1_tlb_miss || s1_exception || s1_mmio
-  io.dcacheKill := s1_tlb_miss || s1_exception || io.s1_kill
+  io.dcacheKill := s1_tlb_miss || s1_exception || io.s1_kill || io.s1_cancel
   // load forward query datapath
   io.sbuffer.valid := io.in.valid && !(s1_exception || s1_tlb_miss || io.s1_kill)
   io.sbuffer.vaddr := io.in.bits.vaddr
@@ -237,7 +239,7 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
   io.rsFeedback.valid := io.in.valid && (s1_bank_conflict || needLdVioCheckRedo || io.s1_cancel) && !io.s1_kill
   io.rsFeedback.bits.rsIdx := io.in.bits.rsIdx
   io.rsFeedback.bits.flushState := io.in.bits.ptwBack
-  io.rsFeedback.bits.sourceType := Mux(s1_bank_conflict, RSFeedbackType.bankConflict, RSFeedbackType.ldVioCheckRedo)
+  io.rsFeedback.bits.sourceType := Mux(s1_bank_conflict, Cat(0.U((RSFeedbackType.width - 1).W), io.bankConflictAvoidIn), RSFeedbackType.ldVioCheckRedo)
 
   // if replay is detected in load_s1,
   // load inst will be canceled immediately
@@ -526,6 +528,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
     val s2IsPointerChasing = Output(Bool())
     val cancel = Output(Bool())
+    val bankConflictAvoidIn = Input(UInt(1.W))
   })
 
   val load_s0 = Module(new LoadUnit_S0)
@@ -561,6 +564,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   load_s1.io.dcacheBankConflict <> io.dcache.s1_bank_conflict
   load_s1.io.csrCtrl <> io.csrCtrl
   load_s1.io.s1_cancel := RegEnable(load_s0.io.s0_cancel, load_s0.io.out.fire)
+  load_s1.io.bankConflictAvoidIn := io.bankConflictAvoidIn
   assert(load_s1.io.in.ready)
 
   // provide paddr for lq
@@ -672,6 +676,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
       !io.dcache.s1_disable_fast_wakeup &&  // load fast wakeup should be disabled when dcache data read is not ready
       load_s1.io.in.valid && // valid load request
       !load_s1.io.s1_kill && // killed by load-load forwarding
+      !load_s1.io.s1_cancel &&
       !load_s1.io.dtlbResp.bits.fast_miss && // not mmio or tlb miss, pf / af not included here
       !io.lsq.forward.dataInvalidFast // forward failed
     ) &&
@@ -730,17 +735,17 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   // data from load queue refill
   val s3_loadDataFromLQ = RegEnable(io.lsq.ldRawData, io.lsq.ldout.valid)
   val s3_rdataLQ = s3_loadDataFromLQ.mergedData()
-//  val s3_rdataSelLQ = LookupTree(s3_loadDataFromLQ.addrOffset, List(
-//    "b000".U -> s3_rdataLQ(63, 0),
-//    "b001".U -> s3_rdataLQ(63, 8),
-//    "b010".U -> s3_rdataLQ(63, 16),
-//    "b011".U -> s3_rdataLQ(63, 24),
-//    "b100".U -> s3_rdataLQ(63, 32),
-//    "b101".U -> s3_rdataLQ(63, 40),
-//    "b110".U -> s3_rdataLQ(63, 48),
-//    "b111".U -> s3_rdataLQ(63, 56)
-//  ))
-//  val s3_rdataPartialLoadLQ = rdataHelper(s3_loadDataFromLQ.uop, s3_rdataSelLQ)
+  val s3_rdataSelLQ = LookupTree(s3_loadDataFromLQ.addrOffset, List(
+    "b000".U -> s3_rdataLQ(63, 0),
+    "b001".U -> s3_rdataLQ(63, 8),
+    "b010".U -> s3_rdataLQ(63, 16),
+    "b011".U -> s3_rdataLQ(63, 24),
+    "b100".U -> s3_rdataLQ(63, 32),
+    "b101".U -> s3_rdataLQ(63, 40),
+    "b110".U -> s3_rdataLQ(63, 48),
+    "b111".U -> s3_rdataLQ(63, 56)
+  ))
+  val s3_rdataPartialLoadLQ = rdataHelper(s3_loadDataFromLQ.uop, s3_rdataSelLQ)
 
   // data from dcache hit
   val s3_loadDataFromDcache = RegEnable(load_s2.io.loadDataFromDcache, load_s2.io.in.valid)
@@ -777,10 +782,10 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.ldout.bits := s3_load_wb_meta_reg
 //  io.ldout.bits.data := Mux(RegNext(hitLoadOut.valid), s3_rdataPartialLoadDcache, s3_rdataPartialLoadLQ)
   io.ldout.bits.data := s3_rdataPartialLoad
-
-
-  io.ldout.valid := RegNext(hitLoadOut.valid) && !RegNext(load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)) ||
-    RegNext(io.lsq.ldout.valid) && !RegNext(io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)) && !RegNext(hitLoadOut.valid)
+  private val pipelineOutputValidReg = RegNext(hitLoadOut.valid && (!load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)), false.B)
+  private val lsqOutputValidReg = RegNext(io.lsq.ldout.valid && (!io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)),false.B)
+  private val writebackShouldBeFlushed = s3_load_wb_meta_reg.uop.robIdx.needFlush(io.redirect)
+  io.ldout.valid := (!writebackShouldBeFlushed) && (pipelineOutputValidReg || lsqOutputValidReg)
 
   io.ldout.bits.uop.cf.exceptionVec(loadAccessFault) := s3_load_wb_meta_reg.uop.cf.exceptionVec(loadAccessFault) //||
     //RegNext(hitLoadOut.valid) && load_s2.io.s3_delayed_load_error

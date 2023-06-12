@@ -91,7 +91,7 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   private val outData = fuOut.map(_.bits)
   private val finalData = ParallelMux(outSel, outData)
   writebackPort := DontCare
-  writebackPort.valid := outSel.reduce(_||_)
+  writebackPort.valid := outSel.reduce(_||_) && !finalData.uop.robIdx.needFlush(redirectIn)
   writebackPort.bits.uop := finalData.uop
   writebackPort.bits.data := finalData.data
   writebackPort.bits.fflags := i2f.fflags

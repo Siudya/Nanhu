@@ -19,14 +19,14 @@ import xiangshan.backend.writeback.WriteBackNetwork
 import xiangshan.cache.mmu.BTlbPtwIO
 import xiangshan.mem.{ExceptionAddrIO, LsqEnqIO}
 import xs.utils.{DFTResetSignals, ModuleNode, ResetGen, ResetGenNode}
-class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter{
+class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) extends LazyModule with HasXSParameter{
   private val pcMemEntries = FtqSize
   val integerReservationStation: IntegerReservationStation = LazyModule(new IntegerReservationStation)
   val floatingReservationStation: FloatingReservationStation = LazyModule(new FloatingReservationStation)
   val memoryReservationStation: MemoryReservationStation = LazyModule(new MemoryReservationStation)
   private val integerBlock = LazyModule(new IntegerBlock)
   private val floatingBlock = LazyModule(new FloatingBlock)
-  val memoryBlock: MemBlock = LazyModule(new MemBlock)
+  val memoryBlock: MemBlock = LazyModule(new MemBlock(parentName + "memBlock_"))
   private val regFile = LazyModule(new RegFileTop)
   val writebackNetwork: WriteBackNetwork = LazyModule(new WriteBackNetwork)
   private val exuBlocks = integerBlock :: floatingBlock :: memoryBlock :: Nil
@@ -90,10 +90,11 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
     private val rf = regFile.module
     private val writeback = writebackNetwork.module
 
+    private val localRedirect = writeback.io.redirectOut
     rf.io.hartId := io.hartId
     rf.io.debug_int_rat := io.debug_int_rat
     rf.io.debug_fp_rat := io.debug_fp_rat
-    private val localRedirect = writeback.io.redirectOut
+    rf.io.redirect := Pipe(localRedirect)
     exuBlocks.foreach(_.module.redirectIn := Pipe(localRedirect))
     
     intRs.io.redirect := Pipe(localRedirect)

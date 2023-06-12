@@ -51,7 +51,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     arbIn.bits.debug := DontCare
   })
   assert(Mux(issuePort.issue.valid, fuSel.valid, true.B))
-  writebackPort.valid := outputArbiter.io.out.valid
+  writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.uop.robIdx.needFlush(redirectIn)
   writebackPort.bits := outputArbiter.io.out.bits
   outputArbiter.io.out.ready := true.B
 }
