@@ -154,7 +154,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     memBlk.io.issueToMou <> intBlk.io.issueToMou
     memBlk.io.writebackFromMou <> intBlk.io.writebackFromMou
 
-    memBlk.redirectIn := Pipe(localRedirect)
+    memBlk.redirectIn := localRedirect
     intBlk.redirectIn := localRedirect
     fpBlk.redirectIn := localRedirect
 

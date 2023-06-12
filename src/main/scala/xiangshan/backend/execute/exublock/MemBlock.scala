@@ -171,9 +171,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val sqDeq = Output(UInt(2.W))
   })
 
-
-  val redirect = redirectIn
-
   val dcache = outer.dcache.module
   val uncache = outer.uncache.module
 
@@ -367,7 +364,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // LoadUnit
   for (i <- 0 until exuParameters.LduCnt) {
     loadUnits(i).io.bankConflictAvoidIn := (i % 2).U
-    loadUnits(i).io.redirect := redirect
+    loadUnits(i).io.redirect := Pipe(redirectIn)
     lduIssues(i).rsFeedback.feedbackSlow := loadUnits(i).io.feedbackSlow
     lduIssues(i).rsFeedback.feedbackFast := loadUnits(i).io.feedbackFast
     loadUnits(i).io.rsIdx := lduIssues(i).rsIdx
@@ -476,7 +473,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
     stdUnits(i).io.in <> stdIssues(i).issue
 
-    stu.io.redirect     <> redirect
+    stu.io.redirect     <> Pipe(redirectIn)
     stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlow
     stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt
@@ -549,7 +546,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // Lsq
   lsq.io.rob            <> io.lsqio.rob
   lsq.io.enq            <> io.enqLsq
-  lsq.io.brqRedirect    <> redirect
+  lsq.io.brqRedirect    <> Pipe(redirectIn)
   staWritebacks.head.bits.redirectValid := lsq.io.rollback.valid
   staWritebacks.head.bits.redirect := lsq.io.rollback.bits
   staWritebacks.tail.foreach(e => {
@@ -595,7 +592,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   atomicsUnit.io.in.valid := io.issueToMou.valid
   atomicsUnit.io.in.bits  := io.issueToMou.bits
-  atomicsUnit.io.redirect := redirect
+  atomicsUnit.io.redirect := Pipe(redirectIn)
 
   // TODO: complete amo's pmp support
   private val amoTlb = dtlb_ld(0).requestor(0)
@@ -627,7 +624,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // Exception address is used several cycles after flush.
   // We delay it by 10 cycles to ensure its flush safety.
   val atomicsException = RegInit(false.B)
-  when (DelayN(redirect.valid, 10) && atomicsException) {
+  when (DelayN(redirectIn.valid, 10) && atomicsException) {
     atomicsException := false.B
   }.elsewhen (atomicsUnit.io.exceptionAddr.valid) {
     atomicsException := true.B
