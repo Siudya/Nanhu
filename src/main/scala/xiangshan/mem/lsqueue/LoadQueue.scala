@@ -707,7 +707,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   io.rollback.bits.ftqOffset := rollbackUop.cf.ftqOffset
   io.rollback.bits.stFtqOffset := rollbackStFtqOffset
   io.rollback.bits.level := RedirectLevel.flush
-  io.rollback.bits.interrupt := DontCare
+  io.rollback.bits.interrupt := false.B
   io.rollback.bits.cfiUpdate := DontCare
   io.rollback.bits.cfiUpdate.target := rollbackUop.cf.pc
   io.rollback.bits.isException := false.B
@@ -782,7 +782,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     // We replay that load inst from RS
     io.loadViolationQuery.map(i => i.req.ready :=
       // use lsu side release2cycle_dup_lsu paddr for better timing
-      !i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset)
+      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset))
     )
     // io.loadViolationQuery.map(i => i.req.ready := false.B) // For better timing
   }

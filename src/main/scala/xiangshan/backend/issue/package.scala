@@ -81,6 +81,7 @@ package object issue {
     val bankConflict: UInt = 0.U(width.W)
     val ldVioCheckRedo: UInt = 0.U(width.W)
     val feedbackInvalid: UInt = (1 << 2).U(width.W)
+    val dcacheNotReady: UInt = (1 << 0).U(width.W)
 
     def apply(): UInt = UInt(width.W)
   }
