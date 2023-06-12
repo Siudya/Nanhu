@@ -179,13 +179,14 @@ class StoreUnit_S2(implicit p: Parameters) extends XSModule {
 
 class StoreUnit_S3(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
+    val redirect = Input(Valid(new Redirect))
     val in = Flipped(Decoupled(new LsPipelineBundle))
     val stout = DecoupledIO(new ExuOutput) // writeback store
   })
 
   io.in.ready := true.B
 
-  io.stout.valid := io.in.valid
+  io.stout.valid := io.in.valid && !io.in.bits.uop.robIdx.needFlush(io.redirect)
   io.stout.bits.uop := io.in.bits.uop
   io.stout.bits.data := DontCare
   io.stout.bits.redirectValid := false.B
