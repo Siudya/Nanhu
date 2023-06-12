@@ -574,6 +574,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     io.sbuffer(i).bits.wline := dataBuffer.io.deq(i).bits.wline
     io.sbuffer(i).bits.id    := DontCare
     io.sbuffer(i).bits.instrtype    := DontCare
+    io.sbuffer(i).bits.robIdx := DontCare
 
     // io.sbuffer(i).fire() is RegNexted, as sbuffer data write takes 2 cycles.
     // Before data write finish, sbuffer is unable to provide store to load
