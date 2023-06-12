@@ -248,6 +248,7 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
   PipelineConnect(store_s2.io.out, store_s3.io.in, true.B, store_s2.io.out.bits.uop.robIdx.needFlush(io.redirect))
 
   store_s3.io.stout <> io.stout
+  store_s3.io.redirect := io.redirect
 
   private def printPipeLine(pipeline: LsPipelineBundle, cond: Bool, name: String): Unit = {
     XSDebug(cond,
