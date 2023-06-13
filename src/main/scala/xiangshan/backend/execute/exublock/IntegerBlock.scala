@@ -37,6 +37,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
     })
 
     aluJmps.head.module.io.fenceio <> io.fenceio
+    aluJmps.head.module.io.fenceio.sbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
     aluJmps.head.module.io.csrio <> io.csrio
     aluJmps.head.module.io.issueToMou <> io.issueToMou
     aluJmps.head.module.io.writebackFromMou <> io.writebackFromMou

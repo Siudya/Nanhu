@@ -144,6 +144,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     private val exceptionReg = Pipe(io.csrio.exception)
     private val exceptionInUop = exceptionReg.bits.uop
     intBlk.io.fenceio <> io.fenceio
+    intBlk.io.fenceio.sbuffer.sbIsEmpty := memBlk.io.fenceToSbuffer.sbIsEmpty
     intBlk.io.csrio <> io.csrio
     intBlk.io.csrio.exception := exceptionReg
     pcMem.io.read.last.addr := exceptionInUop.cf.ftqPtr.value

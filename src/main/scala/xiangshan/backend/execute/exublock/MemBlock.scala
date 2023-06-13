@@ -580,7 +580,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val fenceFlush = io.fenceToSbuffer.flushSb
   val atomicsFlush = atomicsUnit.io.flush_sbuffer.valid
   io.fenceToSbuffer.sbIsEmpty := RegNext(sbuffer.io.flush.empty)
-  dontTouch(io.fenceToSbuffer.sbIsEmpty)
   // if both of them tries to flush sbuffer at the same time
   // something must have gone wrong
   assert(!(fenceFlush && atomicsFlush))
