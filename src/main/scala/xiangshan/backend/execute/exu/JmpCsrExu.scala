@@ -74,7 +74,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   private val fuOut = fuSeq.map(_.io.out)
   private val outSel = fuOut.map(_.fire)
   private val outData = fuOut.map(_.bits)
-  private val finalData = ParallelMux(outSel, outData)
+  private val finalData = Mux1H(outSel, outData)
 
   writebackPort := DontCare
   writebackPort.valid := outSel.reduce(_ || _) && !finalData.uop.robIdx.needFlush(redirectIn)

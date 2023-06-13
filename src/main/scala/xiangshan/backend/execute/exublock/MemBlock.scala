@@ -592,6 +592,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   atomicsUnit.io.in.valid := io.issueToMou.valid
   atomicsUnit.io.in.bits  := io.issueToMou.bits
+  io.issueToMou.ready := atomicsUnit.io.in.ready
   atomicsUnit.io.redirect := Pipe(redirectIn)
 
   // TODO: complete amo's pmp support
