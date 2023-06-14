@@ -31,6 +31,7 @@ class L1BankedDataReadReq(implicit p: Parameters) extends DCacheBundle
 }
 class L1BankedDataReadLsuReq(implicit p: Parameters) extends L1BankedDataReadReq{
   val robIdx = new RobPtr
+  val kill = Bool()
 }
 
 class L1BankedDataReadLineReq(implicit p: Parameters) extends L1BankedDataReadReq
@@ -277,14 +278,14 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   // for single port SRAM, do not allow read and write in the same cycle
   val rwhazard = RegNext(io.write.valid)
   val rrhazard = false.B // io.readline.valid
-  (0 until LoadPipelineWidth).map(rport_index => {
+  (0 until LoadPipelineWidth).foreach(rport_index => {
     set_addrs(rport_index) := addr_to_dcache_set(io.read(rport_index).bits.addr)
     bank_addrs(rport_index) := addr_to_dcache_bank(io.read(rport_index).bits.addr)
 
     io.read(rport_index).ready := !(rwhazard || rrhazard)
 
     // use way_en to select a way after data read out
-    assert(!(RegNext(io.read(rport_index).fire() && PopCount(io.read(rport_index).bits.way_en) > 1.U)))
+    assert(Mux(io.read(rport_index).fire && !io.read(rport_index).bits.kill, PopCount(io.read(rport_index).bits.way_en) <= 1.U, true.B))
     way_en(rport_index) := io.read(rport_index).bits.way_en
   })
   io.readline.ready := !(rwhazard)

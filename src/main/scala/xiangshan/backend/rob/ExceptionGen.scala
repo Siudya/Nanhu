@@ -66,15 +66,14 @@ class ExceptionGen(wbNum:Int)(implicit p: Parameters) extends XSModule with HasC
   })
   private val writebackGroup = writebackAfterSuppress.map(Pipe(_))
   private val writebackSel = ParallelOperation(writebackGroup, ExceptionGen.selectWb2(_, _, p))
-  private val writebackSelReg = Pipe(writebackSel)
 
   private val in_enq_valid = VecInit(io.enq.map(e => e.valid && e.bits.has_exception))
   private val realEnqValid = in_enq_valid.asUInt.orR && !io.redirect.valid
   private val enq_valid = RegNext(realEnqValid, false.B)
   private val enq_bits = RegEnable(ParallelPriorityMux(in_enq_valid, io.enq.map(_.bits)), realEnqValid)
 
-  private val s1_out_valid = writebackSelReg.valid
-  private val s1_out_bits = writebackSelReg.bits
+  private val s1_out_valid = writebackSel.valid
+  private val s1_out_bits = writebackSel.bits
 
   // s2: compare the input exception with the current one
   // priorities:

@@ -130,7 +130,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   val s1_tag_eq_way_dup_dc = wayMap((w: Int) => tag_resp(w) === (get_tag(s1_paddr_dup_dcache))).asUInt
   val s1_tag_match_way_dup_dc = wayMap((w: Int) => s1_tag_eq_way_dup_dc(w) && meta_resp(w).coh.isValid()).asUInt
   val s1_tag_match_dup_dc = s1_tag_match_way_dup_dc.orR
-  assert(RegNext(!s1_valid || PopCount(s1_tag_match_way_dup_dc) <= 1.U), "tag should not match with more than 1 way")
+  assert(Mux(s1_valid && !io.lsu.s1_kill, PopCount(s1_tag_match_way_dup_dc) <= 1.U, true.B), "tag should not match with more than 1 way")
 
   // lsu side tag match
   val s1_tag_eq_way_dup_lsu = wayMap((w: Int) => tag_resp(w) === (get_tag(s1_paddr_dup_lsu))).asUInt
@@ -164,6 +164,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   io.banked_data_read.bits.addr := s1_vaddr
   io.banked_data_read.bits.way_en := s1_tag_match_way_dup_dc
   io.banked_data_read.bits.robIdx := s1_req.robIdx
+  io.banked_data_read.bits.kill := io.lsu.s1_kill
 
   // get s1_will_send_miss_req in lpad_s1
   val s1_has_permission = s1_hit_coh.onAccess(s1_req.cmd)._1
