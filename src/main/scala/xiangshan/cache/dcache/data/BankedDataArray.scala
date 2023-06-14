@@ -169,9 +169,6 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
       }
     })
 
-    assert(RegNext(!io.w.en || PopCount(io.w.way_en) <= 1.U))
-    assert(RegNext(!io.r.en || PopCount(io.r.way_en) <= 1.U))
-
     val r_way_en_reg = RegNext(io.r.way_en)
 
     val w_reg = RegNext(io.w)
