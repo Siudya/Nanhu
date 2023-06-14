@@ -392,7 +392,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   private val exceptionWaitingRedirect = RegInit(false.B)
   when(io.exception.valid) {
     exceptionWaitingRedirect := true.B
-  }.elsewhen(io.redirect.valid && io.redirect.bits.isException) {
+  }.elsewhen(!exceptionEnable) {
     exceptionWaitingRedirect := false.B
   }
 
