@@ -95,7 +95,7 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   writebackPort.bits.uop := finalData.uop
   writebackPort.bits.data := finalData.data
   writebackPort.bits.fflags := i2f.fflags
-  io.bypassOut.valid := writebackPort.valid && writebackPort.bits.uop.ctrl.rfWen
+  io.bypassOut.valid := writebackPort.valid && writebackPort.bits.uop.ctrl.rfWen && writebackPort.bits.uop.pdest =/= 0.U
   io.bypassOut.bits := writebackPort.bits
 
   assert(mul.io.in.ready)

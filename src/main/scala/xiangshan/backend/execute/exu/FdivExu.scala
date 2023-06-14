@@ -37,7 +37,6 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
       fuSel.bits(idx) &&
       issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType &&
       !issuePort.issue.bits.uop.robIdx.needFlush(redirectIn)
-    assert(Mux(issuePort.issue.valid, issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, true.B))
     fu.io.in.bits.uop := issuePort.issue.bits.uop
     fu.io.in.bits.src := issuePort.issue.bits.src
     fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
@@ -50,7 +49,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     arbIn.bits.redirectValid := false.B
     arbIn.bits.debug := DontCare
   })
-  assert(Mux(issuePort.issue.valid, fuSel.valid, true.B))
+  assert(Mux(issuePort.issue.valid && issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, fuSel.valid, true.B))
   writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.uop.robIdx.needFlush(redirectIn)
   writebackPort.bits := outputArbiter.io.out.bits
   outputArbiter.io.out.ready := true.B

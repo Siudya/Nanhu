@@ -78,7 +78,7 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
   //Start of wake up
   private val pregMatch = io.entry.bits.psrc
     .zip(io.entry.bits.srcType)
-    .map(p => (io.wakeup ++ io.loadEarlyWakeup).map(elm => (elm.bits.pdest === p._1) && elm.valid && p._2 === elm.bits.destType))
+    .map(p => (io.wakeup ++ io.loadEarlyWakeup).map(elm => (elm.bits.pdest === p._1 && elm.bits.pdest =/= 0.U) && elm.valid && p._2 === elm.bits.destType))
   for((n, v) <- miscNext.bits.srcState zip pregMatch){
     val shouldUpdateSrcState = Cat(v).orR
     when(shouldUpdateSrcState){
@@ -130,8 +130,8 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
   lpvModified.foreach(_.foreach(_ := false.B))
   for(((((newLpvs, oldLpvs),mod), st), psrc) <- miscNext.bits.lpv.zip(io.entry.bits.lpv).zip(lpvModified).zip(io.entry.bits.srcType).zip(io.entry.bits.psrc)){
     for(((((nl, ol), ewkp), m),idx) <- newLpvs.zip(oldLpvs).zip(io.loadEarlyWakeup).zip(mod).zipWithIndex){
-      val earlyWakeUpHit = ewkp.valid && ewkp.bits.pdest === psrc && st === ewkp.bits.destType
-      val regularWakeupHits = io.wakeup.map(wkp => wkp.valid && wkp.bits.pdest === psrc && st === wkp.bits.destType)
+      val earlyWakeUpHit = ewkp.valid && ewkp.bits.pdest === psrc && st === ewkp.bits.destType && ewkp.bits.pdest =/= 0.U
+      val regularWakeupHits = io.wakeup.map(wkp => wkp.valid && wkp.bits.pdest === psrc && st === wkp.bits.destType && wkp.bits.pdest =/= 0.U)
       val regularWakeupLpv = io.wakeup.map(wkp => wkp.bits.lpv(idx))
       val lpvUpdateHitsVec = regularWakeupHits :+ earlyWakeUpHit
       val lpvUpdateDataVec = regularWakeupLpv :+ ewkp.bits.lpv

@@ -156,9 +156,9 @@ object FuConfigs{
 
   val f2iCfg = FuConfig(
     name = "f2i",
-    fuType = FuType.fmisc,
+    fuType = FuType.f2i,
     numIntSrc = 0,
-    numFpSrc = 1,
+    numFpSrc = 2,
     numVecSrc = 0,
     writeIntRf = true,
     writeFpRf = false,
@@ -171,9 +171,9 @@ object FuConfigs{
 
   val f2fCfg = FuConfig(
     name = "f2f",
-    fuType = FuType.fmisc,
+    fuType = FuType.f2f,
     numIntSrc = 0,
-    numFpSrc = 1,
+    numFpSrc = 2,
     numVecSrc = 0,
     writeIntRf = false,
     writeFpRf = true,

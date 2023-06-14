@@ -36,7 +36,6 @@ class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) exte
     fu.io.out.ready := true.B
   })
 
-  assert(Mux(issuePort.issue.valid, exuCfg.fuConfigs.map(_.fuType === issuePort.issue.bits.uop.ctrl.fuType).reduce(_|_), true.B))
   //This module should never be blocked.
   assert(Mux(f2i.io.in.valid, f2i.io.in.ready, true.B))
   assert(Mux(f2f.io.in.valid, f2f.io.in.ready, true.B))

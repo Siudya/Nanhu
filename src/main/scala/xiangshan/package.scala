@@ -58,12 +58,13 @@ package object xiangshan {
     def bku = "b0111".U
     def mou = "b1000".U // for amo, lr, sc, fence
     def fmac = "b1001".U
-    def fmisc = "b1010".U
-    def fDivSqrt = "b1011".U
-    def ldu = "b1100".U
-    def stu = "b1101".U
+    def f2f = "b1010".U
+    def f2i = "b1011".U
+    def fDivSqrt = "b1100".U
+    def ldu = "b1101".U
+    def stu = "b1110".U
     def X = BitPat("b????")
-    def num = 14
+    def num = 15
     def apply() = UInt(log2Up(num).W)
 
     val functionNameMap = Map(
@@ -76,7 +77,8 @@ package object xiangshan {
       fence.litValue -> "fence",
       bku.litValue -> "bku",
       fmac.litValue -> "fmac",
-      fmisc.litValue -> "fmisc",
+      f2f.litValue -> "f2f",
+      f2i.litValue -> "f2i",
       fDivSqrt.litValue -> "fdiv/fsqrt",
       ldu.litValue -> "load",
       stu.litValue -> "store",
@@ -84,7 +86,7 @@ package object xiangshan {
     )
 
     val integerTypes: Seq[UInt] = Seq(jmp, i2f, csr, alu, mul, div, fence, bku, mou)
-    val floatingTypes: Seq[UInt] = Seq(fmac, fmisc, fDivSqrt)
+    val floatingTypes: Seq[UInt] = Seq(fmac, f2f, f2i, fDivSqrt)
     val memoryTypes: Seq[UInt] = Seq(ldu, stu)
 
     def isIntExu(fuType: UInt): Bool = integerTypes.map(_ === fuType).reduce(_||_)

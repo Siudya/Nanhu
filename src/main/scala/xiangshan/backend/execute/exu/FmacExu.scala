@@ -27,7 +27,6 @@ class FmacExuImpl(outer:FmacExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   fmac.io.in.valid := issuePort.issue.valid &&
     issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType &&
     !issuePort.issue.bits.uop.robIdx.needFlush(redirectIn)
-  assert(Mux(issuePort.issue.valid, issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, true.B))
   fmac.io.in.bits.uop := issuePort.issue.bits.uop
   fmac.io.in.bits.src := issuePort.issue.bits.src
   issuePort.issue.ready := fmac.io.in.ready
