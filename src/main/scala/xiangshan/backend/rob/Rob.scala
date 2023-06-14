@@ -389,22 +389,22 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   XSDebug(deqHasException && exceptionDataRead.bits.trigger.getFrontendCanFire, "Debug Mode: Deq has frontend trigger exception\n")
   XSDebug(deqHasException && exceptionDataRead.bits.trigger.getBackendCanFire, "Debug Mode: Deq has backend trigger exception\n")
 
-  private val exceptionHappen = (state === s_idle) && valid(deqPtr.value) && (intrEnable || exceptionEnable)
-  io.exception.valid := RegNext(exceptionHappen, false.B)
-  io.exception.bits.uop := RegEnable(debug_deqUop, exceptionHappen)
-  io.exception.bits.uop.ctrl.commitType := RegEnable(deqDispatchData.commitType, exceptionHappen)
-  io.exception.bits.uop.cf.exceptionVec := RegEnable(exceptionDataRead.bits.exceptionVec, exceptionHappen)
-  io.exception.bits.uop.ctrl.singleStep := RegEnable(exceptionDataRead.bits.singleStep, exceptionHappen)
-  io.exception.bits.uop.cf.crossPageIPFFix := RegEnable(exceptionDataRead.bits.crossPageIPFFix, exceptionHappen)
-  io.exception.bits.isInterrupt := RegEnable(intrEnable, exceptionHappen)
-  io.exception.bits.uop.cf.trigger := RegEnable(exceptionDataRead.bits.trigger, exceptionHappen)
-
   private val exceptionWaitingRedirect = RegInit(false.B)
-  when(exceptionHappen){
+  when(io.exception.valid) {
     exceptionWaitingRedirect := true.B
-  }.elsewhen(io.redirect.valid && io.redirect.bits.isException){
+  }.elsewhen(io.redirect.valid && io.redirect.bits.isException) {
     exceptionWaitingRedirect := false.B
   }
+
+  private val exceptionHappen = (state === s_idle) && valid(deqPtr.value) && (intrEnable || exceptionEnable)
+  io.exception.valid := RegNext(exceptionHappen, false.B) && !exceptionWaitingRedirect
+  io.exception.bits.uop := RegEnable(debug_deqUop, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.uop.ctrl.commitType := RegEnable(deqDispatchData.commitType, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.uop.cf.exceptionVec := RegEnable(exceptionDataRead.bits.exceptionVec, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.uop.ctrl.singleStep := RegEnable(exceptionDataRead.bits.singleStep, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.uop.cf.crossPageIPFFix := RegEnable(exceptionDataRead.bits.crossPageIPFFix, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.isInterrupt := RegEnable(intrEnable, exceptionHappen && !exceptionWaitingRedirect)
+  io.exception.bits.uop.cf.trigger := RegEnable(exceptionDataRead.bits.trigger, exceptionHappen && !exceptionWaitingRedirect)
 
   /**
     * Commits (and walk)
