@@ -88,7 +88,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
 
   private val wakeupFp = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeFpRf).map(_._1)
   private val wakeupInt = wakeupSignals.zip(wakeup.map(_._2)).filter(_._2.writeIntRf).map(_._1)
-  private val floatingBusyTable = Module(new BusyTable(param.bankNum, wakeupFp.length))
+  private val floatingBusyTable = Module(new BusyTable(param.bankNum, (wakeupFp ++ io.mulSpecWakeup).length))
   floatingBusyTable.io.allocPregs := io.floatingAllocPregs
   floatingBusyTable.io.wbPregs.zip(wakeupFp ++ io.mulSpecWakeup).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.fp
