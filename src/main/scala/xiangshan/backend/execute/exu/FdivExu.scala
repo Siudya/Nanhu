@@ -5,7 +5,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.execute.fu.fpu.FDivSqrt
-import xiangshan.{ExuOutput, HasXSParameter}
+import xiangshan.{ExuOutput, HasXSParameter, MicroOp}
 import xs.utils.PickOneHigh
 
 class FdivExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicExu with HasXSParameter{
@@ -15,7 +15,8 @@ class FdivExu(id:Int, complexName:String)(implicit p:Parameters) extends BasicEx
     complexName = complexName,
     fuConfigs = Seq(FuConfigs.fdivSqrtCfg, FuConfigs.fdivSqrtCfg, FuConfigs.fdivSqrtCfg),
     exuType = ExuType.fdiv,
-    needToken = true
+    needToken = true,
+    speculativeWakeup = true
   )
   val issueNode = new ExuInputNode(cfg)
   val writebackNode = new ExuOutputNode(cfg)
@@ -27,7 +28,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   private val writebackPort = outer.writebackNode.out.head._1
 
   private val fdivSqrts = Seq.fill(exuCfg.fuConfigs.length)(Module(new FDivSqrt))
-  private val outputArbiter = Module(new Arbiter(new ExuOutput, exuCfg.fuConfigs.length))
+  private val outputArbiter = Module(new Arbiter(new MicroOp, exuCfg.fuConfigs.length))
 
   private val fuSel = PickOneHigh(Cat(fdivSqrts.map(_.io.in.ready).reverse))
   issuePort.issue.ready := fuSel.valid
@@ -42,15 +43,18 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     fu.rm := Mux(issuePort.issue.bits.uop.ctrl.fpu.rm =/= 7.U, issuePort.issue.bits.uop.ctrl.fpu.rm, csr_frm)
     fu.io.out.ready := arbIn.ready
     arbIn.valid := fu.io.out.valid
-    arbIn.bits.data := fu.io.out.bits.data
-    arbIn.bits.uop := fu.io.out.bits.uop
-    arbIn.bits.fflags := fu.fflags
-    arbIn.bits.redirect := DontCare
-    arbIn.bits.redirectValid := false.B
-    arbIn.bits.debug := DontCare
+    arbIn.bits := fu.io.out.bits.uop
   })
   assert(Mux(issuePort.issue.valid && issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, fuSel.valid, true.B))
-  writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.uop.robIdx.needFlush(redirectIn)
-  writebackPort.bits := outputArbiter.io.out.bits
+  writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.robIdx.needFlush(redirectIn)
+  writebackPort.bits.uop := outputArbiter.io.out.bits
+  private val uopSel = RegEnable(UIntToOH(outputArbiter.io.chosen)(exuCfg.fuConfigs.length - 1, 0), outputArbiter.io.out.fire)
+  private val dataOut = fdivSqrts.map(_.io.out.bits.data)
+  private val fFlagOut = fdivSqrts.map(_.fflags)
+  writebackPort.bits.data := Mux1H(uopSel, dataOut)
+  writebackPort.bits.fflags := Mux1H(uopSel, fFlagOut)
+  writebackPort.bits.redirect := DontCare
+  writebackPort.bits.redirectValid := false.B
+  writebackPort.bits.debug := DontCare
   outputArbiter.io.out.ready := true.B
 }
