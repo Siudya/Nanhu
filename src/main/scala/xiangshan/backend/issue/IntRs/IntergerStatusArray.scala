@@ -48,6 +48,7 @@ class IntegerIssueInfoGenerator(implicit p: Parameters) extends XSModule{
   io.out.bits.pdest := ib.pdest
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
+  io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.reduce(_|_)})
 }
 class IntegerStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEntry(2){
   val state = EntryState()
