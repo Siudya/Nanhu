@@ -53,10 +53,6 @@ class FloatingIssueInfoGenerator(implicit p: Parameters) extends XSModule{
   io.out.bits.pdest := ib.pdest
   io.out.bits.fpWen := ib.fpWen
   io.out.bits.rfWen := ib.rfWen
-  io.out.bits.lpv.zip(ib.lpv.transpose).foreach({case(o, i) => o := i.map(LogicShiftRight(_, 1)).reduce(_|_)})
-  chisel3.experimental.annotate(new ChiselAnnotation {
-    def toFirrtl = InlineAnnotation(toNamed)
-  })
 }
 class FloatingStatusArrayEntry(implicit p: Parameters) extends BasicStatusArrayEntry(3){
   val state = EntryState()
