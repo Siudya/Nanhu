@@ -88,10 +88,10 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.writebackFromMou <> mou.writebackFromMou
 
   writebackPort.bits.fflags := DontCare
-  private val redirectValids = VecInit(Seq(csr.redirectOutValid, jmp.redirectOutValid, fence.redirectOutValid))
-  private val redirectBits = Seq(csr.redirectOut, jmp.redirectOut, fence.redirectOut)
-  writebackPort.bits.redirect := Mux1H(redirectValids, redirectBits)
-  writebackPort.bits.redirectValid := redirectValids.reduce(_ || _)
+  private val redirectValids = VecInit(Seq(jmp.redirectOutValid, fence.redirectOutValid))
+  private val redirectBits = Seq(jmp.redirectOut, fence.redirectOut)
+  writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, Mux1H(redirectValids, redirectBits))
+  writebackPort.bits.redirectValid := csr.redirectOutValid || redirectValids.reduce(_ || _)
 
   io.fenceio.sfence := fence.sfence
   io.fenceio.fencei := fence.fencei
