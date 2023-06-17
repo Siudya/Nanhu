@@ -30,7 +30,7 @@ case class WriteBackSinkParam
   def isMemRs: Boolean = sinkType == WriteBackSinkType.memRs
   def isFpRs: Boolean = sinkType == WriteBackSinkType.fpRs
   def isLegal: Boolean = isRegFile ||isRob ||isIntRs ||isMemRs ||isFpRs
-  def needWriteback: Boolean = isRegFile || isRoB
+  def needWriteback: Boolean = isRegFile || isRob
 }
 
 object WriteBackNetworkNodeInwardImpl extends InwardNodeImp[ExuConfig, Option[ExuConfig], (ExuConfig, Parameters), Valid[ExuOutput]]{
