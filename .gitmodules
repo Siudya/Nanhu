@@ -6,7 +6,7 @@
 	url = https://github.com/OpenXiangShan/difftest.git
 [submodule "ready-to-run"]
 	path = ready-to-run
-	url = https://github.com/OpenXiangShan/ready-to-run
+	url = https://github.com/Siudya/ready-to-run
 [submodule "huancun"]
 	path = huancun
 	url = https://github.com/Siudya/Huancun
