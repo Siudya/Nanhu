@@ -133,7 +133,7 @@ class FADD_pipe(val addLat: Int = 2)(implicit p: Parameters) extends FPUPipeline
         mulProd(i).inter_flags,
         0.U.asTypeOf(s1.io.b_inter_flags)
       )
-      s1.io.rm := S1Reg(rm)
+      s1.io.rm := S1Reg(Mux(fma, mulProd(i).rm, rm))
       s2.io.in := S2Reg(s1.io.out)
       (s1, s2)
   }
