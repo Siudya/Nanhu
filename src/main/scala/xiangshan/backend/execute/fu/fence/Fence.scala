@@ -75,7 +75,7 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
 
   // NOTE: icache & tlb & sbuffer must receive flush signal at any time
   sbuffer      := state === s_wait && !(func === FenceOpType.sfence && disableSfence)
-  fencei       := state === s_icache
+  fencei.start := state === s_icache
   sfence.valid := state === s_tlb && !disableSfence
   sfence.bits.rs1  := uop.ctrl.imm(4, 0) === 0.U
   sfence.bits.rs2  := uop.ctrl.imm(9, 5) === 0.U
