@@ -56,7 +56,7 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
     io.in.bits.src(0)
   )
 
-  val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: s_wb :: Nil = Enum(6)
+  val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: s_wb :: Nil = Enum(7)
 
   val state = RegInit(s_idle)
   /* fsm
