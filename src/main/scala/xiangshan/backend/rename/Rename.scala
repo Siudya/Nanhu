@@ -22,6 +22,7 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xiangshan.backend.decode.{FusionDecodeInfo, Imm_I, Imm_LUI_LOAD, Imm_U}
+import xiangshan.backend.execute.fu.jmp.JumpOpType
 import xiangshan.backend.rob.RobPtr
 import xiangshan.backend.rename.freelist._
 import xiangshan.mem.mdp._
@@ -166,8 +167,11 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents {
     }
     // dirty code for SoftPrefetch (prefetch.r/prefetch.w)
     when (io.in(i).bits.ctrl.isSoftPrefetch) {
-      io.out(i).bits.ctrl.fuType := FuType.ldu
-      io.out(i).bits.ctrl.fuOpType := Mux(io.in(i).bits.ctrl.lsrc(1) === 1.U, LSUOpType.prefetch_r, LSUOpType.prefetch_w)
+      io.out(i).bits.ctrl.fuType := Mux(io.in(i).bits.ctrl.lsrc(0) === 1.U, FuType.ldu, FuType.jmp)
+      io.out(i).bits.ctrl.fuOpType := Mux(io.in(i).bits.ctrl.lsrc(0) === 1.U,
+        Mux(io.in(i).bits.ctrl.lsrc(1) === 1.U, LSUOpType.prefetch_r, LSUOpType.prefetch_w),
+        JumpOpType.prefetch_i
+      )
       io.out(i).bits.ctrl.selImm := SelImm.IMM_S
       io.out(i).bits.ctrl.imm := Cat(io.in(i).bits.ctrl.imm(io.in(i).bits.ctrl.imm.getWidth - 1, 5), 0.U(5.W))
     }

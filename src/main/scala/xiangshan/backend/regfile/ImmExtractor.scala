@@ -24,6 +24,7 @@ import chisel3._
 import xiangshan._
 import xiangshan.backend.decode.{ImmUnion, Imm_LUI_LOAD}
 import xiangshan.backend.execute.exucx.ExuComplexParam
+import xiangshan.backend.execute.fu.jmp.JumpOpType
 import xs.utils.SignExt
 
 object ImmExtractor {
@@ -48,7 +49,9 @@ object ImmExtractor {
       immExtractedRes.src(0) := SignExt(jump_pc, p(XSCoreParamsKey).XLEN)
     }
     // when src1 is reg (like sfence's asid) do not let data_out(1) be the jalr_target
-    when(SrcType.isPcOrImm(in.uop.ctrl.srcType(1))) {
+    when(JumpOpType.jumpOpIsPrefetch_I(in.uop.ctrl.fuOpType)){
+      immExtractedRes.src(1) := SignExt(ImmUnion.S.toImm32(in.uop.ctrl.imm), p(XSCoreParamsKey).XLEN)
+    }.elsewhen(SrcType.isPcOrImm(in.uop.ctrl.srcType(1))) {
       immExtractedRes.src(1) := jalr_target
     }
     immExtractedRes

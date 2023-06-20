@@ -120,7 +120,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   frontend.io.sfence := fenceio.sfence
   frontend.io.tlbCsr <> csrioIn.tlb
   frontend.io.csrCtrl <> csrioIn.customCtrl
-  frontend.io.fencei := fenceio.fencei
+  frontend.io.fencei <> fenceio.fencei
+  frontend.io.prefetchI := exuBlock.io.prefetchI
 
   ctrlBlock.io.csrCtrl <> csrioIn.customCtrl
   ctrlBlock.io.lqCancelCnt := exuBlock.io.lqCancelCnt

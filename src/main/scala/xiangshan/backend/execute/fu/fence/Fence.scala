@@ -39,11 +39,15 @@ class SfenceBundle(implicit p: Parameters) extends Valid(new SfenceBundleBits) {
     p"valid:0x${Hexadecimal(valid)} rs1:${bits.rs1} rs2:${bits.rs2} addr:${Hexadecimal(bits.addr)}"
   }
 }
+class FenceIBundle extends Bundle {
+  val start = Output(Bool())
+  val done = Input(Bool())
+}
 
 class Fence(implicit p: Parameters) extends FUWithRedirect {
 
   val sfence = IO(Output(new SfenceBundle))
-  val fencei = IO(Output(Bool()))
+  val fencei = IO(new FenceIBundle)
   val toSbuffer = IO(new FenceToSbuffer)
   val disableSfence = IO(Input(Bool()))
 
@@ -52,7 +56,7 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
     io.in.bits.src(0)
   )
 
-  val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: Nil = Enum(6)
+  val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: s_wb :: Nil = Enum(6)
 
   val state = RegInit(s_idle)
   /* fsm
@@ -78,15 +82,40 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   sfence.bits.addr := RegEnable(io.in.bits.src(0), io.in.fire())
   sfence.bits.asid := RegEnable(io.in.bits.src(1), io.in.fire())
 
-  when (state === s_idle && io.in.valid) { state := s_wait }
-  when (state === s_wait && func === FenceOpType.fencei && sbEmpty) { state := s_icache }
-  when (state === s_wait && func === FenceOpType.sfence && (sbEmpty || disableSfence)) { state := s_tlb }
-  when (state === s_wait && func === FenceOpType.fence  && sbEmpty) { state := s_fence }
-  when (state === s_wait && func === FenceOpType.nofence  && sbEmpty) { state := s_nofence }
-  when (state =/= s_idle && state =/= s_wait) { state := s_idle }
+  switch(state){
+    is(s_idle){
+      when(io.in.valid){ state := s_wait }
+    }
+    is(s_wait){
+      when(func === FenceOpType.fencei && sbEmpty){
+        state := s_icache
+      }.elsewhen(func === FenceOpType.sfence && (sbEmpty || disableSfence)){
+        state := s_tlb
+      }.elsewhen(func === FenceOpType.fence && sbEmpty){
+        state := s_fence
+      }.elsewhen(func === FenceOpType.nofence  && sbEmpty){
+        state := s_nofence
+      }
+    }
+    is(s_icache){
+      when(fencei.done){state := s_wb}
+    }
+    is(s_tlb){
+      state := s_wb
+    }
+    is(s_fence){
+      state := s_wb
+    }
+    is(s_nofence) {
+      state := s_wb
+    }
+    is(s_wb){
+      state := s_idle
+    }
+  }
 
   io.in.ready := state === s_idle
-  io.out.valid := state =/= s_idle && state =/= s_wait
+  io.out.valid := state === s_wb
   io.out.bits.data := DontCare
   io.out.bits.uop := uop
   io.out.bits.uop.cf.exceptionVec(illegalInstr) := func === FenceOpType.sfence && disableSfence

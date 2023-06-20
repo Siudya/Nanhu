@@ -24,7 +24,7 @@ import xiangshan.backend.execute.exucx.{AluDivComplex, AluJmpComplex, AluMulComp
 import freechips.rocketchip.diplomacy.LazyModule
 import chisel3._
 import chisel3.util._
-import xiangshan.{ExuInput, ExuOutput}
+import xiangshan.{ExuInput, ExuOutput, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.backend.execute.fu.csr.CSRFileIO
 
@@ -45,6 +45,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
       val csrio = new CSRFileIO
       val issueToMou = Decoupled(new ExuInput)
       val writebackFromMou = Flipped(Decoupled(new ExuOutput))
+      val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
     })
     intComplexes.foreach(_.module.redirectIn := Pipe(redirectIn))
 
@@ -60,5 +61,6 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
     aluJmps.head.module.io.csrio <> io.csrio
     aluJmps.head.module.io.issueToMou <> io.issueToMou
     aluJmps.head.module.io.writebackFromMou <> io.writebackFromMou
+    io.prefetchI := aluJmps.head.module.io.prefetchI
   }
 }

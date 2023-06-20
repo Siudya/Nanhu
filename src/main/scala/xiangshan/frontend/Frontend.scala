@@ -24,7 +24,7 @@ import utils._
 import xs.utils._
 import xiangshan._
 import xiangshan.backend.execute.fu.csr.PFEvent
-import xiangshan.backend.execute.fu.fence.SfenceBundle
+import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle}
 import xiangshan.cache.mmu._
 import xiangshan.frontend.icache._
@@ -46,7 +46,8 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))
     val reset_vector = Input(UInt(PAddrBits.W))
-    val fencei = Input(Bool())
+    val fencei = Flipped(new FenceIBundle)
+    val prefetchI = Input(Valid(UInt(XLEN.W)))
     val ptw = new TlbPtwIO(6)
     val backend = new FrontendToCtrlIO
     val sfence = Input(new SfenceBundle)

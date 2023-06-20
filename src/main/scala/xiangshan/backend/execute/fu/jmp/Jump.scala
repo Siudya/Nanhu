@@ -36,8 +36,8 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
   })
   val (src1, pc, immMin, func, isRVC) = (io.src, io.pc, io.immMin, io.func, io.isRVC)
 
-  val isJalr = JumpOpType.jumpOpisJalr(func)
-  val isAuipc = JumpOpType.jumpOpisAuipc(func)
+  val isJalr = JumpOpType.jumpOpIsJalr(func)
+  val isAuipc = JumpOpType.jumpOpIsAuipc(func)
   val offset = SignExt(ParallelMux(Seq(
     isJalr -> ImmUnion.I.toImm32(immMin),
     isAuipc -> ImmUnion.U.toImm32(immMin),
@@ -51,11 +51,12 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
   // The target address is obtained by adding the sign-extended 12-bit I-immediate to the register rs1,
   // then setting the least-significant bit of the result to zero.
   io.target := Cat(target(XLEN - 1, 1), false.B)
-  io.result := Mux(JumpOpType.jumpOpisAuipc(func), target, snpc)
+  io.result := Mux(JumpOpType.jumpOpIsAuipc(func), target, snpc)
   io.isAuipc := isAuipc
 }
 
 class Jump(implicit p: Parameters) extends FUWithRedirect {
+  val prefetchI = Output(Valid(UInt(XLEN.W)))
 
   val (src1, jalr_target, pc, immMin, func, uop) = (
     io.in.bits.src(0),
@@ -66,18 +67,22 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
     io.in.bits.uop
   )
 
-  val redirectHit = uop.robIdx.needFlush(io.redirectIn)
-  val valid = io.in.valid
-  val isRVC = uop.cf.pd.isRVC
+  private val redirectHit = uop.robIdx.needFlush(io.redirectIn)
+  private val valid = io.in.valid
+  private val isRVC = uop.cf.pd.isRVC
+  private val isPrefetchI = JumpOpType.jumpOpIsPrefetch_I(io.in.bits.uop.ctrl.fuOpType)
 
-  val jumpDataModule = Module(new JumpDataModule)
+  private val jumpDataModule = Module(new JumpDataModule)
   jumpDataModule.io.src := src1
   jumpDataModule.io.pc := pc
   jumpDataModule.io.immMin := immMin
   jumpDataModule.io.func := func
   jumpDataModule.io.isRVC := isRVC
 
-  redirectOutValid := valid && !jumpDataModule.io.isAuipc
+  prefetchI.valid := io.in.valid && isPrefetchI
+  prefetchI.bits := io.in.bits.src(0) + io.in.bits.src(1)
+
+  redirectOutValid := valid && !jumpDataModule.io.isAuipc && !isPrefetchI
   redirectOut := DontCare
   redirectOut.level := RedirectLevel.flushAfter
   redirectOut.robIdx := uop.robIdx
@@ -94,7 +99,6 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
 
   io.in.ready := io.out.ready
   io.out.valid := valid
-  io.out.bits.uop <> io.in.bits.uop
+  io.out.bits.uop := io.in.bits.uop
   io.out.bits.data := jumpDataModule.io.result
-
 }

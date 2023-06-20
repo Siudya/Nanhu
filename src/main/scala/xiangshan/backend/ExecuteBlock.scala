@@ -27,7 +27,7 @@ import regfile.{PcMem, PcWritePort, RegFileTop}
 import system.HasSoCParameter
 import utils.{HPerfMonitor, HasPerfEvents, PerfEvent}
 import xiangshan.backend.execute.exu.FenceIO
-import xiangshan.{CommitType, ExuInput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect}
+import xiangshan.{CommitType, ExuInput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect, XSCoreParamsKey}
 import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemBlock}
 import xiangshan.backend.execute.fu.csr.{CSRFileIO, PFEvent}
 import xiangshan.backend.issue.FpRs.FloatingReservationStation
@@ -95,6 +95,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
       val redirectOut = Output(Valid(new Redirect))
       val fenceio = new FenceIO
       val csrio = new CSRFileIO
+      val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
       val dfx_reset = Input(new DFTResetSignals())
 
       val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
@@ -160,6 +161,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     pcMem.io.read.take(pcReadPortNum - 1).zip(rf.io.pcReadAddr ++ writeback.io.pcReadAddr).foreach({ case (r, addr) => r.addr := addr })
     (rf.io.pcReadData ++ writeback.io.pcReadData).zip(pcMem.io.read.take(pcReadPortNum - 1)).foreach({ case (data, r) => data := r.data })
 
+    io.prefetchI := intBlk.io.prefetchI
     private val exceptionReg = Pipe(io.csrio.exception)
     private val exceptionInUop = exceptionReg.bits.uop
     intBlk.io.fenceio <> io.fenceio

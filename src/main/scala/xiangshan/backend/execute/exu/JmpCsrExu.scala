@@ -30,7 +30,7 @@ import xs.utils.{DelayN, ParallelMux}
 
 class FenceIO(implicit p: Parameters) extends XSBundle {
   val sfence = Output(new SfenceBundle)
-  val fencei = Output(Bool())
+  val fencei = new FenceIBundle
   val sbuffer = new FenceToSbuffer
 }
 
@@ -65,6 +65,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
+    val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
   })
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
@@ -112,8 +113,9 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, Mux1H(redirectValids, redirectBits))
   writebackPort.bits.redirectValid := csr.redirectOutValid || redirectValids.reduce(_ || _)
 
+  io.prefetchI := Pipe(jmp.prefetchI)
   io.fenceio.sfence := fence.sfence
-  io.fenceio.fencei := fence.fencei
+  io.fenceio.fencei <> fence.fencei
   io.fenceio.sbuffer <> fence.toSbuffer
   fence.toSbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
   fence.disableSfence := csr.csrio.disableSfence
