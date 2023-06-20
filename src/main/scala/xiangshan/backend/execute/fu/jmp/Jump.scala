@@ -56,9 +56,9 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
 }
 
 class Jump(implicit p: Parameters) extends FUWithRedirect {
-  val prefetchI = Output(Valid(UInt(XLEN.W)))
+  val prefetchI: Valid[UInt] = IO(Output(Valid(UInt(XLEN.W))))
 
-  val (src1, jalr_target, pc, immMin, func, uop) = (
+  private val (src1, jalr_target, pc, immMin, func, uop) = (
     io.in.bits.src(0),
     io.in.bits.src(1)(VAddrBits - 1, 0),
     SignExt(io.in.bits.uop.cf.pc, XLEN),
