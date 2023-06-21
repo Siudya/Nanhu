@@ -390,10 +390,11 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   XSDebug(deqHasException && exceptionDataRead.bits.trigger.getBackendCanFire, "Debug Mode: Deq has backend trigger exception\n")
 
   private val exceptionHappen = (state === s_idle) && valid(deqPtr.value) && (intrEnable || exceptionEnable)
+  private val redirectDelay1 = Pipe(io.redirect)
   private val exceptionWaitingRedirect = RegInit(false.B)
   when(io.exception.valid) {
     exceptionWaitingRedirect := true.B
-  }.elsewhen(!exceptionHappen) {
+  }.elsewhen(redirectDelay1.valid && redirectDelay1.bits.isException) {
     exceptionWaitingRedirect := false.B
   }
 
