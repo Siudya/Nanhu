@@ -81,9 +81,11 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   private val internalMulWakeupSignals = Wire(Vec(mulIssuePortNum, Valid(new WakeUpInfo)))
   io.mulSpecWakeup.zip(internalMulWakeupSignals).foreach({case(a, b) =>
     //Add an pipe here for there is no bypass from mul to load/store units.
-    a.bits := RegEnable(b.bits, b.valid)
-    a.valid := RegNext(b.valid, false.B) && !a.bits.robPtr.needFlush(io.redirect)
-    assert(Mux(a.valid, Cat(a.bits.lpv).orR === false.B, true.B))
+    val mulWakeupDelayQueue = Module(new WakeupQueue(2))
+    mulWakeupDelayQueue.io.in := b
+    a := mulWakeupDelayQueue.io.out
+    mulWakeupDelayQueue.io.redirect := io.redirect
+    mulWakeupDelayQueue.io.earlyWakeUpCancel.foreach(_ := false.B)
   })
 
   private val wakeupSignals = VecInit(wakeup.map(_._1).map(elm =>{
