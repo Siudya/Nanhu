@@ -83,9 +83,8 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
     val entryNext = Output(Valid(new MemoryStatusArrayEntry))
     val updateEnable = Output(Bool())
     val enq = Input(Valid(new MemoryStatusArrayEntry))
-    val staIssue = Input(Bool())
+    val staLduIssue = Input(Bool())
     val stdIssue = Input(Bool())
-    val lduIssue = Input(Bool())
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
@@ -123,7 +122,7 @@ class MemoryStatusArrayEntryUpdateNetwork(stuNum:Int, wakeupWidth:Int)(implicit 
   private val src0HasSpecWakeup = io.entryNext.bits.lpv(0).map(_.orR).reduce(_ || _)
   private val src1HasSpecWakeup = io.entryNext.bits.lpv(1).map(_.orR).reduce(_ || _)
   private val stIssueHit = io.stIssued.map(elm => elm.valid && elm.bits === io.entry.bits.waitTarget).reduce(_ | _)
-  private val staLoadIssued = io.staIssue || io.lduIssue
+  private val staLoadIssued = io.staLduIssue
   private val stdIssued = io.stdIssue
   private val staLoadState = io.entry.bits.staLoadState
   private val stdState = io.entry.bits.stdState
@@ -261,14 +260,12 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
       val data = new MemoryStatusArrayEntry
     }))
 
-    val staIssue = Input(Valid(UInt(entryNum.W)))
+    val staLduIssue = Input(Valid(UInt(entryNum.W)))
     val stdIssue = Input(Valid(UInt(entryNum.W)))
-    val lduIssue = Input(Valid(UInt(entryNum.W)))
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
-    val loadReplay = Input(Vec(coreParams.exuParameters.LduCnt, Valid(new Replay(entryNum))))
-    val storeReplay = Input(Vec(coreParams.exuParameters.StuCnt, Valid(new Replay(entryNum))))
+    val replay = Input(Vec(2, Valid(new Replay(entryNum))))
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(new SqPtr)
   })
@@ -309,15 +306,14 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
     updateNetwork.io.entry.bits := d
     updateNetwork.io.enq.valid := io.enq.valid & io.enq.bits.addrOH(idx)
     updateNetwork.io.enq.bits := io.enq.bits.data
-    updateNetwork.io.staIssue := io.staIssue.valid && io.staIssue.bits(idx)
+    updateNetwork.io.staLduIssue := io.staLduIssue.valid && io.staLduIssue.bits(idx)
     updateNetwork.io.stdIssue := io.stdIssue.valid && io.stdIssue.bits(idx)
-    updateNetwork.io.lduIssue := io.lduIssue.valid && io.lduIssue.bits(idx)
     updateNetwork.io.wakeup := io.wakeup
     updateNetwork.io.loadEarlyWakeup := io.loadEarlyWakeup
     updateNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
 
-    val replaySels = (io.loadReplay ++ io.storeReplay).map(r => r.valid && r.bits.entryIdxOH(idx))
-    val replayVals = (io.loadReplay ++ io.storeReplay).map(_.bits.waitVal)
+    val replaySels = io.replay.map(r => r.valid && r.bits.entryIdxOH(idx))
+    val replayVals = io.replay.map(_.bits.waitVal)
     updateNetwork.io.replay.valid := replaySels.reduce(_|_)
     updateNetwork.io.replay.bits := Mux1H(replaySels, replayVals)
     updateNetwork.io.redirect := io.redirect
@@ -336,7 +332,7 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:Int)(i
   assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
   assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
   assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
-  private val issues = Seq(io.staIssue, io.stdIssue, io.lduIssue)
+  private val issues = Seq(io.staLduIssue, io.stdIssue)
   for(iss <- issues){
     assert(Mux(iss.valid, PopCount(iss.bits & Cat(statusArrayValid.reverse)) === 1.U, true.B))
   }

@@ -46,15 +46,11 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
       val data = new MicroOp
     }))
 
-    val staIssue = Input(Valid(UInt(entryNum.W)))
-    val stdIssue = Input(Valid(UInt(entryNum.W)))
-    val lduIssue = Input(Valid(UInt(entryNum.W)))
-    val staIssueUop = Output(new MicroOp)
-    val stdIssueUop = Output(new MicroOp)
-    val lduIssueUop = Output(new MicroOp)
+    val issue = Input(Valid(UInt(entryNum.W)))
+    val isStaLduIssue = Input(Bool())
+    val issueUop = Output(new MicroOp)
 
-    val loadReplay = Input(Vec(loadUnitNum, Valid(new Replay(entryNum))))
-    val storeReplay = Input(Vec(storeUnitNum, Valid(new Replay(entryNum))))
+    val replay = Input(Vec(2, Valid(new Replay(entryNum))))
 
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(new SqPtr)
@@ -66,7 +62,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
 
 
   private val statusArray = Module(new MemoryStatusArray(entryNum, stuNum, lduNum, wakeupWidth:Int))
-  private val payloadArray = Module(new PayloadArray(new MicroOp, entryNum, issueWidth, "IntegerPayloadArray"))
+  private val payloadArray = Module(new PayloadArray(new MicroOp, entryNum, 1, "MemoryPayloadArray"))
 
   private def EnqToEntry(in: MicroOp): MemoryStatusArrayEntry = {
     val stIssueHit = io.stIssued.map(st => st.valid && st.bits === in.cf.waitForRobIdx).reduce(_|_)
@@ -107,11 +103,11 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   statusArray.io.enq.valid := io.enq.valid
   statusArray.io.enq.bits.addrOH := io.enq.bits.addrOH
   statusArray.io.enq.bits.data := EnqToEntry(io.enq.bits.data)
-  statusArray.io.staIssue := io.staIssue
-  statusArray.io.stdIssue := io.stdIssue
-  statusArray.io.lduIssue := io.lduIssue
-  statusArray.io.loadReplay := io.loadReplay
-  statusArray.io.storeReplay := io.storeReplay
+  statusArray.io.staLduIssue.valid := io.issue.valid && io.isStaLduIssue
+  statusArray.io.stdIssue.valid := io.issue.valid && !io.isStaLduIssue
+  statusArray.io.staLduIssue.bits := io.issue.bits
+  statusArray.io.stdIssue.bits := io.issue.bits
+  statusArray.io.replay := io.replay
   statusArray.io.stIssued.zip(io.stIssued).foreach({case(a, b) => a := Pipe(b)})
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup
@@ -121,13 +117,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
   payloadArray.io.write.en := io.enq.valid
   payloadArray.io.write.addr := io.enq.bits.addrOH
   payloadArray.io.write.data := io.enq.bits.data
-  private val issueVec = Seq(io.staIssue, io.stdIssue, io.lduIssue)
-  private val issueUopVec = Seq(io.staIssueUop, io.stdIssueUop, io.lduIssueUop)
-  payloadArray.io.read.zip(issueVec).zip(issueUopVec).foreach({
-    case((port, issAddr), issData) =>{
-      port.addr := issAddr.bits
-      issData := port.data
-    }
-  })
+  payloadArray.io.read.head.addr := io.issue.bits
+  io.issueUop := payloadArray.io.read.head.data
 }
 

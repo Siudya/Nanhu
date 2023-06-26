@@ -24,7 +24,8 @@ import freechips.rocketchip.tile.HasFPUParameters
 import huancun.PrefetchRecv
 import utils._
 import xiangshan._
-import xiangshan.backend.execute.exu.{ExuConfig, ExuOutputNode, ExuType}
+import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputNode, ExuType}
+import xiangshan.backend.execute.exucx.ExuComplexIssueNode
 import xiangshan.backend.execute.fu.{FuConfigs, FunctionUnit, PMP, PMPChecker, PMPCheckerv2}
 import xiangshan.backend.execute.fu.csr.{PFEvent, SdtrigExt}
 import xiangshan.backend.execute.fu.fence.{FenceToSbuffer, SfenceBundle}
@@ -78,16 +79,23 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
       exuType = ExuType.std
     )
   })
-  val lduIssueNodes: Seq[MemoryBlockIssueNode] = lduParams.zipWithIndex.map(new MemoryBlockIssueNode(_))
+  val lduIssueNodes: Seq[ExuInputNode] = lduParams.zipWithIndex.map(e => new ExuInputNode(e._1))
   val lduWritebackNodes: Seq[ExuOutputNode] = lduParams.map(new ExuOutputNode(_))
-  val staIssueNodes: Seq[MemoryBlockIssueNode] = staParams.zipWithIndex.map(new MemoryBlockIssueNode(_))
+  val staIssueNodes: Seq[ExuInputNode] = staParams.zipWithIndex.map(e => new ExuInputNode(e._1))
   val staWritebackNodes: Seq[ExuOutputNode] = staParams.map(new ExuOutputNode(_))
-  val stdIssueNodes: Seq[MemoryBlockIssueNode] = stdParams.zipWithIndex.map(new MemoryBlockIssueNode(_))
+  val stdIssueNodes: Seq[ExuInputNode] = stdParams.zipWithIndex.map(e => new ExuInputNode(e._1))
   val stdWritebackNodes: Seq[ExuOutputNode] = stdParams.map(new ExuOutputNode(_))
-  private val allIssueNodes = lduIssueNodes ++ staIssueNodes ++ stdIssueNodes
+
+  val memComplexNodes: Seq[ExuComplexIssueNode] = Seq.fill(2)(new ExuComplexIssueNode)
+  memComplexNodes.zip(lduIssueNodes).zip(staIssueNodes).zip(stdIssueNodes).foreach({case(((mcx, ldu), sta), std) =>
+    ldu :*= mcx
+    sta :*= mcx
+    std :*= mcx
+  })
+
   private val allWritebackNodes = lduWritebackNodes ++ staWritebackNodes ++ stdWritebackNodes
 
-  allIssueNodes.foreach(inode => inode :*= issueNode)
+  memComplexNodes.foreach(inode => inode :*= issueNode)
   allWritebackNodes.foreach(onode => writebackNode :=* onode)
 
   val dcache = LazyModule(new DCacheWrapper(parentName = parentName + "dcache_"))
@@ -106,6 +114,12 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   with HasPerfEvents
   with SdtrigExt
 {
+  outer.memComplexNodes.foreach(mcx =>
+    mcx.in.zip(mcx.out).foreach({case((ib, _),(ob,oe)) =>
+      ob <> ib
+      ob.issue.valid := ib.issue.valid && ib.issue.bits.uop.ctrl.fuType === oe._2.fuConfigs.head.fuType
+    })
+  )
   private val lduIssues = outer.lduIssueNodes.map(iss => {
     require(iss.in.length == 1)
     iss.in.head._1
@@ -130,7 +144,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     require(wb.out.length == 1)
     wb.out.head._1
   })
-  private val rsParam = outer.lduIssueNodes.head.in.head._2._1
 
   val io = IO(new Bundle {
     val hartId = Input(UInt(8.W))
@@ -365,8 +378,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   for (i <- 0 until exuParameters.LduCnt) {
     loadUnits(i).io.bankConflictAvoidIn := (i % 2).U
     loadUnits(i).io.redirect := Pipe(redirectIn)
-    lduIssues(i).rsFeedback.feedbackSlow := loadUnits(i).io.feedbackSlow
-    lduIssues(i).rsFeedback.feedbackFast := loadUnits(i).io.feedbackFast
+    lduIssues(i).rsFeedback.feedbackSlowLoad := loadUnits(i).io.feedbackSlow
+    lduIssues(i).rsFeedback.feedbackFastLoad := loadUnits(i).io.feedbackFast
     loadUnits(i).io.rsIdx := lduIssues(i).rsIdx
     loadUnits(i).io.isFirstIssue := lduIssues(i).rsFeedback.isFirstIssue // NOTE: just for dtlb's perf cnt
     // get input form dispatch
@@ -474,7 +487,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     stdUnits(i).io.in <> stdIssues(i).issue
 
     stu.io.redirect     <> Pipe(redirectIn)
-    stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlow
+    stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlowStore
     stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt
     stu.io.isFirstIssue := staIssues(i).rsFeedback.isFirstIssue
@@ -484,10 +497,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     // dtlb
     stu.io.tlb          <> dtlb_reqs.drop(ld_tlb_ports)(i)
     stu.io.pmp          <> pmp_check(i+ld_tlb_ports).resp
-
-    // store unit does not need fast feedback
-    staIssues(i).rsFeedback.feedbackFast.valid := false.B
-    staIssues(i).rsFeedback.feedbackFast.bits := DontCare
 
     // Lsq to sta unit
     lsq.io.storeMaskIn(i) <> stu.io.storeMaskOut
