@@ -115,7 +115,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   with SdtrigExt
 {
   outer.memComplexNodes.foreach(mcx =>
-    mcx.in.zip(mcx.out).foreach({case((ib, _),(ob,oe)) =>
+    mcx.out.foreach({case(ob,oe) =>
+      require(mcx.in.length == 1)
+      val ib = mcx.in.head._1
       ob <> ib
       ob.issue.valid := ib.issue.valid && ib.issue.bits.uop.ctrl.fuType === oe._2.fuConfigs.head.fuType
     })
