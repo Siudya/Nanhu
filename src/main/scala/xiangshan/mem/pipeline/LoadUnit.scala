@@ -712,7 +712,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.lsq.s2_dcache_require_replay := load_s2.io.s2_dcache_require_replay
 
   // write to rob and writeback bus
-  val s2_wb_valid = load_s2.io.out.valid && !load_s2.io.out.bits.miss && !load_s2.io.out.bits.mmio
+  val s2_wb_valid = load_s2.io.out.valid && !load_s2.io.out.bits.miss && !load_s2.io.out.bits.mmio && !load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)
 
   // Int load, if hit, will be writebacked at s2
   val hitLoadOut = Wire(Valid(new ExuOutput))
@@ -782,7 +782,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.ldout.bits := s3_load_wb_meta_reg
 //  io.ldout.bits.data := Mux(RegNext(hitLoadOut.valid), s3_rdataPartialLoadDcache, s3_rdataPartialLoadLQ)
   io.ldout.bits.data := s3_rdataPartialLoad
-  private val pipelineOutputValidReg = RegNext(hitLoadOut.valid && (!load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect)), false.B)
+  private val pipelineOutputValidReg = RegNext(hitLoadOut.valid, false.B)
   private val lsqOutputValidReg = RegNext(io.lsq.ldout.valid && (!io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)),false.B)
   private val writebackShouldBeFlushed = s3_load_wb_meta_reg.uop.robIdx.needFlush(io.redirect)
   io.ldout.valid := (!writebackShouldBeFlushed) && (pipelineOutputValidReg || lsqOutputValidReg)
