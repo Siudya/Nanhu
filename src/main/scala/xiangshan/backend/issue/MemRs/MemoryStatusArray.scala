@@ -63,6 +63,7 @@ class StaLoadIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGe
 
 class StdIssueInfoGen(implicit p: Parameters) extends BasicMemoryIssueInfoGenerator{
   readyToIssue := (ib.srcState(1) === SrcState.rdy || (ib.isCboZero && ib.srcState(0) === SrcState.rdy)) && ib.stdState === EntryState.s_ready
+  io.out.bits.fuType := FuType.std
   io.out.bits.lpv := Mux(ib.isCboZero, ib.lpv(0), ib.lpv(1))
 }
 
