@@ -314,9 +314,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     }
 
     // vaddrModule write is delayed, as vaddrModule will not be read right after write
-    vaddrModule.io.waddr(i) := RegNext(loadWbIndex)
-    vaddrModule.io.wdata(i) := RegNext(io.loadIn(i).bits.vaddr)
-    vaddrModule.io.wen(i) := RegNext(io.loadIn(i).fire())
+    vaddrModule.io.waddr(i) := RegEnable(loadWbIndex, io.loadIn(i).fire)
+    vaddrModule.io.wdata(i) := RegEnable(io.loadIn(i).bits.vaddr, io.loadIn(i).fire)
+    vaddrModule.io.wen(i) := RegNext(io.loadIn(i).fire)
   }
 
   when(io.dcache.valid) {

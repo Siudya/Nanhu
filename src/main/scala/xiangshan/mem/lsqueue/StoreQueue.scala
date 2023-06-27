@@ -287,7 +287,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
 
     // re-replinish mmio, for pma/pmp will get mmio one cycle later
     val storeInFireReg = RegNext(io.storeIn(i).fire() && !io.storeIn(i).bits.miss)
-    val stWbIndexReg = RegNext(stWbIndex)
+    val stWbIndexReg = RegEnable(stWbIndex, io.storeIn(i).valid)
     when (storeInFireReg) {
       pending(stWbIndexReg) := io.storeInRe(i).mmio
       mmio(stWbIndexReg) := io.storeInRe(i).mmio

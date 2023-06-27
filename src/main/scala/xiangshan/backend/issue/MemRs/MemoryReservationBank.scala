@@ -50,7 +50,7 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, lduNum:Int, wakeupWidth:In
     val isStaLduIssue = Input(Bool())
     val issueUop = Output(new MicroOp)
 
-    val replay = Input(Vec(2, Valid(new Replay(entryNum))))
+    val replay = Input(Vec(3, Valid(new Replay(entryNum))))
 
     val stIssued = Input(Vec(stuNum, Valid(new RobPtr)))
     val stLastCompelet = Input(new SqPtr)

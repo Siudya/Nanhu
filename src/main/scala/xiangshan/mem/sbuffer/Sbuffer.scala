@@ -442,8 +442,8 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
     val insertVec = if(i == 0) firstInsertVec else secondInsertVec
     assert(!((PopCount(insertVec) > 1.U) && in.fire()))
     val insertIdx = OHToUInt(insertVec)
-    accessIdx(i).valid := RegNext(in.fire())
-    accessIdx(i).bits := RegNext(Mux(canMerge(i), mergeIdx(i), insertIdx))
+    accessIdx(i).valid := RegNext(in.fire, false.B)
+    accessIdx(i).bits := RegEnable(Mux(canMerge(i), mergeIdx(i), insertIdx), in.fire)
     when(in.fire()){
       when(canMerge(i)){
         writeReq(i).bits.wvec := mergeVec(i)
@@ -710,7 +710,7 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
 
   if (env.EnableDifftest) {
     // hit resp
-    io.dcache.hit_resps.zipWithIndex.map{case (resp, index) => {
+    io.dcache.hit_resps.zipWithIndex.foreach{case (resp, index) => {
       val difftest = Module(new DifftestSbufferEvent)
       val dcache_resp_id = resp.bits.id
       difftest.io.clock := clock
