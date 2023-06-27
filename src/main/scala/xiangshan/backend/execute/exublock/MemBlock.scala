@@ -106,7 +106,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
   val stdIssueNodes: Seq[ExuInputNode] = stdParams.zipWithIndex.map(e => new ExuInputNode(e._1))
   val stdWritebackNodes: Seq[ExuOutputNode] = stdParams.map(new ExuOutputNode(_))
 
-  val memIssueRouters: Seq[MemIssueRouter] = Seq.fill(2)(new MemIssueRouter)
+  val memIssueRouters: Seq[MemIssueRouter] = Seq.fill(2)(LazyModule(new MemIssueRouter))
   memIssueRouters.zip(lduIssueNodes).zip(staIssueNodes).zip(stdIssueNodes).foreach({case(((mir, ldu), sta), std) =>
     ldu :*= mir.node
     sta :*= mir.node
