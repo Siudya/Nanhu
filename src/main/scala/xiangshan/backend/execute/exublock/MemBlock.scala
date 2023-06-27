@@ -48,6 +48,26 @@ class Std(implicit p: Parameters) extends XSModule {
   io.out.bits.uop := io.in.bits.uop
   io.out.bits.data := io.in.bits.src(0)
 }
+class MemIssueRouter(implicit p: Parameters) extends LazyModule{
+  val node = new ExuComplexIssueNode
+  lazy val module = new LazyModuleImp(this){
+    require(node.in.length == 1)
+    private val ib = node.in.head._1
+    for((ob,oe) <- node.out) {
+      ob.issue.valid := ib.issue.valid && ib.issue.bits.uop.ctrl.fuType === oe._2.fuConfigs.head.fuType
+      ob.issue.bits := ib.issue.bits
+      ib.issue.ready := true.B
+      assert(ob.issue.ready === true.B)
+      ob.rsIdx := ib.rsIdx
+      if (oe._2.fuConfigs.head.name == "ldu") {
+        ib.rsFeedback.feedbackFastLoad := ob.rsFeedback.feedbackFastLoad
+        ib.rsFeedback.feedbackSlowLoad := ob.rsFeedback.feedbackSlowLoad
+      } else if (oe._2.fuConfigs.head.name == "sta") {
+        ib.rsFeedback.feedbackSlowStore := ob.rsFeedback.feedbackSlowStore
+      }
+    }
+  }
+}
 
 class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extends BasicExuBlock
   with HasXSParameter{
@@ -86,16 +106,16 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
   val stdIssueNodes: Seq[ExuInputNode] = stdParams.zipWithIndex.map(e => new ExuInputNode(e._1))
   val stdWritebackNodes: Seq[ExuOutputNode] = stdParams.map(new ExuOutputNode(_))
 
-  val memComplexNodes: Seq[ExuComplexIssueNode] = Seq.fill(2)(new ExuComplexIssueNode)
-  memComplexNodes.zip(lduIssueNodes).zip(staIssueNodes).zip(stdIssueNodes).foreach({case(((mcx, ldu), sta), std) =>
-    ldu :*= mcx
-    sta :*= mcx
-    std :*= mcx
+  val memIssueRouters: Seq[MemIssueRouter] = Seq.fill(2)(new MemIssueRouter)
+  memIssueRouters.zip(lduIssueNodes).zip(staIssueNodes).zip(stdIssueNodes).foreach({case(((mir, ldu), sta), std) =>
+    ldu :*= mir.node
+    sta :*= mir.node
+    std :*= mir.node
   })
 
   private val allWritebackNodes = lduWritebackNodes ++ staWritebackNodes ++ stdWritebackNodes
 
-  memComplexNodes.foreach(inode => inode :*= issueNode)
+  memIssueRouters.foreach(mir => mir.node :*= issueNode)
   allWritebackNodes.foreach(onode => writebackNode :=* onode)
 
   val dcache = LazyModule(new DCacheWrapper(parentName = parentName + "dcache_"))
@@ -114,23 +134,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   with HasPerfEvents
   with SdtrigExt
 {
-  outer.memComplexNodes.foreach(mcx =>
-    mcx.out.foreach({case(ob,oe) =>
-      require(mcx.in.length == 1)
-      val ib = mcx.in.head._1
-      ob.issue.valid := ib.issue.valid && ib.issue.bits.uop.ctrl.fuType === oe._2.fuConfigs.head.fuType
-      ob.issue.bits := ib.issue.bits
-      ib.issue.ready := true.B
-      assert(ob.issue.ready === true.B)
-      ob.rsIdx := ib.rsIdx
-      if(oe._2.fuConfigs.head.name == "ldu"){
-        ib.rsFeedback.feedbackFastLoad := ob.rsFeedback.feedbackFastLoad
-        ib.rsFeedback.feedbackSlowLoad := ob.rsFeedback.feedbackSlowLoad
-      } else if(oe._2.fuConfigs.head.name == "sta"){
-        ib.rsFeedback.feedbackSlowStore := ob.rsFeedback.feedbackSlowStore
-      }
-    })
-  )
   private val lduIssues = outer.lduIssueNodes.map(iss => {
     require(iss.in.length == 1)
     iss.in.head._1
@@ -498,7 +501,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     stdUnits(i).io.in <> stdIssues(i).issue
 
     stu.io.redirect     <> Pipe(redirectIn)
-    stu.io.feedbackSlow <> staIssues(i).rsFeedback.feedbackSlowStore
+    staIssues(i).rsFeedback.feedbackSlowStore := stu.io.feedbackSlow
     stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt
     stu.io.isFirstIssue := staIssues(i).rsFeedback.isFirstIssue
