@@ -118,8 +118,17 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     mcx.out.foreach({case(ob,oe) =>
       require(mcx.in.length == 1)
       val ib = mcx.in.head._1
-      ob <> ib
       ob.issue.valid := ib.issue.valid && ib.issue.bits.uop.ctrl.fuType === oe._2.fuConfigs.head.fuType
+      ob.issue.bits := ib.issue.bits
+      ib.issue.ready := true.B
+      assert(ob.issue.ready === true.B)
+      ob.rsIdx := ib.rsIdx
+      if(oe._2.fuConfigs.head.name == "ldu"){
+        ib.rsFeedback.feedbackFastLoad := ob.rsFeedback.feedbackFastLoad
+        ib.rsFeedback.feedbackSlowLoad := ob.rsFeedback.feedbackSlowLoad
+      } else if(oe._2.fuConfigs.head.name == "sta"){
+        ib.rsFeedback.feedbackSlowStore := ob.rsFeedback.feedbackSlowStore
+      }
     })
   )
   private val lduIssues = outer.lduIssueNodes.map(iss => {
