@@ -76,7 +76,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
     ExuConfig(
       name = "LduExu",
       id = idx,
-      complexName = "LduComplex",
+      complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.lduCfg),
       exuType = ExuType.ldu
     )
@@ -85,7 +85,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
     ExuConfig(
       name = "StaExu",
       id = idx,
-      complexName = "StaComplex",
+      complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.staCfg),
       exuType = ExuType.sta
     )
@@ -94,7 +94,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
     ExuConfig(
       name = "StdExu",
       id = idx,
-      complexName = "StdComplex",
+      complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.stdCfg),
       exuType = ExuType.std
     )
