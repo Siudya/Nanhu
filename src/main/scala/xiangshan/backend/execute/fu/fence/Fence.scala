@@ -20,6 +20,7 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.ExceptionNO.illegalInstr
+import xiangshan.backend.execute.fu.csr.CSRConst.ModeU
 import xiangshan.{RedirectLevel, XSBundle}
 import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit}
 
@@ -50,6 +51,7 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   val fencei = IO(new FenceIBundle)
   val toSbuffer = IO(new FenceToSbuffer)
   val disableSfence = IO(Input(Bool()))
+  val priviledgeMode = IO(Input(UInt(2.W)))
 
   val (valid, src1) = (
     io.in.valid,
@@ -73,8 +75,10 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   val uop = RegEnable(io.in.bits.uop, io.in.fire())
   val func = uop.ctrl.fuOpType
 
+  private val instrIllegal = (disableSfence || priviledgeMode === ModeU) && func === FenceOpType.sfence
+
   // NOTE: icache & tlb & sbuffer must receive flush signal at any time
-  sbuffer      := state === s_wait && !(func === FenceOpType.sfence && disableSfence)
+  sbuffer      := state === s_wait && !instrIllegal
   fencei.start := state === s_icache
   sfence.valid := state === s_tlb && !disableSfence
   sfence.bits.rs1  := uop.ctrl.imm(4, 0) === 0.U
@@ -84,12 +88,12 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
 
   switch(state){
     is(s_idle){
-      when(io.in.valid){ state := s_wait }
+      when(io.in.valid && !instrIllegal){ state := s_wait }
     }
     is(s_wait){
       when(func === FenceOpType.fencei && sbEmpty){
         state := s_icache
-      }.elsewhen(func === FenceOpType.sfence && (sbEmpty || disableSfence)){
+      }.elsewhen(func === FenceOpType.sfence && sbEmpty){
         state := s_tlb
       }.elsewhen(func === FenceOpType.fence && sbEmpty){
         state := s_fence
@@ -115,10 +119,10 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   }
 
   io.in.ready := state === s_idle
-  io.out.valid := state === s_wb
+  io.out.valid := state === s_wb || (instrIllegal && io.in.valid)
   io.out.bits.data := DontCare
   io.out.bits.uop := uop
-  io.out.bits.uop.cf.exceptionVec(illegalInstr) := func === FenceOpType.sfence && disableSfence
+  io.out.bits.uop.cf.exceptionVec(illegalInstr) := instrIllegal
 
   redirectOutValid := io.out.valid && uop.ctrl.flushPipe
   redirectOut := DontCare

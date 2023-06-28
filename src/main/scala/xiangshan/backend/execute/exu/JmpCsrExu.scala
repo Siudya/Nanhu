@@ -119,6 +119,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.fenceio.sbuffer <> fence.toSbuffer
   fence.toSbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
   fence.disableSfence := csr.csrio.disableSfence
+  fence.priviledgeMode := csr.csrio.priviledgeMode
   csr.csrio <> io.csrio
   io.csrio.tlb := DelayN(csr.csrio.tlb, 2)
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)
