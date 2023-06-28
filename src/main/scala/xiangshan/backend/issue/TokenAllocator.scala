@@ -24,12 +24,12 @@ import chisel3.util._
 import xiangshan.{Redirect, XSBundle, XSModule}
 import xiangshan.backend.rob.RobPtr
 import xs.utils.{LogicShiftRight, PickOneLow}
-class TokenAllocatorEntry(pdestWidth:Int)(implicit val p: Parameters) extends XSBundle{
+class TokenAllocatorEntry(pdestWidth:Int)(implicit p: Parameters) extends XSBundle{
   val robPtr = new RobPtr
   val lpv = Vec(loadUnitNum, UInt(LpvLength.W))
   val pdest = UInt(pdestWidth.W)
 }
-class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit val p: Parameters) extends XSModule{
+class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val alloc = Input(Valid(new TokenAllocatorEntry(pdestWidth)))
     val allow = Output(Bool())
