@@ -166,7 +166,7 @@ emu:
 	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES)
 
 emu_rtl:
-	$(MAKE) -C ./difftest emu_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES)
+	$(MAKE) -C ./difftest emu_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) EMU_TRACE=1 EMU_THREADS=8
 
 EMU_RUN_OPTS_EXTRA ?=
 EMU_RUN_OPTS = -i $(RUN_BIN_DIR)/$(RUN_BIN).bin
