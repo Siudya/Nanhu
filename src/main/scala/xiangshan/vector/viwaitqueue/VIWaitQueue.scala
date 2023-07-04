@@ -79,7 +79,6 @@ class VIWaitQueue(implicit p: Parameters) extends VIModule with HasCircularQueue
 
 
   val WqData = Module(new SyncDataModuleTemplate(new vimop, 192, 1, DecodeWidth, "VIWaitqueue", concatData = true))
-  val WqDataRead = WqData.io.rdata
 
   /**
     * pointers and counters
@@ -118,7 +117,6 @@ class VIWaitQueue(implicit p: Parameters) extends VIModule with HasCircularQueue
   /**
     * read and write of data modules
     */
-  val ReadAddr_next = VecInit(deqPtr_next.value)
 
   WqData.io.wen := canEnqueue
   WqData.io.waddr := allocatePtrVec.map(_.value)
@@ -126,13 +124,24 @@ class VIWaitQueue(implicit p: Parameters) extends VIModule with HasCircularQueue
     wdata.victrl := req
     wdata.state := s_busy
   }
+  val ReadAddr_next = deqPtr_next.value
   WqData.io.raddr := ReadAddr_next
+  val WqDataRead = WqData.io.rdata
 
   val vtypenum = PopCount(io.vtype.map(_.valid))
   for (i <- 0 until DecodeWidth) {
     val ftq = io.vtype(i).bits.cf.ftqPtr
     val offset = io.vtype(i).bits.cf.ftqOffset
-
+    WqData.io.raddr := vtypePtr.value
+    val tempdata = WqData.io.rdata
+    if (tempdata(0).victrl.vicf.cf.ftqPtr == ftq && tempdata(0).victrl.vicf.cf.ftqOffset == offset) {
+      WqData.io.waddr := vtypePtr.value
+      WqData.io.wdata.zip(io.vtype.map(_.bits)).foreach { case (wdata, req) =>
+        wdata.victrl := req
+        wdata.state := req.state - 1.U
+      }
+      vtypePtr := vtypePtr + 1
+    }
   }
 
 }
