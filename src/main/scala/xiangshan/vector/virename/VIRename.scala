@@ -31,20 +31,34 @@ import utils._
 
 import xiangshan.vector._
 
-class VIRename(implicit p: Parameters) extends VectorBaseModule{
+class VIRenameReq(implicit p: Parameters) extends VectorBaseBundle {
+    def robIdxWidth = log2Up(RobSize)
+
+    val req = Input(Vec(VIRenameWidth, new Bundle {
+        val lvs1 = UInt(5.W)
+        val lvs2 = UInt(5.W)
+        val lvd = UInt(5.W)
+        val needRename = Bool()
+    }))
+    val mask = Input(UInt(VIRenameWidth.W))
+    val robIdx = Input(Vec(VIRenameWidth, UInt(robIdxWidth.W)))
+    val doRename = Input(Bool())
+}
+class VIRename(implicit p: Parameters) extends VectorBaseModule {
     val io = IO(new Bundle{
-        val renameReq = new VIWaitQueueToRenameBundle
+        val renameReq = new VIRenameReq
         val commitReq = new VIRobIdxQueueEnqIO
+        val hasWalk = Output(Bool())
     })
 
     val freeList        = Module(new VIFreeList)
     val renameTable     = Module(new VIRenameTable)
     val rollBackList    = Module(new VIRollBackList)
-    val robIdxQueue     = Module(new VIRobIdxQueue(64))
+    val robIdxQueue     = Module(new VIRobIdxQueue(VIWalkRobIdxQueueWidth))
 
     //-------------------------------------------- Rename --------------------------------------------
     val doRename = Wire(Bool())
-    val renameReqNum = PopCount(io.renameReq.renameReq.map(i => (i.en === true.B)))
+    val renameReqNum = PopCount(io.renameReq.req.map(i => (i.needRename === true.B)))
 
     //TODO: !redirect && !walk
     doRename := (freeList.io.canAllocateNum >= renameReqNum) // & queue.hasWalk
@@ -60,7 +74,7 @@ class VIRename(implicit p: Parameters) extends VectorBaseModule{
     renameTable.io.renameWritePort.prIdx := freeListIO.allocatePhyReg
 
     //read RAT
-    val renameReqPort = io.renameReq.renameReq
+    val renameReqPort = io.renameReq.req
     for((rdp, rp) <- renameTable.io.renameReadPorts.zip(renameReqPort)) {
         rdp.vd.lrIdx := rp.lvd
         rdp.vs1.lrIdx := rp.lvs1
@@ -74,18 +88,18 @@ class VIRename(implicit p: Parameters) extends VectorBaseModule{
 
     //write RAT
     val ratRenamePortW = renameTable.io.renameWritePort
-    ratRenamePortW.lrIdx := (0 until VIRenameWidth).map(i => io.renameReq.renameReq(i).lvd)
-    ratRenamePortW.mask := (0 until VIRenameWidth).map(i => io.renameReq.renameReq(i).en) //align port
+    ratRenamePortW.lrIdx := (0 until VIRenameWidth).map(i => io.renameReq.req(i).lvd)
+    ratRenamePortW.mask := (0 until VIRenameWidth).map(i => io.renameReq.req(i).needRename) //align port
     ratRenamePortW.prIdx := freeListIO.allocatePhyReg
 
     //write roll back list
     for((wp, i) <- rollBackList.io.renamePort.writePorts.zipWithIndex) {
-        wp.lrIdx := io.renameReq.renameReq(i).lvd
+        wp.lrIdx := io.renameReq.req(i).lvd
         wp.newPrIdx := freeListIO.allocatePhyReg(i)
         wp.oldPrIdx := renameTable.io.oldPhyRegIdxReadPorts(i).prIdx
         wp.robIdx := io.renameReq.robIdx(i)
     }
-    rollBackList.io.renamePort.mask := io.renameReq.needRename
+    rollBackList.io.renamePort.mask := io.renameReq.req.map(e => e.needRename)
 
     //-------------------------------------------- TODO: commit & walk --------------------------------------------
     robIdxQueue.io.in <> io.commitReq
@@ -93,4 +107,6 @@ class VIRename(implicit p: Parameters) extends VectorBaseModule{
     renameTable.io.commitPort <> rollBackList.io.commitPort.resp
     freeList.io.releaseReqMask := rollBackList.io.commitPort.resp.mask
     freeList.io.releaseReqPhyReg := rollBackList.io.commitPort.resp.prIdx
+
+    io.hasWalk := robIdxQueue.io.hasWalk
 }
