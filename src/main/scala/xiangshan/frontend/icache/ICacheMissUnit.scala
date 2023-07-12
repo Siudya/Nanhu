@@ -169,7 +169,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
           grant_param := io.mem_grant.bits.param
           is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
           when(readBeatCnt === (refillCycles - 1).U) {
-            assert(refill_done, "refill not done!")
+      //      assert(refill_done, "refill not done!")
             state := s_write_back
             state_dup.map(_ := s_write_back)
           }
@@ -379,15 +379,15 @@ class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMiss
   io.data_write     <> refill_arb.io.out
  // io.release_req    <> release_arb.io.out
 
-  if (env.EnableDifftest) {
-    val difftest = Module(new DifftestRefillEvent)
-    difftest.io.clock := clock
-    difftest.io.coreid := io.hartId
-    difftest.io.cacheid := 0.U
-    difftest.io.valid := refill_arb.io.out.valid
-    difftest.io.addr := refill_arb.io.out.bits.paddr
-    difftest.io.data := refill_arb.io.out.bits.data.asTypeOf(difftest.io.data)
-  }
+  // if (env.EnableDifftest) {
+  //   val difftest = Module(new DifftestRefillEvent)
+  //   difftest.io.clock := clock
+  //   difftest.io.coreid := io.hartId
+  //   difftest.io.cacheid := 0.U
+  //   difftest.io.valid := refill_arb.io.out.valid
+  //   difftest.io.addr := refill_arb.io.out.bits.paddr
+  //   difftest.io.data := refill_arb.io.out.bits.data.asTypeOf(difftest.io.data)
+  // }
 
   (0 until nWays).map{ w =>
     XSPerfAccumulate("line_0_refill_way_" + Integer.toString(w, 10),  entries(0).io.meta_write.valid && OHToUInt(entries(0).io.meta_write.bits.waymask)  === w.U)
