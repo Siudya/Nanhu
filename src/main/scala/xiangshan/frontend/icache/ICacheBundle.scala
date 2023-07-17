@@ -36,7 +36,7 @@ class ICacheReadBundle(implicit p: Parameters) extends ICacheBundle
   def read_bank_1 =  port_0_read_1 || port_1_read_1
 }
 
-//jjkjk
+
 class ICacheMetaRespBundle(implicit p: Parameters) extends ICacheBundle
 {
   val metaData   = Vec(2, Vec(nWays, new ICacheMetadata))

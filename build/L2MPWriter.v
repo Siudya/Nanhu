@@ -35,11 +35,11 @@ module L2MPWriter(
   input [0:0] data_mshrTask,
   input [63:0] stamp
 );
-  parameter string site;
+  parameter string site = "";
 
-  always@(posedge clock) begin
-    if(en && !reset) begin
-      L2MP_write(data_metaWway, data_metaWvalid, data_mshrId, data_allocPtr, data_allocValid, data_dirWay, data_dirHit, data_sset, data_tag, data_opcode, data_channel, data_mshrTask, stamp, site);
-    end
-  end
+  // always@(posedge clock) begin
+  //   if(en && !reset) begin
+  //     L2MP_write(data_metaWway, data_metaWvalid, data_mshrId, data_allocPtr, data_allocValid, data_dirWay, data_dirHit, data_sset, data_tag, data_opcode, data_channel, data_mshrTask, stamp, site);
+  //   end
+  // end
 endmodule
