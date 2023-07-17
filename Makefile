@@ -68,7 +68,7 @@ RELEASE_ARGS += --emission-options disableRegisterRandomization -X sverilog --ou
 DEBUG_ARGS += --emission-options disableRegisterRandomization -X sverilog --output-file $(SIM_TOP)
 else
 RELEASE_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(TOP)
-DEBUG_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(SIM_TOP)
+DEBUG_ARGS += -E verilog --output-file $(SIM_TOP)
 endif
 
 ifeq ($(RELEASE),1)
