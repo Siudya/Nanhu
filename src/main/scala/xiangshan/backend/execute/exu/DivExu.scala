@@ -62,7 +62,7 @@ class DivExuImpl(outer:DivExu, exuCfg:ExuConfig) extends BasicExuImpl(outer) wit
     arbIn.valid := div.io.out.valid
     arbIn.bits := div.io.out.bits.uop
     div.io.out.ready := arbIn.ready
-    assert(Mux(div.io.in.valid, div.io.in.ready, true.B))
+    when(div.io.in.valid){assert(div.io.in.ready)}
   }
   outputArbiter.io.out.ready := true.B
   writebackPort.bits := DontCare

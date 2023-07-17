@@ -40,7 +40,7 @@ class SQAddrModule(dataWidth: Int, numEntries: Int, numRead: Int, numWrite: Int,
     val wlineflag = Input(Vec(numWrite, Bool())) // wdata: line op flag
     // forward addr cam
     val forwardMdata = Input(Vec(numForward, UInt(dataWidth.W))) // addr
-    val forwardMmask = Output(Vec(numForward, Vec(numEntries, Bool()))) // cam result mask
+    val forwardMmask = Output(Vec(numForward, UInt(numEntries.W))) // cam result mask
     // debug
     val debug_data = Output(Vec(numEntries, UInt(dataWidth.W)))
   })
@@ -65,12 +65,14 @@ class SQAddrModule(dataWidth: Int, numEntries: Int, numRead: Int, numWrite: Int,
   }
 
   // content addressed match
+  private val forwardMmask = Wire(Vec(numForward, Vec(numEntries, Bool())))
+  io.forwardMmask.zip(forwardMmask).foreach({case(a, b) => a := b.asUInt})
   for (i <- 0 until numForward) {
     for (j <- 0 until numEntries) {
       // io.forwardMmask(i)(j) := io.forwardMdata(i)(dataWidth-1, 3) === data(j)(dataWidth-1, 3)
       val linehit = io.forwardMdata(i)(dataWidth-1, DCacheLineOffset) === data(j)(dataWidth-1, DCacheLineOffset)
       val wordhit = io.forwardMdata(i)(DCacheLineOffset-1, DCacheWordOffset) === data(j)(DCacheLineOffset-1, DCacheWordOffset)
-      io.forwardMmask(i)(j) := linehit && (wordhit || lineflag(j))
+      forwardMmask(i)(j) := linehit && (wordhit || lineflag(j))
     }
   }
 
@@ -319,7 +321,7 @@ class SQDataModule(numEntries: Int, numRead: Int, numWrite: Int, numForward: Int
     }
   }
 
-  (0 until numForward).map(i => {
+  (0 until numForward).foreach(i => {
     // parallel fwd logic
     for (j <- 0 until 8) {
       data8(j).io.needForward(i) <> io.needForward(i)

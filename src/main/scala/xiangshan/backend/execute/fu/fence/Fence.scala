@@ -20,6 +20,7 @@ import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.ExceptionNO.illegalInstr
+import xiangshan.backend.execute.fu.csr.CSRConst.ModeU
 import xiangshan.{RedirectLevel, XSBundle}
 import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit}
 
@@ -50,15 +51,20 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   val fencei = IO(new FenceIBundle)
   val toSbuffer = IO(new FenceToSbuffer)
   val disableSfence = IO(Input(Bool()))
+  val priviledgeMode = IO(Input(UInt(2.W)))
 
+<<<<<<< HEAD
   val (valid, src1) = (
     io.in.valid,
     io.in.bits.src(0)
   )
 
   val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: s_wb :: Nil = Enum(7)
+=======
+  private val s_idle :: s_wait :: s_tlb :: s_icache :: s_fence :: s_nofence :: s_wb :: Nil = Enum(7)
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
 
-  val state = RegInit(s_idle)
+  private val state = RegInit(s_idle)
   /* fsm
    * s_idle    : init state, send sbflush
    * s_wait  : send sbflush, wait for sbEmpty
@@ -68,13 +74,20 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
    * s_nofence: do nothing , for Svinval extension
    */
 
-  val sbuffer = toSbuffer.flushSb
-  val sbEmpty = toSbuffer.sbIsEmpty
-  val uop = RegEnable(io.in.bits.uop, io.in.fire())
-  val func = uop.ctrl.fuOpType
+  private val sbuffer = toSbuffer.flushSb
+  private val sbEmpty = toSbuffer.sbIsEmpty
+  private val uop = RegEnable(io.in.bits.uop, io.in.fire())
+  private val valid = RegNext(io.in.fire, false.B)
+  private val func = uop.ctrl.fuOpType
+
+  private val instrIllegal = (disableSfence || priviledgeMode === ModeU) && func === FenceOpType.sfence
 
   // NOTE: icache & tlb & sbuffer must receive flush signal at any time
+<<<<<<< HEAD
   sbuffer      := state === s_wait && !(func === FenceOpType.sfence && disableSfence)
+=======
+  sbuffer      := state === s_wait && !instrIllegal
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
   fencei.start := state === s_icache
   sfence.valid := state === s_tlb && !disableSfence
   sfence.bits.rs1  := uop.ctrl.imm(4, 0) === 0.U
@@ -84,12 +97,20 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
 
   switch(state){
     is(s_idle){
+<<<<<<< HEAD
       when(io.in.valid){ state := s_wait }
+=======
+      when(valid && !instrIllegal){ state := s_wait }
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
     }
     is(s_wait){
       when(func === FenceOpType.fencei && sbEmpty){
         state := s_icache
+<<<<<<< HEAD
       }.elsewhen(func === FenceOpType.sfence && (sbEmpty || disableSfence)){
+=======
+      }.elsewhen(func === FenceOpType.sfence && sbEmpty){
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
         state := s_tlb
       }.elsewhen(func === FenceOpType.fence && sbEmpty){
         state := s_fence
@@ -115,10 +136,14 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   }
 
   io.in.ready := state === s_idle
+<<<<<<< HEAD
   io.out.valid := state === s_wb
+=======
+  io.out.valid := state === s_wb || (instrIllegal && valid)
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
   io.out.bits.data := DontCare
   io.out.bits.uop := uop
-  io.out.bits.uop.cf.exceptionVec(illegalInstr) := func === FenceOpType.sfence && disableSfence
+  io.out.bits.uop.cf.exceptionVec(illegalInstr) := instrIllegal
 
   redirectOutValid := io.out.valid && uop.ctrl.flushPipe
   redirectOut := DontCare

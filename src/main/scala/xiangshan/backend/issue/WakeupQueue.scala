@@ -45,7 +45,7 @@ class WakeupQueue(latency:Int)(implicit p: Parameters) extends XSModule{
     res
   }
   io.out := DelayInput(io.in, latency)
-  assert(Mux(io.out.valid, !io.out.bits.robPtr.needFlush(io.redirect), true.B))
+  when(io.out.valid){assert(!io.out.bits.robPtr.needFlush(io.redirect))}
 }
 
 object WakeupQueue {

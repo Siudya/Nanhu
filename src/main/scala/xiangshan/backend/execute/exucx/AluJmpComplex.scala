@@ -63,6 +63,6 @@ class AluJmpComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
 
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueJmp.issue.ready)
     private val issueFuHit = issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_ | _)
-    assert(Mux(issueIn.issue.valid, issueFuHit, true.B))
+    when(issueIn.issue.valid){assert(issueFuHit)}
   }
 }

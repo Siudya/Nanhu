@@ -31,7 +31,10 @@ object ImmExtractor {
   def apply(cfg: ExuComplexParam, in: ExuInput, pc: Option[UInt] = None, target: Option[UInt] = None)
            (implicit p: Parameters): ExuInput = {
     if (cfg.hasJmp) {
-      Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get), AluImmExtractor(in))
+      val res = Wire(new ExuInput)
+      res := Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get), AluImmExtractor(in))
+      res.uop.cf.pc := pc.get
+      res
     } else if (cfg.hasMul) {
       Mux(in.uop.ctrl.fuType === FuType.bku, BkuImmExtractor(in), AluImmExtractor(in))
     } else if (cfg.hasDiv) {
@@ -44,7 +47,6 @@ object ImmExtractor {
   }
   private def JumpImmExtractor(in:ExuInput, jump_pc:UInt, jalr_target:UInt)(implicit p: Parameters):ExuInput = {
     val immExtractedRes = WireInit(in)
-    immExtractedRes.uop.cf.pc := jump_pc
     when(SrcType.isPc(in.uop.ctrl.srcType(0))) {
       immExtractedRes.src(0) := SignExt(jump_pc, p(XSCoreParamsKey).XLEN)
     }

@@ -50,7 +50,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   private val outputArbiter = Module(new Arbiter(new MicroOp, exuCfg.fuConfigs.length))
 
   private val fuSel = PickOneHigh(Cat(fdivSqrts.map(_.io.in.ready).reverse))
-  issuePort.issue.ready := fuSel.valid
+  issuePort.issue.ready := true.B
   fdivSqrts.zipWithIndex.zip(outputArbiter.io.in).foreach({case((fu,idx), arbIn) =>
     fu.io.redirectIn := redirectIn
     fu.io.in.valid := issuePort.issue.valid &&
@@ -64,7 +64,7 @@ class FdivExuImpl(outer:FdivExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     arbIn.valid := fu.io.out.valid
     arbIn.bits := fu.io.out.bits.uop
   })
-  assert(Mux(issuePort.issue.valid && issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType, fuSel.valid, true.B))
+  when(issuePort.issue.valid && issuePort.issue.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType){assert(fuSel.valid)}
   writebackPort.valid := outputArbiter.io.out.valid && !outputArbiter.io.out.bits.robIdx.needFlush(redirectIn)
   writebackPort.bits.uop := outputArbiter.io.out.bits
   private val uopSel = RegEnable(UIntToOH(outputArbiter.io.chosen)(exuCfg.fuConfigs.length - 1, 0), outputArbiter.io.out.fire)

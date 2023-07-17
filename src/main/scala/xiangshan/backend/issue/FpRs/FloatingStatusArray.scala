@@ -86,7 +86,10 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
       n := SrcState.rdy
     }
   }
-  pregMatch.foreach(hv => assert(Mux(io.entry.valid, PopCount(hv) <= 1.U, true.B)))
+  pregMatch.foreach(hv =>
+  when(io.entry.valid){
+    assert(PopCount(hv) <= 1.U)
+  })
   private val miscUpdateEnWakeUp = pregMatch.map(_.reduce(_|_)).reduce(_|_)
   //End of wake up
 
@@ -109,9 +112,13 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
       stateNext := Mux(shouldBeCancelled, s_ready, s_issued)
     }
   }
-  assert(Mux(io.entry.valid, Cat(shouldBeCancelled, shouldBeIssued) <= 2.U, true.B))
-  assert(Mux(shouldBeIssued, io.entry.valid && state === s_ready, true.B))
-  assert(Mux(io.entry.valid, state === s_ready || state === s_wait_cancel || state === s_issued, true.B))
+  when(io.entry.valid){
+    assert(Cat(shouldBeCancelled, shouldBeIssued) <= 2.U)
+    assert(state === s_ready || state === s_wait_cancel || state === s_issued)
+  }
+  when(shouldBeIssued){
+    assert(io.entry.valid && state === s_ready)
+  }
   srcShouldBeCancelled.zip(miscNext.bits.srcState).foreach{case(en, state) => when(en){state := SrcState.busy}}
   //End of issue and cancel
 
@@ -137,7 +144,9 @@ class FloatingStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(imp
       val wakeupLpvSelected = Mux1H(lpvUpdateHitsVec, lpvUpdateDataVec)
       nl := Mux(wakeupLpvValid, wakeupLpvSelected, LogicShiftRight(ol,1))
       m := wakeupLpvValid | ol.orR
-      assert(Mux(io.entry.valid, PopCount(lpvUpdateHitsVec) === 1.U || PopCount(lpvUpdateHitsVec) === 0.U, true.B))
+      when(io.entry.valid){
+        assert(PopCount(lpvUpdateHitsVec) <= 1.U)
+      }
     }
   }
   private val miscUpdateEnLpvUpdate = lpvModified.map(_.reduce(_|_)).reduce(_|_)
@@ -216,9 +225,11 @@ class FloatingStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUni
   }
 
   assert(Cat(statusArrayValid) === Cat(statusArrayValidAux))
-  assert(Mux(io.enq.valid, PopCount(io.enq.bits.addrOH) === 1.U, true.B))
+  when(io.enq.valid){
+    assert(PopCount(io.enq.bits.addrOH) === 1.U)
+  }
   assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   for(iss <- io.issue){
-    assert(Mux(iss.valid, PopCount(iss.bits & Cat(statusArrayValid.reverse)) === 1.U, true.B))
+    when(iss.valid){assert(PopCount(iss.bits & Cat(statusArrayValid.reverse)) === 1.U)}
   }
 }

@@ -653,11 +653,11 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   assert(load_s2.io.in.ready)
 
   // feedback bank conflict / ld-vio check struct hazard to rs
-  io.feedbackFast.bits := RegNext(load_s1.io.rsFeedback.bits)
-  io.feedbackFast.valid := RegNext(load_s1.io.rsFeedback.valid && !load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  io.feedbackFast.bits := RegEnable(load_s1.io.rsFeedback.bits, load_s1.io.rsFeedback.valid && !load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  io.feedbackFast.valid := RegNext(load_s1.io.rsFeedback.valid && !load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect), false.B)
 
   // pre-calcuate sqIdx mask in s0, then send it to lsq in s1 for forwarding
-  val sqIdxMaskReg = RegNext(UIntToMask(load_s0.io.in.bits.uop.sqIdx.value, StoreQueueSize))
+  val sqIdxMaskReg = RegEnable(UIntToMask(load_s0.io.in.bits.uop.sqIdx.value, StoreQueueSize), load_s0.io.in.valid)
   // to enable load-load, sqIdxMask must be calculated based on ldin.uop
   // If the timing here is not OK, load-load forwarding has to be disabled.
   // Or we calculate sqIdxMask at RS??
@@ -764,9 +764,10 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
 
 
   //--------------------------------------------------------------------------------
-  val s3_uop = Mux(RegNext(hitLoadOut.valid),s3_loadDataFromDcache.uop,s3_loadDataFromLQ.uop)
-  val s3_offset = Mux(RegNext(hitLoadOut.valid),s3_loadDataFromDcache.addrOffset,s3_loadDataFromLQ.addrOffset)
-  val s3_rdata = Mux(RegNext(hitLoadOut.valid),s3_rdataDcache,s3_rdataLQ)
+  private val hitLoadOutValidReg = RegNext(hitLoadOut.valid, false.B)
+  val s3_uop = Mux(hitLoadOutValidReg,s3_loadDataFromDcache.uop,s3_loadDataFromLQ.uop)
+  val s3_offset = Mux(hitLoadOutValidReg,s3_loadDataFromDcache.addrOffset,s3_loadDataFromLQ.addrOffset)
+  val s3_rdata = Mux(hitLoadOutValidReg,s3_rdataDcache,s3_rdataLQ)
   val s3_sel_rdata = LookupTree(s3_offset,List(
     "b000".U -> s3_rdata(63, 0),
     "b001".U -> s3_rdata(63, 8),
@@ -782,10 +783,13 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.ldout.bits := s3_load_wb_meta_reg
 //  io.ldout.bits.data := Mux(RegNext(hitLoadOut.valid), s3_rdataPartialLoadDcache, s3_rdataPartialLoadLQ)
   io.ldout.bits.data := s3_rdataPartialLoad
+<<<<<<< HEAD
   private val pipelineOutputValidReg = RegNext(hitLoadOut.valid, false.B)
+=======
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
   private val lsqOutputValidReg = RegNext(io.lsq.ldout.valid && (!io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)),false.B)
   private val writebackShouldBeFlushed = s3_load_wb_meta_reg.uop.robIdx.needFlush(io.redirect)
-  io.ldout.valid := (!writebackShouldBeFlushed) && (pipelineOutputValidReg || lsqOutputValidReg)
+  io.ldout.valid := (!writebackShouldBeFlushed) && (hitLoadOutValidReg || lsqOutputValidReg)
 
   io.ldout.bits.uop.cf.exceptionVec(loadAccessFault) := s3_load_wb_meta_reg.uop.cf.exceptionVec(loadAccessFault) //||
     //RegNext(hitLoadOut.valid) && load_s2.io.s3_delayed_load_error
@@ -795,8 +799,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.fastpathOut.data := s3_loadDataFromDcache.mergedData() // fastpath is for ld only
 
   // feedback tlb miss / dcache miss queue full
-  io.feedbackSlow.bits := RegNext(load_s2.io.rsFeedback.bits)
-  io.feedbackSlow.valid := RegNext(load_s2.io.rsFeedback.valid && !load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  io.feedbackSlow.bits := RegEnable(load_s2.io.rsFeedback.bits, load_s2.io.rsFeedback.valid && !load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  io.feedbackSlow.valid := RegNext(load_s2.io.rsFeedback.valid && !load_s2.io.out.bits.uop.robIdx.needFlush(io.redirect), false.B)
   // If replay is reported at load_s1, inst will be canceled (will not enter load_s2),
   // in that case:
   // * replay should not be reported twice
@@ -831,7 +835,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   val lastValidData = RegEnable(io.ldout.bits.data, io.ldout.fire)
   val hitLoadAddrTriggerHitVec = Wire(Vec(TriggerNum, Bool()))
   val lqLoadAddrTriggerHitVec = io.lsq.trigger.lqLoadAddrTriggerHitVec
-  (0 until TriggerNum).map{i => {
+  (0 until TriggerNum).foreach{ i => {
     val tdata2 = io.trigger(i).tdata2
     val matchType = io.trigger(i).matchType
     val tEnable = io.trigger(i).tEnable

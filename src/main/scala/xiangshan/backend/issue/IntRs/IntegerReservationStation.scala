@@ -177,7 +177,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     sink.bits.srcState(1) := Mux(source.bits.ctrl.srcType(1) === SrcType.reg, rport1.resp, SrcState.rdy)
     source.ready := sink.ready
     busyTableReadIdx = busyTableReadIdx + 2
-    assert(Mux(source.valid, FuType.integerTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    when(source.valid){assert(FuType.integerTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_))}
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs

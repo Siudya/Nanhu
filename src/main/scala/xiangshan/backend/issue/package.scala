@@ -114,8 +114,9 @@ package object issue {
   class RSFeedbackIO(implicit p: Parameters) extends XSBundle {
     // Note: you need to update in implicit Parameters p before imp MemRSFeedbackIO
     // for instance: MemRSFeedbackIO()(updateP)
-    val feedbackSlow = ValidIO(new RSFeedback) // dcache miss queue full, dtlb miss
-    val feedbackFast = ValidIO(new RSFeedback) // bank conflict
+    val feedbackSlowLoad = ValidIO(new RSFeedback) // dcache miss queue full, dtlb miss
+    val feedbackFastLoad = ValidIO(new RSFeedback) // bank conflict
+    val feedbackSlowStore = ValidIO(new RSFeedback)
     val isFirstIssue: Bool = Input(Bool())
   }
 

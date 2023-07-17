@@ -63,8 +63,9 @@ package object xiangshan {
     def fDivSqrt = "b1100".U
     def ldu = "b1101".U
     def stu = "b1110".U
+    def std = "b1111".U
     def X = BitPat("b????")
-    def num = 15
+    def num = 16
     def apply() = UInt(log2Up(num).W)
 
     val functionNameMap = Map(
@@ -82,7 +83,8 @@ package object xiangshan {
       fDivSqrt.litValue -> "fdiv/fsqrt",
       ldu.litValue -> "load",
       stu.litValue -> "store",
-      mou.litValue -> "mou"
+      mou.litValue -> "mou",
+      std.litValue -> "std"
     )
 
     val integerTypes: Seq[UInt] = Seq(jmp, i2f, csr, alu, mul, div, fence, bku, mou)

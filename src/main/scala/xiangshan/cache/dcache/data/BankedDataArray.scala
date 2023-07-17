@@ -282,7 +282,9 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     io.read(rport_index).ready := !(rwhazard || rrhazard)
 
     // use way_en to select a way after data read out
-    assert(Mux(io.read(rport_index).fire && !io.read(rport_index).bits.kill, PopCount(io.read(rport_index).bits.way_en) <= 1.U, true.B))
+    when(io.read(rport_index).fire && !io.read(rport_index).bits.kill){
+      assert(PopCount(io.read(rport_index).bits.way_en) <= 1.U)
+    }
     way_en(rport_index) := io.read(rport_index).bits.way_en
   })
   io.readline.ready := !(rwhazard)

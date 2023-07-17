@@ -233,7 +233,7 @@ object FuConfigs{
 
   val stdCfg = FuConfig(
     name = "std",
-    fuType = FuType.stu,
+    fuType = FuType.std,
     numIntSrc = 1,
     numFpSrc = 1,
     numVecSrc = 1,

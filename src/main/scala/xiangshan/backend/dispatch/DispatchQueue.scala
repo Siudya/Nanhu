@@ -44,7 +44,7 @@ class DispatchQueuePayload(entryNum:Int, enqNum:Int, deqNum:Int)(implicit p: Par
   val io = IO(new Bundle{
     val w = Input(Vec(enqNum, new Bundle{
       val en: Bool = Bool()
-      val addrOH: UInt = UInt(entryNum.W)
+      val addr: UInt = UInt(log2Ceil(entryNum).W)
       val data: MicroOp = new MicroOp
     }))
     val r = Vec(deqNum, new Bundle{
@@ -56,13 +56,15 @@ class DispatchQueuePayload(entryNum:Int, enqNum:Int, deqNum:Int)(implicit p: Par
   })
 
   private val array = Reg(Vec(entryNum, new MicroOp))
-  for(w <- io.w){
-    for((hit, mem) <- w.addrOH.asBools.zip(array)){
-      when(w.en && hit){
-        mem := w.data
-      }
+  for ((mem, i) <- array.zipWithIndex) {
+    val valids = io.w.map(wreq => wreq.en && wreq.addr === i.U)
+    val wdata = io.w.map(_.data)
+    val data = Mux1H(valids, wdata)
+    when(valids.reduce(_ | _)) {
+      mem := data
     }
   }
+
   for(r <- io.r){
     r.data := Mux1H(r.addrOH, array)
   }
@@ -114,7 +116,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   io.enq.canAccept := (PopCount(io.enq.needAlloc) < emptyEntriesNum) && !io.redirect.valid
   for(idx <- 0 until enqNum){
     payloadArray.io.w(idx).en := squeezedEnqs(idx).valid && io.enq.canAccept
-    payloadArray.io.w(idx).addrOH := UIntToOH((enqPtr + idx.U).value)
+    payloadArray.io.w(idx).addr := (enqPtr + idx.U).value
     payloadArray.io.w(idx).data := squeezedEnqs(idx).bits
   }
   private val actualEnqNum = Mux(io.enq.canAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
@@ -132,18 +134,18 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
 
   assert(deqPtr <= enqPtrAux)
   assert(actualEnqNum <= emptyEntriesNum)
-  assert(Mux(io.enq.canAccept, PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum, true.B))
+  when(io.enq.canAccept){assert(PopCount(squeezedEnqs.map(_.valid)) === actualEnqNum)}
   for(i <- io.enq.req.indices){
-    assert(Mux(io.enq.canAccept, Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B), true.B))
+    when(io.enq.canAccept){assert(Mux(i.U < actualEnqNum, squeezedEnqs(i).valid === true.B, squeezedEnqs(i).valid === false.B))}
   }
   for(i <- 1 until squeezedEnqs.length){
-    assert(Mux(squeezedEnqs(i).valid, squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx, true.B))
+    when(squeezedEnqs(i).valid){assert(squeezedEnqs(i).bits.robIdx > squeezedEnqs(i - 1).bits.robIdx)}
   }
   assert(flushNum <= validEntriesNum)
   private val enqFlushNextMask = UIntToMask((enqPtr - flushNum).value, size)
   private val flushXorPresentMask = enqFlushNextMask ^ enqMask
   private val enqRollbackMask = Mux(enqPtr.value >= (enqPtr - flushNum).value, flushXorPresentMask, ~flushXorPresentMask)
-  assert(Mux(io.redirect.valid, enqRollbackMask === redirectMask, true.B), "Redirect mask should be continuous.")
+  when(io.redirect.valid){assert(enqRollbackMask === redirectMask, "Redirect mask should be continuous.")}
   private val readyNum = PopCount(io.deq.map(_.ready))
   for (i <- 1 until io.deq.length) {
     assert(Mux(i.U < readyNum, io.deq(i).ready === true.B, io.deq(i).ready === false.B))

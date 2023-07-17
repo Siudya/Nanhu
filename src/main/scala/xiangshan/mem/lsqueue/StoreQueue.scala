@@ -287,7 +287,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
 
     // re-replinish mmio, for pma/pmp will get mmio one cycle later
     val storeInFireReg = RegNext(io.storeIn(i).fire() && !io.storeIn(i).bits.miss)
-    val stWbIndexReg = RegNext(stWbIndex)
+    val stWbIndexReg = RegEnable(stWbIndex, io.storeIn(i).valid)
     when (storeInFireReg) {
       pending(stWbIndexReg) := io.storeInRe(i).mmio
       mmio(stWbIndexReg) := io.storeInRe(i).mmio
@@ -360,20 +360,19 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     val differentFlag = deqPtrExt(0).flag =/= io.forward(i).sqIdx.flag
     val forwardMask = io.forward(i).sqIdxMask
     // all addrvalid terms need to be checked
-    val addrValidVec = WireInit(VecInit((0 until StoreQueueSize).map(i => addrvalid(i) && allocated(i))))
-    val dataValidVec = WireInit(VecInit((0 until StoreQueueSize).map(i => datavalid(i))))
-    val allValidVec = WireInit(VecInit((0 until StoreQueueSize).map(i => addrvalid(i) && datavalid(i) && allocated(i))))
-    val canForward1 = Mux(differentFlag, ~deqMask, deqMask ^ forwardMask) & allValidVec.asUInt
-    val canForward2 = Mux(differentFlag, forwardMask, 0.U(StoreQueueSize.W)) & allValidVec.asUInt
-    val needForward = Mux(differentFlag, ~deqMask | forwardMask, deqMask ^ forwardMask)
+    val addrValidVec = addrvalid.asUInt & allocated.asUInt
+    val dataValidVec = datavalid.asUInt
+    val canForward1 = Mux(differentFlag, ~deqMask, deqMask ^ forwardMask).asUInt & addrValidVec
+    val canForward2 = Mux(differentFlag, forwardMask, 0.U(StoreQueueSize.W)).asUInt & addrValidVec
+    val needForward = Mux(differentFlag, (~deqMask).asUInt | forwardMask, deqMask ^ forwardMask)
 
     XSDebug(p"$i f1 ${Binary(canForward1)} f2 ${Binary(canForward2)} " +
       p"sqIdx ${io.forward(i).sqIdx} pa ${Hexadecimal(io.forward(i).paddr)}\n"
     )
 
     // do real fwd query (cam lookup in load_s1)
-    dataModule.io.needForward(i)(0) := canForward1 & vaddrModule.io.forwardMmask(i).asUInt
-    dataModule.io.needForward(i)(1) := canForward2 & vaddrModule.io.forwardMmask(i).asUInt
+    dataModule.io.needForward(i)(0) := canForward1 & vaddrModule.io.forwardMmask(i)
+    dataModule.io.needForward(i)(1) := canForward2 & vaddrModule.io.forwardMmask(i)
 
     vaddrModule.io.forwardMdata(i) := io.forward(i).vaddr
     paddrModule.io.forwardMdata(i) := io.forward(i).paddr
@@ -383,16 +382,16 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     // val vpmaskNotEqual = ((paddrModule.io.forwardMmask(i).asUInt ^ vaddrModule.io.forwardMmask(i).asUInt) & needForward) =/= 0.U
     // val vaddrMatchFailed = vpmaskNotEqual && io.forward(i).valid
     val vpmaskNotEqual = (
-      (RegNext(paddrModule.io.forwardMmask(i).asUInt) ^ RegNext(vaddrModule.io.forwardMmask(i).asUInt)) & 
+      (RegNext(paddrModule.io.forwardMmask(i)) ^ RegNext(vaddrModule.io.forwardMmask(i))) &
       RegNext(needForward) &
-      RegNext(addrValidVec.asUInt)
+      RegNext(addrValidVec)
     ) =/= 0.U
     val vaddrMatchFailed = vpmaskNotEqual && RegNext(io.forward(i).valid)
     when (vaddrMatchFailed) {
       XSInfo("vaddrMatchFailed: pc %x pmask %x vmask %x\n",
         RegNext(io.forward(i).uop.cf.pc),
-        RegNext(needForward & paddrModule.io.forwardMmask(i).asUInt),
-        RegNext(needForward & vaddrModule.io.forwardMmask(i).asUInt)
+        RegNext(needForward & paddrModule.io.forwardMmask(i)),
+        RegNext(needForward & vaddrModule.io.forwardMmask(i))
       );
     }
     XSPerfAccumulate("vaddr_match_failed", vpmaskNotEqual)
@@ -407,11 +406,13 @@ class StoreQueue(implicit p: Parameters) extends XSModule
 
     // If addr match, data not ready, mark it as dataInvalid
     // load_s1: generate dataInvalid in load_s1 to set fastUop
-    val dataInvalidMask = (addrValidVec.asUInt & ~dataValidVec.asUInt & vaddrModule.io.forwardMmask(i).asUInt & needForward.asUInt)
-    io.forward(i).dataInvalidFast := dataInvalidMask.orR
-    val dataInvalidMaskReg = RegNext(dataInvalidMask)
+    val sqForwardMaskFast = dataModule.io.forwardMaskFast(i).asUInt
+    val loadMask = io.forward(i).mask
+    val dataInvalidMask = addrValidVec.asUInt & (~dataValidVec).asUInt & vaddrModule.io.forwardMmask(i) & needForward
+    io.forward(i).dataInvalidFast := dataInvalidMask.orR && (sqForwardMaskFast & loadMask).orR
+    val dataInvalidMaskReg = RegEnable(dataInvalidMask, io.forward(i).valid)
     // load_s2
-    io.forward(i).dataInvalid := RegNext(io.forward(i).dataInvalidFast)
+    io.forward(i).dataInvalid := RegEnable(io.forward(i).dataInvalidFast, io.forward(i).valid)
     // check if vaddr forward mismatched
     io.forward(i).matchInvalid := vaddrMatchFailed
     val dataInvalidMaskRegWire = Wire(UInt(StoreQueueSize.W))

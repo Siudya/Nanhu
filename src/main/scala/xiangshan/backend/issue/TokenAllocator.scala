@@ -21,18 +21,20 @@ package xiangshan.backend.issue
 import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
-import xiangshan.Redirect
+import xiangshan.{Redirect, XSBundle, XSModule}
 import xiangshan.backend.rob.RobPtr
-import xs.utils.PickOneLow
-class TokenAllocatorEntry(pdestWidth:Int)(implicit val p: Parameters) extends Bundle{
+import xs.utils.{LogicShiftRight, PickOneLow}
+class TokenAllocatorEntry(pdestWidth:Int)(implicit p: Parameters) extends XSBundle{
   val robPtr = new RobPtr
+  val lpv = Vec(loadUnitNum, UInt(LpvLength.W))
   val pdest = UInt(pdestWidth.W)
 }
-class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit val p: Parameters) extends Module{
+class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle{
     val alloc = Input(Valid(new TokenAllocatorEntry(pdestWidth)))
     val allow = Output(Bool())
     val release = Input(Valid(UInt(pdestWidth.W)))
+    val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
     val redirect = Input(Valid(new Redirect))
   })
   private val valids = RegInit(VecInit(Seq.fill(tokenNum)(false.B)))
@@ -44,15 +46,26 @@ class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit val p: Parameters) e
   private val allocEnables = Mux(emptyToken.valid, emptyToken.bits, 0.U)
   valids.zip(payload).zip(allocEnables.asBools).foreach({
     case((v, d), en) =>
-      when(v && (d.robPtr.needFlush(io.redirect) || (io.release.valid && d.pdest === io.release.bits))){
+      val releaseCond0 = d.robPtr.needFlush(io.redirect)
+      val releaseCond1 = io.release.valid && d.pdest === io.release.bits
+      val releaseCond2 = d.lpv.zip(io.earlyWakeUpCancel).map({case(l,c) => l(0) & c}).reduce(_|_)
+      val shouldBeReleased = v && (releaseCond0 || releaseCond1 || releaseCond2)
+      when(shouldBeReleased){
         v := false.B
       }.elsewhen(io.alloc.valid && en){
         v := true.B
       }
 
+      d.lpv.foreach(l => {
+        when(l.orR){
+          l := LogicShiftRight(l, 1)
+        }
+      })
+
       when(io.alloc.valid && en){
         d := io.alloc.bits
       }
-      assert(Mux(en, !v, true.B))
+
+      when(en){assert(!v)}
   })
 }

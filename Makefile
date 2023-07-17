@@ -60,15 +60,15 @@ override SIM_ARGS += --enable-topdown
 endif
 
 # emu for the release version
-RELEASE_ARGS = --disable-all --remove-assert --fpga-platform
+RELEASE_ARGS = --disable-all --fpga-platform
 DEBUG_ARGS   = --enable-difftest
 
-ifeq ($(MFC),1)
-RELEASE_ARGS += -X none -E chirrtl --output-file $(TOP).chirrtl.fir
-DEBUG_ARGS += -X none -E chirrtl --output-file $(SIM_TOP).chirrtl.fir
-else
+ifeq ($(VCS),1)
 RELEASE_ARGS += --emission-options disableRegisterRandomization -X sverilog --output-file $(TOP)
 DEBUG_ARGS += --emission-options disableRegisterRandomization -X sverilog --output-file $(SIM_TOP)
+else
+RELEASE_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(TOP)
+DEBUG_ARGS += --emission-options disableRegisterRandomization -E verilog --output-file $(SIM_TOP)
 endif
 
 ifeq ($(RELEASE),1)
@@ -87,12 +87,6 @@ $(TOP_V): $(SCALA_FILE)
 	time -o $(@D)/time.log mill -i XiangShan.runMain $(FPGATOP) -td $(@D) \
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(RELEASE_ARGS) | tee build/make.log
-ifeq ($(MFC),1)
-	time -a -o $(@D)/time.log firtool --disable-all-randomization --disable-annotation-unknown \
-	--annotation-file=$(BUILD_DIR)/$(TOP).anno.json --format=fir \
-	--lowering-options=noAlwaysComb,disallowExpressionInliningInPorts,explicitBitcast \
-	--verilog --dedup -o $(TOP_V) $(BUILD_DIR)/$(TOP).chirrtl.fir | tee build/make.log
-endif
 	sed -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_bits_/m_\1_\2_/g' \
 	-e 's/\(dma\)_0_\(aw\|ar\|w\|r\|b\)_bits_/s_\1_\2_/g' $@ > $(BUILD_DIR)/tmp.v
 	sed -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_/m_\1_\2_/g' \
@@ -117,19 +111,21 @@ $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
 	time -o $(@D)/time.log mill -i XiangShan.test.runMain $(SIMTOP) -td $(@D) \
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(SIM_ARGS) | tee build/make.log
-ifeq ($(RELEASE),1)
-	mv $(BUILD_DIR)/$(TOP).v $(BUILD_DIR)/$(SIM_TOP_V)
-endif
-ifeq ($(MFC),1)
-	time -a -o $(@D)/time.log firtool --disable-all-randomization --disable-annotation-unknown \
-	--annotation-file=$(BUILD_DIR)/$(SIM_TOP).anno.json --format=fir \
-	--lowering-options=noAlwaysComb,disallowExpressionInliningInPorts,explicitBitcast \
-	--verilog --dedup -o $(SIM_TOP_V) $(BUILD_DIR)/$(SIM_TOP).chirrtl.fir | tee build/make.log
 
-	sed '/\/\/ ----- 8< ----- .*----- 8< -----/,$d' $(SIM_TOP_V) > res.v
-	rm $(SIM_TOP_V)
-	mv res.v $(SIM_TOP_V)
+ifeq ($(RELEASE),1)
+ifeq ($(VCS), 1)
+	mv $(BUILD_DIR)/$(TOP).sv $(BUILD_DIR)/$(SIM_TOP).sv
+else
+	mv $(BUILD_DIR)/$(TOP).v $(BUILD_DIR)/$(SIM_TOP).v
 endif
+endif
+
+ifneq ($(VCS), 1)
+	mv $(BUILD_DIR)/$(SIM_TOP).v $(SIM_TOP_V)
+	sed -i -e 's/$$fatal/xs_assert(`__LINE__)/g' $(SIM_TOP_V)
+endif
+	python3 scripts/assertion_alter.py -o $(SIM_TOP_V) $(SIM_TOP_V)
+
 	@git log -n 1 >> .__head__
 	@git diff >> .__diff__
 	@sed -i 's/^/\/\// ' .__head__
@@ -137,9 +133,9 @@ endif
 	@cat .__head__ .__diff__ $@ > .__out__
 	@mv .__out__ $@
 	@rm .__head__ .__diff__
-	python3 scripts/assertion_alter.py -o $(SIM_TOP_V) $(SIM_TOP_V)
 
 FILELIST := $(ABS_WORK_DIR)/build/cpu_flist.f
+
 sim-verilog: $(SIM_TOP_V)
 	find $(ABS_WORK_DIR)/build -name "*.v" > $(FILELIST)
 	find $(ABS_WORK_DIR)/build -name "*.sv" >> $(FILELIST)
@@ -166,7 +162,11 @@ emu:
 	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES)
 
 emu_rtl:
+<<<<<<< HEAD
 	$(MAKE) -C ./difftest emu_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES)
+=======
+	$(MAKE) -C ./difftest emu_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) EMU_TRACE=1 EMU_THREADS=8
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
 
 EMU_RUN_OPTS_EXTRA ?=
 EMU_RUN_OPTS = -i $(RUN_BIN_DIR)/$(RUN_BIN).bin
@@ -185,7 +185,7 @@ simv:
 	$(MAKE) -C ./difftest simv_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES)
 
 simv_rtl:
-	$(MAKE) -C ./difftest simv_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) CONSIDER_FSDB=$(CONSIDER_FSDB)
+	$(MAKE) -C ./difftest simv_rtl SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) CONSIDER_FSDB=$(CONSIDER_FSDB) VCS=1
 
 simv_rtl-run:
 	$(shell if [ ! -e $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN) ];then mkdir -p $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN); fi)

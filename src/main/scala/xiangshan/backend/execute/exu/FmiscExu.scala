@@ -56,8 +56,8 @@ class FmiscExuImpl(outer:FmiscExu, exuCfg:ExuConfig)(implicit p:Parameters) exte
   })
 
   //This module should never be blocked.
-  assert(Mux(f2i.io.in.valid, f2i.io.in.ready, true.B))
-  assert(Mux(f2f.io.in.valid, f2f.io.in.ready, true.B))
+  when(f2i.io.in.valid){assert(f2i.io.in.ready)}
+  when(f2f.io.in.valid){assert(f2f.io.in.ready)}
 
   private val valids = fuList.map(_.io.out.valid)
   private val uops = fuList.map(_.io.out.bits.uop)

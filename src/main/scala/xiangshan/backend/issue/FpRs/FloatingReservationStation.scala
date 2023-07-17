@@ -137,7 +137,9 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     sink.bits.srcState(2) := Mux(source.bits.ctrl.srcType(2) === SrcType.fp, rport2.resp, SrcState.rdy)
     source.ready := sink.ready
     busyTableReadIdx = busyTableReadIdx + 3
-    assert(Mux(source.valid, FuType.floatingTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    when(source.valid){
+      assert(FuType.floatingTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_))
+    }
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs

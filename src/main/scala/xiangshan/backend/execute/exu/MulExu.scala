@@ -62,7 +62,7 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
     m.io.in.bits.uop := finalIssueSignals.bits.uop
     m.io.in.bits.src := finalIssueSignals.bits.src
     m.io.out.ready := true.B
-    assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
+    when(m.io.in.valid){assert(m.io.in.ready)}
   })
   i2f.rm := finalIssueSignals.bits.uop.ctrl.fpu.rm
 
@@ -99,20 +99,16 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   mul.ctrl.isHi := isH
   mul.ctrl.sign := DontCare
 
-  private val fuOut = fuSeq.map(m =>{
-    val out = WireInit(m.io.out)
-    out.valid := RegNext(m.io.out.valid, false.B)
-    out.bits.uop := RegEnable(m.io.out.bits.uop, m.io.out.valid)
-    out
-  })
-
-  private val outSel = fuOut.map(_.valid)
-  private val outData = fuOut.map(_.bits)
-  private val finalData = ParallelMux(outSel, outData)
+  private val outValids = fuSeq.map(m => RegNext(m.io.out.valid, false.B))
+  private val outUops = fuSeq.map(m => RegEnable(m.io.out.bits.uop, m.io.out.valid))
+  private val outData = fuSeq.map(m => m.io.out.bits.data)
+  private val finalValid = outValids.reduce(_|_)
+  private val finalUop = Mux1H(outValids, outUops)
+  private val finalData = Mux1H(outValids, outData)
   writebackPort := DontCare
-  writebackPort.valid := outSel.reduce(_||_) && !finalData.uop.robIdx.needFlush(redirectIn)
-  writebackPort.bits.uop := finalData.uop
-  writebackPort.bits.data := finalData.data
+  writebackPort.valid := finalValid && !finalUop.robIdx.needFlush(redirectIn)
+  writebackPort.bits.uop := finalUop
+  writebackPort.bits.data := finalData
   writebackPort.bits.fflags := i2f.fflags
   io.bypassOut.valid := writebackPort.valid && writebackPort.bits.uop.ctrl.rfWen && writebackPort.bits.uop.pdest =/= 0.U
   io.bypassOut.bits := writebackPort.bits
@@ -120,5 +116,5 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   assert(mul.io.in.ready)
   assert(bku.io.in.ready)
   assert(i2f.io.in.ready)
-  assert(PopCount(outSel) === 1.U || PopCount(outSel) === 0.U)
+  assert(PopCount(outValids) <= 1.U)
 }

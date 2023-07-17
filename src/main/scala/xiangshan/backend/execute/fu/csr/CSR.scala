@@ -103,6 +103,7 @@ class CSRFileIO(implicit p: Parameters) extends XSBundle {
   val debugMode = Output(Bool())
   // to Fence to disable sfence
   val disableSfence = Output(Bool())
+  val priviledgeMode = Output(UInt(2.W))
   // Custom microarchiture ctrl signal
   val customCtrl = Output(new CustomCSRCtrlIO)
   // distributed csr write
@@ -696,6 +697,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect with HasCSRConst with P
   val tvmNotPermit = (priviledgeMode === ModeS && mstatusStruct.tvm.asBool)
   val accessPermitted = !(addr === Satp.U && tvmNotPermit)
   csrio.disableSfence := tvmNotPermit
+  csrio.priviledgeMode := priviledgeMode
 
   // general CSR wen check
   val wen = valid && func =/= CSROpType.jmp && (addr=/=Satp.U || satpLegalMode)

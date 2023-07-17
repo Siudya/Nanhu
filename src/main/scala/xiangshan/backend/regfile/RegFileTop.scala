@@ -130,28 +130,24 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
             d := fpRf.io.read(fpRfReadIdx).data
             fpRfReadIdx = fpRfReadIdx + 1
           }
-        } else if(exuComplexParam.isSta) {
-          intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
-          exuInBundle.src(0) := intRf.io.read(intRfReadIdx).data
-          intRfReadIdx = intRfReadIdx + 1
-        } else if(exuComplexParam.isLdu) {
+        } else if (exuComplexParam.isMemType) {
           val issueBundle = WireInit(bi.issue.bits)
           io.pcReadAddr(pcReadPortIdx) := bi.issue.bits.uop.cf.ftqPtr.value
           intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
-          issueBundle.src(0) := intRf.io.read(intRfReadIdx).data
+          fpRf.io.read(fpRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
           issueBundle.uop.cf.pc := io.pcReadData(pcReadPortIdx).getPc(bi.issue.bits.uop.cf.ftqOffset)
+          val intSrcData = intRf.io.read(intRfReadIdx).data
+          val fpSrcData = fpRf.io.read(fpRfReadIdx).data
+          issueBundle.src(0) := MuxCase(intSrcData,
+            Seq(
+              (bi.issue.bits.uop.ctrl.srcType(0) === SrcType.reg, intSrcData),
+              (bi.issue.bits.uop.ctrl.srcType(0) === SrcType.fp, fpSrcData)
+            )
+          )
           exuInBundle := ImmExtractor(exuComplexParam, issueBundle)
           intRfReadIdx = intRfReadIdx + 1
-          pcReadPortIdx = pcReadPortIdx + 1
-        } else if(exuComplexParam.isStd) {
-          intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(1)
-          fpRf.io.read(fpRfReadIdx).addr := bi.issue.bits.uop.psrc(1)
-          val intData = intRf.io.read(intRfReadIdx).data
-          val fpData = fpRf.io.read(fpRfReadIdx).data
-          val srcIsInt = bi.issue.bits.uop.ctrl.srcType(1) === SrcType.reg
-          exuInBundle.src(0) := Mux(srcIsInt, intData, fpData)
-          intRfReadIdx = intRfReadIdx + 1
           fpRfReadIdx = fpRfReadIdx + 1
+          pcReadPortIdx = pcReadPortIdx + 1
         } else {
           exuInBundle := DontCare
           require(false, "Unknown Exu Complex Type")
@@ -161,7 +157,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         val issueExuInReg = Reg(new ExuInput)
         val rsIdxReg = Reg(new RsIdx)
 
-        val allowPipe = !issueValidReg || bo.issue.ready
+        val allowPipe = !issueValidReg || bo.issue.ready || (issueValidReg && issueExuInReg.uop.robIdx.needFlush(io.redirect))
         bo.issue.valid := issueValidReg && !issueExuInReg.uop.robIdx.needFlush(io.redirect)
         bo.issue.bits := issueExuInReg
         bo.rsIdx := rsIdxReg
@@ -174,8 +170,9 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         }
 
         bi.issue.ready := allowPipe
-        bi.rsFeedback.feedbackFast := bo.rsFeedback.feedbackFast
-        bi.rsFeedback.feedbackSlow := bo.rsFeedback.feedbackSlow
+        bi.rsFeedback.feedbackFastLoad := bo.rsFeedback.feedbackFastLoad
+        bi.rsFeedback.feedbackSlowLoad := bo.rsFeedback.feedbackSlowLoad
+        bi.rsFeedback.feedbackSlowStore := bo.rsFeedback.feedbackSlowStore
         bo.rsFeedback.isFirstIssue := RegNext(bi.rsFeedback.isFirstIssue)
       }
     }

@@ -88,8 +88,10 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
     val isJmp = finalIssueSignals.bits.uop.ctrl.fuType === FuType.jmp
     val isCsr = finalIssueSignals.bits.uop.ctrl.fuType === FuType.csr
     val isExclusive = finalIssueSignals.bits.uop.ctrl.noSpecExec && finalIssueSignals.bits.uop.ctrl.blockBackward
-    assert(Mux(m.io.in.valid, m.io.in.ready, true.B))
-    assert(Mux(m.io.in.valid, isJmp || isCsr || isExclusive, true.B))
+    when(m.io.in.valid){
+      assert(m.io.in.ready)
+      assert(isJmp || isCsr || isExclusive)
+    }
   })
 
   private val fuOut = fuSeq.map(_.io.out)
@@ -112,6 +114,10 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   private val redirectBits = Seq(jmp.redirectOut, fence.redirectOut)
   writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, Mux1H(redirectValids, redirectBits))
   writebackPort.bits.redirectValid := csr.redirectOutValid || redirectValids.reduce(_ || _)
+  writebackPort.bits.debug.isMMIO := false.B
+  writebackPort.bits.debug.isPerfCnt := csr.csrio.isPerfCnt
+  writebackPort.bits.debug.paddr := 0.U
+  writebackPort.bits.debug.vaddr := 0.U
 
   io.prefetchI := Pipe(jmp.prefetchI)
   io.fenceio.sfence := fence.sfence
@@ -119,6 +125,7 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.fenceio.sbuffer <> fence.toSbuffer
   fence.toSbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
   fence.disableSfence := csr.csrio.disableSfence
+  fence.priviledgeMode := csr.csrio.priviledgeMode
   csr.csrio <> io.csrio
   io.csrio.tlb := DelayN(csr.csrio.tlb, 2)
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)

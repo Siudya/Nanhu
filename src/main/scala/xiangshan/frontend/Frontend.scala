@@ -64,7 +64,11 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
     }
   })
   //fence.i signals bundle not used, tie to default value
+<<<<<<< HEAD
   //io.fencei.done := true.B
+=======
+  io.fencei.done := true.B
+>>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
   //decouped-frontend modules
   val instrUncache = outer.instrUncache.module
   val icache       = outer.icache.module

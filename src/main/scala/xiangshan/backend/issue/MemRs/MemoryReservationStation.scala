@@ -164,7 +164,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     source.ready := sink.ready
     fpBusyTableReadIdx = fpBusyTableReadIdx + 1
     intBusyTableReadIdx = intBusyTableReadIdx + 2
-    assert(Mux(source.valid, FuType.memoryTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_), true.B))
+    when(source.valid){assert(FuType.memoryTypes.map(_ === source.bits.ctrl.fuType).reduce(_||_))}
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs
@@ -176,13 +176,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     rsBank.io.enq.bits.addrOH := fromAllocate.bits.addrOH
   }
 
-  private var earlyWkpPortIdx = 0
-  private var staPortIdx = 0
-  private var stdPortIdx = 0
-  private var lduPortIdx = 0
-  private val staIssBankNum = param.bankNum / staIssuePortNum
-  private val stdIssBankNum = param.bankNum / stdIssuePortNum
-  private val lduIssBankNum = param.bankNum / lduIssuePortNum
+  private val issBankNum = param.bankNum / issue.length
   println("\nMemory Reservation Issue Ports Config:")
   for((iss, issuePortIdx) <- issue.zipWithIndex) {
     println(s"Issue Port $issuePortIdx ${iss._2}")
@@ -191,117 +185,55 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       issueDriver.io.redirect := io.redirect
       issueDriver.io.earlyWakeUpCancel := io.earlyWakeUpCancel
 
-      val (finalSelectInfo, payload) = if (iss._2.isSta) {
-        val res = staSelectNetwork.io.issueInfo(staPortIdx)
-        val selectedBanks = rsBankSeq.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
-        val bankEns = res.bits.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum).map(_ && res.fire)
-        val bankPayloadData = selectedBanks.map(_.io.staIssueUop)
-        for((b, en) <- selectedBanks.zip(bankEns)){
-          b.io.staIssue.valid := en
-          b.io.staIssue.bits := res.bits.entryIdxOH
-        }
-        val selPayload = Mux1H(bankEns, bankPayloadData)
+      val respArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 3))
+      respArbiter.io.in(0) <> stdSelectNetwork.io.issueInfo(issuePortIdx)
+      respArbiter.io.in(1) <> staSelectNetwork.io.issueInfo(issuePortIdx)
+      respArbiter.io.in(2) <> lduSelectNetwork.io.issueInfo(issuePortIdx)
+      val selResp = respArbiter.io.out
+      val isStd =  respArbiter.io.chosen === 1.U
+      val selectedBanks = rsBankSeq.slice(issuePortIdx * issBankNum, issuePortIdx * issBankNum + issBankNum)
+      val bankEns = selResp.bits.bankIdxOH.asBools.slice(issuePortIdx * issBankNum, issuePortIdx * issBankNum + issBankNum).map(_ && selResp.fire)
+      val bankPayloadData = selectedBanks.map(_.io.issueUop)
+      for ((b, en) <- selectedBanks.zip(bankEns)) {
+        b.io.issue.valid := en
+        b.io.issue.bits := selResp.bits.entryIdxOH
+        b.io.isStaLduIssue := !isStd
+      }
+      val selPayload = Mux1H(bankEns, bankPayloadData)
+      stIssuedWires(issuePortIdx).valid := issueDriver.io.deq.fire && issueDriver.io.deq.bits.uop.ctrl.fuType === FuType.stu && RegEnable(isStd, selResp.fire)
+      stIssuedWires(issuePortIdx).bits := issueDriver.io.deq.bits.uop.robIdx
+      val replayPortSel = selectedBanks.map(_.io.replay)
+      val feedbackSeq = Seq(iss._1.rsFeedback.feedbackSlowLoad, iss._1.rsFeedback.feedbackFastLoad, iss._1.rsFeedback.feedbackSlowStore)
+      replayPortSel.zipWithIndex.foreach(bankReplays => {
+        val bankIdx = bankReplays._2 + issuePortIdx * issBankNum
+        bankReplays._1.zip(feedbackSeq).foreach({ case (sink, source) =>
+          sink.valid := source.valid && source.bits.rsIdx.bankIdxOH(bankIdx)
+          sink.bits.entryIdxOH := source.bits.rsIdx.entryIdxOH
+          sink.bits.waitVal := source.bits.sourceType
+        })
+      })
 
-        stIssuedWires(staPortIdx).valid := issueDriver.io.deq.fire
-        stIssuedWires(staPortIdx).bits := issueDriver.io.deq.bits.uop.robIdx
+      val earlyWakeupQueue = Module(new WakeupQueue(3))
+      earlyWakeupQueue.io.in.valid := selResp.fire && selResp.bits.info.fuType === FuType.ldu
+      earlyWakeupQueue.io.earlyWakeUpCancel := io.earlyWakeUpCancel
+      earlyWakeupQueue.io.in.bits.robPtr := selResp.bits.info.robPtr
+      earlyWakeupQueue.io.in.bits.lpv := selResp.bits.info.lpv
+      earlyWakeupQueue.io.in.bits.pdest := selResp.bits.info.pdest
+      earlyWakeupQueue.io.in.bits.destType := Mux(selResp.bits.info.fpWen, SrcType.fp, Mux(selResp.bits.info.rfWen, SrcType.reg, SrcType.default))
+      earlyWakeupQueue.io.redirect := io.redirect
 
-        val replayPortSel = selectedBanks.map(_.io.storeReplay)
-        for ((rp, idx) <- replayPortSel.zipWithIndex) {
-          val fFast = iss._1.rsFeedback.feedbackFast
-          val fSlow = iss._1.rsFeedback.feedbackSlow
-          val faskBankIdxSel = fFast.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
-          val fastFeedBackEn = fFast.valid && faskBankIdxSel(idx)
-//          rp(0).valid := RegNext(fastFeedBackEn, false.B)
-//          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
-//          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
-          rp(0).valid := fastFeedBackEn
-          rp(0).bits.entryIdxOH := fFast.bits.rsIdx.entryIdxOH
-          rp(0).bits.waitVal := fFast.bits.sourceType
+      earlyWakeupQueue.io.in.bits.lpv(issuePortIdx) := selResp.bits.info.lpv(issuePortIdx) | (1 << (LpvLength - 1)).U
+      io.loadEarlyWakeup(issuePortIdx).valid := earlyWakeupQueue.io.out.valid
+      io.loadEarlyWakeup(issuePortIdx).bits.robPtr := earlyWakeupQueue.io.out.bits.robPtr
+      io.loadEarlyWakeup(issuePortIdx).bits.pdest := earlyWakeupQueue.io.out.bits.pdest
+      io.loadEarlyWakeup(issuePortIdx).bits.destType := earlyWakeupQueue.io.out.bits.destType
+      io.loadEarlyWakeup(issuePortIdx).bits.lpv := earlyWakeupQueue.io.out.bits.lpv(issuePortIdx)
 
-          val slowBankIdxSel = fSlow.bits.rsIdx.bankIdxOH.asBools.slice(staPortIdx * staIssBankNum, staPortIdx * staIssBankNum + staIssBankNum)
-          val slowFeedBackEn = fSlow.valid && slowBankIdxSel(idx)
-//          rp(1).valid := RegNext(slowFeedBackEn, false.B)
-//          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
-//          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
-          rp(1).valid := slowFeedBackEn
-          rp(1).bits.entryIdxOH := fSlow.bits.rsIdx.entryIdxOH
-          rp(1).bits.waitVal := fSlow.bits.sourceType
-        }
-
-        staPortIdx = staPortIdx + 1
-        (res, selPayload)
-      } else if (iss._2.isStd) {
-        val res = stdSelectNetwork.io.issueInfo(stdPortIdx)
-        val selectedBanks = rsBankSeq.slice(stdPortIdx * stdIssBankNum, stdPortIdx * stdIssBankNum + stdIssBankNum)
-        val bankEns = res.bits.bankIdxOH.asBools.slice(stdPortIdx * stdIssBankNum, stdPortIdx * stdIssBankNum + stdIssBankNum).map(_ && res.fire)
-        val bankPayloadData = selectedBanks.map(_.io.stdIssueUop)
-        for ((b, en) <- selectedBanks.zip(bankEns)) {
-          b.io.stdIssue.valid := en
-          b.io.stdIssue.bits := res.bits.entryIdxOH
-        }
-        val selPayload = Mux1H(bankEns, bankPayloadData)
-        stdPortIdx = stdPortIdx + 1
-        (res, selPayload)
-      } else if (iss._2.isLdu) {
-        val res = lduSelectNetwork.io.issueInfo(lduPortIdx)
-        val selectedBanks = rsBankSeq.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum)
-        val bankEns = res.bits.bankIdxOH.asBools.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum).map(_ && res.fire)
-        val bankPayloadData = selectedBanks.map(_.io.lduIssueUop)
-        for ((b, en) <- selectedBanks.zip(bankEns)) {
-          b.io.lduIssue.valid := en
-          b.io.lduIssue.bits := res.bits.entryIdxOH
-        }
-        val selPayload = Mux1H(bankEns, bankPayloadData)
-
-        val replayPortSel = selectedBanks.map(_.io.loadReplay)
-        for ((rp, idx) <- replayPortSel.zipWithIndex) {
-          val fFast = iss._1.rsFeedback.feedbackFast
-          val fSlow = iss._1.rsFeedback.feedbackSlow
-          val faskBankIdxSel = fFast.bits.rsIdx.bankIdxOH.asBools.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum)
-          val fastFeedBackEn = fFast.valid && faskBankIdxSel(idx)
-//          rp(0).valid := RegNext(fastFeedBackEn, false.B)
-//          rp(0).bits.entryIdxOH := RegEnable(fFast.bits.rsIdx.entryIdxOH, fastFeedBackEn)
-//          rp(0).bits.waitVal := RegEnable(fFast.bits.sourceType, fastFeedBackEn)
-          rp(0).valid := fastFeedBackEn
-          rp(0).bits.entryIdxOH := fFast.bits.rsIdx.entryIdxOH
-          rp(0).bits.waitVal := fFast.bits.sourceType
-
-          val slowBankIdxSel = fSlow.bits.rsIdx.bankIdxOH.asBools.slice(lduPortIdx * lduIssBankNum, lduPortIdx * lduIssBankNum + lduIssBankNum)
-          val slowFeedBackEn = fSlow.valid && slowBankIdxSel(idx)
-//          rp(1).valid := RegNext(slowFeedBackEn, false.B)
-//          rp(1).bits.entryIdxOH := RegEnable(fSlow.bits.rsIdx.entryIdxOH, slowFeedBackEn)
-//          rp(1).bits.waitVal := RegEnable(fSlow.bits.sourceType, slowFeedBackEn)
-          rp(1).valid := slowFeedBackEn
-          rp(1).bits.entryIdxOH := fSlow.bits.rsIdx.entryIdxOH
-          rp(1).bits.waitVal := fSlow.bits.sourceType
-        }
-
-        val earlyWakeupQueue = Module(new WakeupQueue(3))
-        earlyWakeupQueue.io.in.valid := res.fire
-        earlyWakeupQueue.io.earlyWakeUpCancel := io.earlyWakeUpCancel
-        earlyWakeupQueue.io.in.bits.robPtr := res.bits.info.robPtr
-        earlyWakeupQueue.io.in.bits.lpv := res.bits.info.lpv
-        earlyWakeupQueue.io.in.bits.pdest := res.bits.info.pdest
-        earlyWakeupQueue.io.in.bits.destType := Mux(res.bits.info.fpWen, SrcType.fp, Mux(res.bits.info.rfWen, SrcType.reg, SrcType.default))
-        earlyWakeupQueue.io.redirect := io.redirect
-
-        earlyWakeupQueue.io.in.bits.lpv(lduPortIdx) := res.bits.info.lpv(lduPortIdx) | (1 << (LpvLength - 1)).U
-        io.loadEarlyWakeup(earlyWkpPortIdx).valid := earlyWakeupQueue.io.out.valid
-        io.loadEarlyWakeup(earlyWkpPortIdx).bits.robPtr := earlyWakeupQueue.io.out.bits.robPtr
-        io.loadEarlyWakeup(earlyWkpPortIdx).bits.pdest := earlyWakeupQueue.io.out.bits.pdest
-        io.loadEarlyWakeup(earlyWkpPortIdx).bits.destType := earlyWakeupQueue.io.out.bits.destType
-        io.loadEarlyWakeup(earlyWkpPortIdx).bits.lpv := earlyWakeupQueue.io.out.bits.lpv(lduPortIdx)
-
-        earlyWkpPortIdx = earlyWkpPortIdx + 1
-        lduPortIdx = lduPortIdx + 1
-        (res, selPayload)
-      } else {
-        require(false, "Unknown Exu complex!")
-        val res = Wire(Decoupled(new SelectResp(param.bankNum, entriesNumPerBank)))
-        val payload = Wire(new MicroOp)
-        res := DontCare
-        payload := DontCare
-        (res, payload)
+      val finalSelectInfo = selResp
+      val payload = WireInit(selPayload)
+      when(isStd){
+        payload.ctrl.srcType(0) := selPayload.ctrl.srcType(1)
+        payload.psrc(0) := selPayload.psrc(1)
       }
 
       val issueBundle = Wire(Valid(new MicroOp))
