@@ -34,7 +34,7 @@ import xiangshan.cache.mmu.BlockTlbRequestIO
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 
 case class ICacheParameters(
-    nSets: Int = 128,
+    nSets: Int = 256, //128,
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
@@ -50,7 +50,7 @@ case class ICacheParameters(
     blockBytes: Int = 64
 )extends L1CacheParameters {
 
-  val setBytes = nSets * blockBytes * 2
+  val setBytes = nSets * blockBytes  //* 2
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField(),
