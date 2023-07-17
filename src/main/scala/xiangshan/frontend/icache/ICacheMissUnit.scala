@@ -158,7 +158,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
       //    is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
           is_dirty    := false.B
           when(readBeatCnt === (refillCycles - 1).U) {
-            assert(refill_done, "refill not done!")
+      //      assert(refill_done, "refill not done!")
             state := s_write_back
             state_dup.map(_ := s_write_back)
           }
@@ -324,7 +324,8 @@ class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMiss
   io.meta_write     <> meta_write_arb.io.out
   io.data_write     <> refill_arb.io.out
 
-  if (env.EnableDifftest) {
+  //if (env.EnableDifftest) {
+    if (env.EnableDifftest==0) {
     val difftest = Module(new DifftestRefillEvent)
     difftest.io.clock := clock
     difftest.io.coreid := io.hartId

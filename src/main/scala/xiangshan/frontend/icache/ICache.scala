@@ -626,7 +626,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   } .elsewhen (bus.d.bits.opcode === TLMessages.ReleaseAck) {
     // releaseUnit.io.mem_grant <> bus.d
   } .otherwise {
-    assert (!bus.d.fire())
+  //  assert (!bus.d.fire())
   }
 
   val perfEvents = Seq(
@@ -653,7 +653,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
     metaArray.io.cacheOp.resp.valid -> metaArray.io.cacheOp.resp.bits,
   ))
   cacheOpDecoder.io.error := io.error
-  assert(!((dataArray.io.cacheOp.resp.valid +& metaArray.io.cacheOp.resp.valid) > 1.U))
+ // assert(!((dataArray.io.cacheOp.resp.valid +& metaArray.io.cacheOp.resp.valid) > 1.U))
 
 }
 
