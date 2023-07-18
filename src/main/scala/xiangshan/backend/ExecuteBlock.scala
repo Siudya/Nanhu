@@ -61,7 +61,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
   floatingReservationStation.wakeupNode := writebackNetwork.node
   integerReservationStation.wakeupNode := writebackNetwork.node
   memoryReservationStation.wakeupNode := writebackNetwork.node
-  lazy val module = new LazyModuleImp(this) with HasSoCParameter with HasPerfEvents{
+  lazy val module = new LazyModuleImp(this) with HasSoCParameter{
     val io = IO(new Bundle {
       val hartId = Input(UInt(64.W))
       //Mem Block
@@ -183,13 +183,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     io.redirectOut := writeback.io.redirectOut
     io.memPredUpdate := writeback.io.memPredUpdate
 
-    private val pfevent = Module(new PFEvent)
-    pfevent.io.distribute_csr := intBlk.io.csrio.customCtrl.distribute_csr.delay()
-    private val csrevents = pfevent.io.hpmevent.slice(16,24)
-
-    private val perfFromUnits = Seq(memBlk).flatMap(_.getPerfEvents)
-    private val allPerfInc = perfFromUnits.map(_._2.asTypeOf(new PerfEvent))
-    val perfEvents: Seq[(String, UInt)] = HPerfMonitor(csrevents, allPerfInc).getPerfEvents
+    intBlk.io.csrio.perf.perfEventsLsu <> memBlk.getPerf
 
     private val resetTree = ResetGenNode(
       Seq(
