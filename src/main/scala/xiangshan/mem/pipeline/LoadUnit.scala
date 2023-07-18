@@ -783,10 +783,6 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.ldout.bits := s3_load_wb_meta_reg
 //  io.ldout.bits.data := Mux(RegNext(hitLoadOut.valid), s3_rdataPartialLoadDcache, s3_rdataPartialLoadLQ)
   io.ldout.bits.data := s3_rdataPartialLoad
-<<<<<<< HEAD
-  private val pipelineOutputValidReg = RegNext(hitLoadOut.valid, false.B)
-=======
->>>>>>> 12cfcce1bf50f4ac6945b9165c0735a7f466382c
   private val lsqOutputValidReg = RegNext(io.lsq.ldout.valid && (!io.lsq.ldout.bits.uop.robIdx.needFlush(io.redirect)),false.B)
   private val writebackShouldBeFlushed = s3_load_wb_meta_reg.uop.robIdx.needFlush(io.redirect)
   io.ldout.valid := (!writebackShouldBeFlushed) && (hitLoadOutValidReg || lsqOutputValidReg)
