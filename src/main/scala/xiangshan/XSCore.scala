@@ -146,12 +146,10 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   csrioIn.perf := DontCare
   csrioIn.perf.retiredInstr := ctrlBlock.io.robio.toCSR.perfinfo.retiredInstr
   csrioIn.perf.ctrlInfo := ctrlBlock.io.perfInfo.ctrlInfo
-  csrioIn.perf.memInfo := exuBlock.io.memInfo
   csrioIn.perf.frontendInfo := frontend.io.frontendInfo
 
   csrioIn.perf.perfEventsFrontend := frontend.getPerf
   csrioIn.perf.perfEventsCtrl     := ctrlBlock.getPerf
-  csrioIn.perf.perfEventsLsu      := exuBlock.getPerf
   csrioIn.perf.perfEventsHc       := io.perfEvents
 
   csrioIn.fpu.fflags := ctrlBlock.io.robio.toCSR.fflags

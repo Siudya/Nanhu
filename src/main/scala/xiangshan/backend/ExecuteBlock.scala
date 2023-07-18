@@ -74,12 +74,6 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
       val ptw = new BTlbPtwIO(ld_tlb_ports + exuParameters.StuCnt)
       val rob = Flipped(new RobLsqIO) // rob to lsq
 
-      val memInfo = new Bundle {
-        val sqFull = Output(Bool())
-        val lqFull = Output(Bool())
-        val dcacheMSHRFull = Output(Bool())
-      }
-
       //Rename
       val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
       val floatingAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
@@ -143,7 +137,6 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     memBlk.io.tlbCsr <> intBlk.io.csrio.tlb
 
     memBlk.io.perfEventsPTW := io.perfEventsPTW
-    io.memInfo := memBlk.io.memInfo
     io.ptw <> memBlk.io.ptw
     io.l1Error := memBlk.io.error
     io.lqCancelCnt := memBlk.io.lqCancelCnt
@@ -183,7 +176,8 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     io.redirectOut := writeback.io.redirectOut
     io.memPredUpdate := writeback.io.memPredUpdate
 
-    intBlk.io.csrio.perf.perfEventsLsu <> memBlk.getPerf
+    intBlk.io.csrio.perf.perfEventsLsu := memBlk.getPerf
+    intBlk.io.csrio.perf.memInfo := memBlk.io.memInfo
 
     private val resetTree = ResetGenNode(
       Seq(
