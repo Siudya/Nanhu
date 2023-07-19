@@ -27,7 +27,7 @@ import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.{BundleFieldBase, UIntToOH1}
 import device.RAMHelper
 import xs.utils._
-import huancun.{AliasField, AliasKey, DirtyField, PreferCacheField, PrefetchField}
+import coupledL2.{AliasField, AliasKey, DirtyField, PrefetchField}
 import huancun.utils.FastArbiter
 import mem.AddPipelineReg
 import xiangshan.backend.rob.RobPtr
@@ -58,8 +58,7 @@ case class DCacheParameters
   val setBytes = nSets * blockBytes
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
-    PrefetchField(),
-    PreferCacheField()
+    PrefetchField()
   ) ++ aliasBitsOpt.map(AliasField)
   val echoFields: Seq[BundleFieldBase] = Seq(DirtyField())
 

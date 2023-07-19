@@ -21,7 +21,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tile.HasFPUParameters
-import huancun.PrefetchRecv
+import coupledL2.PrefetchRecv
 import utils._
 import xiangshan._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputNode, ExuType}
@@ -120,9 +120,10 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
 
   val dcache = LazyModule(new DCacheWrapper(parentName = parentName + "dcache_"))
   val uncache = LazyModule(new Uncache())
-  val pf_sender_opt = coreParams.prefetcher.map(_ =>
-    BundleBridgeSource(() => new PrefetchRecv)
-  )
+  val pf_sender_opt = coreParams.prefetcher.get match  {
+    case receive : SMSParams => Some(BundleBridgeSource(() => new PrefetchRecv))
+    case _ => None
+  }
 
   lazy val module = new MemBlockImp(this)
 
@@ -215,23 +216,38 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   private val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit))
   private val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
   private val stData = stdUnits.map(_.io.out)
-  val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher.map {
-    case _: SMSParams =>
+  val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher.get match {
+    case sms_sender: SMSParams =>
       val sms = Module(new SMSPrefetcher(parentName = outer.parentName + "sms_"))
       sms.io_agt_en := RegNextN(io.csrCtrl.l1D_pf_enable_agt, 2, Some(false.B))
       sms.io_pht_en := RegNextN(io.csrCtrl.l1D_pf_enable_pht, 2, Some(false.B))
       sms.io_act_threshold := RegNextN(io.csrCtrl.l1D_pf_active_threshold, 2, Some(12.U))
       sms.io_act_stride := RegNextN(io.csrCtrl.l1D_pf_active_stride, 2, Some(30.U))
       sms.io_stride_en := RegNextN(io.csrCtrl.l1D_pf_enable_stride, 2, Some(true.B))
-      sms
+      Some(sms)
+    // case sms_sender_hyper : HyperPrefetchParams =>
+    //   val sms = Module(new SMSPrefetcher(parentName = outer.parentName + "sms_"))
+    //   sms.io_agt_en := RegNextN(io.csrCtrl.l1D_pf_enable_agt, 2, Some(false.B))
+    //   sms.io_pht_en := RegNextN(io.csrCtrl.l1D_pf_enable_pht, 2, Some(false.B))
+    //   sms.io_act_threshold := RegNextN(io.csrCtrl.l1D_pf_active_threshold, 2, Some(12.U))
+    //   sms.io_act_stride := RegNextN(io.csrCtrl.l1D_pf_active_stride, 2, Some(30.U))
+    //   sms.io_stride_en := RegNextN(io.csrCtrl.l1D_pf_enable_stride, 2, Some(true.B))
+    //   Some(sms)
+    case _ => None
   }
-  prefetcherOpt.foreach(pf => {
-    val pf_to_l2 = Pipe(pf.io.pf_addr, 2)
-    outer.pf_sender_opt.get.out.head._1.addr_valid := pf_to_l2.valid
-    outer.pf_sender_opt.get.out.head._1.addr := pf_to_l2.bits
-    outer.pf_sender_opt.get.out.head._1.l2_pf_en := RegNextN(io.csrCtrl.l2_pf_enable, 2, Some(true.B))
-    pf.io.enable := RegNextN(io.csrCtrl.l1D_pf_enable, 2, Some(false.B))
-  })
+  prefetcherOpt match {
+    case Some(sms) => // memblock can only have sms or not
+      outer.pf_sender_opt match{
+        case Some(sender) =>
+        val pf_to_l2 = Pipe(sms.io.pf_addr, 2)
+        sender.out.head._1.addr_valid := pf_to_l2.valid
+        sender.out.head._1.addr := pf_to_l2.bits
+        sender.out.head._1.l2_pf_en := RegNextN(io.csrCtrl.l2_pf_enable, 2, Some(true.B))
+        sms.io.enable := RegNextN(io.csrCtrl.l1D_pf_enable, 2, Some(false.B))
+        case None => sms.io.enable := false.B
+      }
+    case None =>
+  }
   private val pf_train_on_hit = RegNextN(io.csrCtrl.l1D_pf_train_on_hit, 2, Some(true.B))
 
   loadUnits.zipWithIndex.map(x => x._1.suggestName("LoadUnit_"+x._2))
