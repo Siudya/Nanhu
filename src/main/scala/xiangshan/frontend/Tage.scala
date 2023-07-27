@@ -54,12 +54,14 @@ trait TageParams extends HasBPUConst with HasXSParameter {
 
   def unconf(ctr: UInt) = posUnconf(ctr) || negUnconf(ctr)
 
-  val unshuffleBitWidth = log2Ceil(numBr)
-  def get_unshuffle_bits(idx: UInt) = idx(unshuffleBitWidth-1, 0)
+  // val unshuffleBitWidth = log2Ceil(numBr)
+  // def get_unshuffle_bits(idx: UInt) = idx(unshuffleBitWidth-1, 0)
   // xor hashes are reversable
-  def get_phy_br_idx(unhashed_idx: UInt, br_lidx: Int)  = get_unshuffle_bits(unhashed_idx) ^ br_lidx.U(log2Ceil(numBr).W)
-  def get_lgc_br_idx(unhashed_idx: UInt, br_pidx: UInt) = get_unshuffle_bits(unhashed_idx) ^ br_pidx
+  // def get_phy_br_idx(unhashed_idx: UInt, br_lidx: Int)  = get_unshuffle_bits(unhashed_idx) ^ br_lidx.U(log2Ceil(numBr).W)
+  // def get_lgc_br_idx(unhashed_idx: UInt, br_pidx: UInt) = get_unshuffle_bits(unhashed_idx) ^ br_pidx
 
+  def get_phy_br_idx(unhashed_idx: UInt, br_lidx: Int)  = 0.U
+  def get_lgc_br_idx(unhashed_idx: UInt, br_pidx: UInt) = 0.U
 }
 
 trait HasFoldedHistory {
@@ -198,7 +200,8 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
 
   val oldCtrs =
     VecInit((0 until numBr).map(pi => {
-      val br_lidx = get_lgc_br_idx(u_idx, pi.U(log2Ceil(numBr).W))
+      // val br_lidx = get_lgc_br_idx(u_idx, pi.U(log2Ceil(numBr).W))
+      val br_lidx = get_lgc_br_idx(u_idx, pi.U(1.W))
       Mux(wrbypass.io.hit && wrbypass.io.hit_data(br_lidx).valid,
         wrbypass.io.hit_data(br_lidx).bits,
         io.update_cnt(br_lidx))
@@ -214,7 +217,8 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
 
   val newTakens = io.update_takens
   newCtrs := VecInit((0 until numBr).map(pi => {
-    val br_lidx = get_lgc_br_idx(u_idx, pi.U(log2Ceil(numBr).W))
+    // val br_lidx = get_lgc_br_idx(u_idx, pi.U(log2Ceil(numBr).W))
+    val br_lidx = get_lgc_br_idx(u_idx, pi.U(1.W))
     satUpdate(oldCtrs(pi), 2, newTakens(br_lidx))
   }))
 
@@ -449,7 +453,8 @@ class TageTable
     val not_silent_update = per_bank_not_silent_update(b)
     for (pi <- 0 until numBr) { // physical brIdx 
       val update_wdata = per_bank_update_wdata(b)(pi)
-      val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(log2Ceil(numBr).W))
+      // val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(log2Ceil(numBr).W))
+      val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(1.W))
       // this 
       val wrbypass_io = Mux1H(UIntToOH(br_lidx, numBr), bank_wrbypasses(b).map(_.io))
       val wrbypass_hit = wrbypass_io.hit
@@ -506,9 +511,9 @@ class TageTable
     for (i <- 0 until numBr) {
       val li = i
       val pidx = get_phy_br_idx(update_unhashed_idx, li)
-      XSPerfAccumulate(f"tage_table_bank_${b}_br_li_${li}_updated", table_banks(b).io.w.req.valid && table_banks(b).io.w.req.bits.waymask.get(pidx))
+      //XSPerfAccumulate(f"tage_table_bank_${b}_br_li_${li}_updated", table_banks(b).io.w.req.valid && table_banks(b).io.w.req.bits.waymask.get(pidx))
       val pi = i
-      XSPerfAccumulate(f"tage_table_bank_${b}_br_pi_${pi}_updated", table_banks(b).io.w.req.valid && table_banks(b).io.w.req.bits.waymask.get(pi))
+      //XSPerfAccumulate(f"tage_table_bank_${b}_br_pi_${pi}_updated", table_banks(b).io.w.req.valid && table_banks(b).io.w.req.bits.waymask.get(pi))
     }
   }
 

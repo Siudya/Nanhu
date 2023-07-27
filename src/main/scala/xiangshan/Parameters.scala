@@ -100,7 +100,7 @@ case class XSCoreParameters
   SCNTables: Int = 4,
   SCCtrBits: Int = 6,
   SCHistLens: Seq[Int] = Seq(0, 4, 10, 16),
-  numBr: Int = 2,
+  numBr: Int = 1,
   branchPredictor: Function3[BranchPredictionResp, Parameters, String, Tuple2[Seq[BasePredictor], BranchPredictionResp]] =
     ((resp_in: BranchPredictionResp, p: Parameters, parentName:String) => {
       val ftb = Module(new FTB(parentName = parentName + "ftb_")(p))

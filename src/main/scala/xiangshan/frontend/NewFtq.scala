@@ -314,16 +314,17 @@ class FTBEntryGen(implicit p: Parameters) extends XSModule with HasBPUParameter 
     }.elsewhen (new_br_offset > oe.allSlotsForBr(i).offset) {
       old_entry_modified.always_taken(i) := false.B
       // all other fields remain unchanged
-    }.otherwise {
-      // case i == 0, remain unchanged
-      if (i != 0) {
-        val noNeedToMoveFromFormerSlot = (i == numBr-1).B && !oe.brSlots.last.valid
-        when (!noNeedToMoveFromFormerSlot) {
-          slot.fromAnotherSlot(oe.allSlotsForBr(i-1))
-          old_entry_modified.always_taken(i) := oe.always_taken(i)
-        }
-      }
     }
+    // .otherwise {
+    //   // case i == 0, remain unchanged
+    //   if (i != 0) {
+    //     val noNeedToMoveFromFormerSlot = (i == numBr-1).B && !oe.brSlots.last.valid
+    //     when (!noNeedToMoveFromFormerSlot) {
+    //       slot.fromAnotherSlot(oe.allSlotsForBr(i-1))
+    //       old_entry_modified.always_taken(i) := oe.always_taken(i)
+    //     }
+    //   }
+    // }
   }
 
   // two circumstances:
@@ -822,15 +823,15 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   when (RegNext(hit_pd_valid)) {
     // check for false hit
     val pred_ftb_entry = ftb_entry_mem.io.rdata.head
-    val brSlots = pred_ftb_entry.brSlots
+    // val brSlots = pred_ftb_entry.brSlots
     val tailSlot = pred_ftb_entry.tailSlot
     // we check cfis that bpu predicted
 
     // bpu predicted branches but denied by predecode
     val br_false_hit =
-      brSlots.map{
-        s => s.valid && !(pd_reg(s.offset).valid && pd_reg(s.offset).isBr)
-      }.reduce(_||_) ||
+      // brSlots.map{
+      //   s => s.valid && !(pd_reg(s.offset).valid && pd_reg(s.offset).isBr)
+      // }.reduce(_||_) ||
       (tailSlot.valid && pred_ftb_entry.tailSlot.sharing &&
         !(pd_reg(tailSlot.offset).valid && pd_reg(tailSlot.offset).isBr))
 

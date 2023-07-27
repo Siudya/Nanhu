@@ -405,7 +405,7 @@ trait BasicPrediction extends HasXSParameter {
 class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUConst with BasicPrediction {
   val br_taken_mask = Vec(numBr, Bool())
 
-  val slot_valids = Vec(totalSlot, Bool())
+  val slot_valids = Bool()
 
   val targets = Vec(totalSlot, UInt(VAddrBits.W))
   val jalr_target = UInt(VAddrBits.W) // special path for indirect predictors
@@ -423,16 +423,18 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
   // val call_is_rvc = Bool()
   val hit = Bool()
 
-  def br_slot_valids = slot_valids.init
-  def tail_slot_valid = slot_valids.last
-
+  // def br_slot_valids = slot_valids.init
+  // def tail_slot_valid = slot_valids.last
+  def tail_slot_valid = slot_valids
   def br_valids = {
-    VecInit(br_slot_valids :+ (tail_slot_valid && is_br_sharing))
+    //VecInit(br_slot_valids :+ (tail_slot_valid && is_br_sharing))
+    VecInit(tail_slot_valid && is_br_sharing)
   }
 
   def taken_mask_on_slot = {
     VecInit(
-      (br_slot_valids zip br_taken_mask.init).map{ case (t, v) => t && v } :+ (
+      //(br_slot_valids zip br_taken_mask.init).map{ case (t, v) => t && v } :+ 
+      (
         tail_slot_valid && (
           is_br_sharing && br_taken_mask.last || !is_br_sharing
         )
@@ -481,7 +483,7 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
   def fallThruError: Bool = hit && fallThroughErr
 
   def hit_taken_on_jmp = 
-    !real_slot_taken_mask().init.reduce(_||_) &&
+    //!real_slot_taken_mask().init.reduce(_||_) &&
     real_slot_taken_mask().last && !is_br_sharing
   def hit_taken_on_call = hit_taken_on_jmp && is_call
   def hit_taken_on_ret  = hit_taken_on_jmp && is_ret
@@ -497,10 +499,12 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
     cfiIndex
   }
 
-  def taken = br_taken_mask.reduce(_||_) || slot_valids.last // || (is_jal || is_jalr)
+  // def taken = br_taken_mask.reduce(_||_) || slot_valids.last // || (is_jal || is_jalr)
+  def taken = br_taken_mask.reduce(_||_) || slot_valids// || (is_jal || is_jalr)
 
   def fromFtbEntry(entry: FTBEntry, pc: UInt, last_stage: Option[Tuple2[UInt, Bool]] = None) = {
-    slot_valids := entry.brSlots.map(_.valid) :+ entry.tailSlot.valid
+    // slot_valids := entry.brSlots.map(_.valid) :+ entry.tailSlot.valid
+    slot_valids := entry.tailSlot.valid
     targets := entry.getTargetVec(pc)
     jalr_target := targets.last
     offsets := entry.getOffsetVec

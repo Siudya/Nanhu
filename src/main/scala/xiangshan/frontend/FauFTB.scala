@@ -25,7 +25,7 @@ import xiangshan._
 import scala.{Tuple2 => &}
 
 trait FauFTBParams extends HasXSParameter with HasBPUConst {
-  val numWays = 32
+  val numWays = 64
   val tagSize = 16
 
   val numDup_local = 2

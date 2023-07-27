@@ -152,7 +152,8 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:Str
   val wrbypasses = Seq.fill(numBr)(Module(new WrBypass(SInt(ctrBits.W), wrBypassEntries, log2Ceil(nRows), numWays=2)))
 
   for (pi <- 0 until numBr) {
-    val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(log2Ceil(numBr).W))
+    // val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(log2Ceil(numBr).W))
+    val br_lidx = get_lgc_br_idx(update_unhashed_idx, pi.U(1.W))
 
     val wrbypass_io = Mux1H(UIntToOH(br_lidx, numBr), wrbypasses.map(_.io))
 

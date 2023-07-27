@@ -128,7 +128,7 @@ class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUU
   
   val valid       = Bool()
 
-  val brSlots = Vec(numBrSlot, new FtbSlot(BR_OFFSET_LEN))
+  // val brSlots = Vec(numBrSlot, new FtbSlot(BR_OFFSET_LEN))
 
   val tailSlot = new FtbSlot(JMP_OFFSET_LEN, Some(BR_OFFSET_LEN))
 
@@ -145,11 +145,12 @@ class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUU
   val always_taken = Vec(numBr, Bool())
 
   def getSlotForBr(idx: Int): FtbSlot = {
-    require(idx <= numBr-1)
-    (idx, numBr) match {
-      case (i, n) if i == n-1 => this.tailSlot
-      case _ => this.brSlots(idx)
-    }
+    // require(idx <= numBr-1)
+    // (idx, numBr) match {
+    //   case (i, n) if i == n-1 => this.tailSlot
+    //   case _ => this.brSlots(idx)
+    // }
+    this.tailSlot
   }
   def allSlotsForBr = {
     (0 until numBr).map(getSlotForBr(_))
@@ -163,23 +164,25 @@ class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUU
   }
 
   def getTargetVec(pc: UInt, last_stage: Option[Tuple2[UInt, Bool]] = None) = {
-    VecInit((brSlots :+ tailSlot).map(_.getTarget(pc, last_stage)))
+    // VecInit((brSlots :+ tailSlot).map(_.getTarget(pc, last_stage)))
+    VecInit((tailSlot).getTarget(pc, last_stage))
   }
 
-  def getOffsetVec = VecInit(brSlots.map(_.offset) :+ tailSlot.offset)
+  // def getOffsetVec = VecInit(brSlots.map(_.offset) :+ tailSlot.offset)
+  def getOffsetVec = VecInit(tailSlot.offset)
   def isJal = !isJalr
   def getFallThrough(pc: UInt) = getFallThroughAddr(pc, carry, pftAddr)
   def hasBr(offset: UInt) =
-    brSlots.map{ s => s.valid && s.offset <= offset}.reduce(_||_) ||
+    //brSlots.map{ s => s.valid && s.offset <= offset}.reduce(_||_) ||
     (tailSlot.valid && tailSlot.offset <= offset && tailSlot.sharing)
 
   def getBrMaskByOffset(offset: UInt) =
-    brSlots.map{ s => s.valid && s.offset <= offset } :+
+    //brSlots.map{ s => s.valid && s.offset <= offset } :+
     (tailSlot.valid && tailSlot.offset <= offset && tailSlot.sharing)
     
   def getBrRecordedVec(offset: UInt) = {
     VecInit(
-      brSlots.map(s => s.valid && s.offset === offset) :+
+      //brSlots.map(s => s.valid && s.offset === offset) :+
       (tailSlot.valid && tailSlot.offset === offset && tailSlot.sharing)
     )
   }
@@ -188,12 +191,14 @@ class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUU
 
   def brValids = {
     VecInit(
-      brSlots.map(_.valid) :+ (tailSlot.valid && tailSlot.sharing)
+      //brSlots.map(_.valid) :+ (tailSlot.valid && tailSlot.sharing)
+      (tailSlot.valid && tailSlot.sharing)
     )
   }
 
   def noEmptySlotForNewBr = {
-    VecInit(brSlots.map(_.valid) :+ tailSlot.valid).reduce(_&&_)
+    // VecInit(brSlots.map(_.valid) :+ tailSlot.valid).reduce(_&&_)
+    VecInit(tailSlot.valid).reduce(_&&_)
   }
 
   def newBrCanNotInsert(offset: UInt) = {
@@ -206,7 +211,8 @@ class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUU
   }
 
   def brOffset = {
-    VecInit(brSlots.map(_.offset) :+ tailSlot.offset)
+    // VecInit(brSlots.map(_.offset) :+ tailSlot.offset)
+      VecInit(tailSlot.offset)
   }
 
   def display(cond: Bool): Unit = {
