@@ -774,15 +774,47 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
     assert (!bus.d.fire())
   }
 
+
+  class DCachePLRUWrapper(reqWidth: Int = 3, nSets: Int, nWays: Int) extends Module {
+    val io = IO(new Bundle() {
+      val req_set = Input(Vec(reqWidth, Valid(UInt(log2Up(nSets).W))))
+      val req_way = Output(Vec(reqWidth, UInt(log2Up(nWays).W)))
+
+      val touch_sets = Input(Vec(reqWidth, UInt(log2Up(nSets).W)))
+      val touch_ways = Input(Vec(reqWidth, Valid(UInt(log2Up(nWays).W))))
+    })
+    val replacer = ReplacementPolicy.fromString(cacheParams.replacer, nWays, nSets)
+
+    println("DCcachePLRUWrapper:")
+    println("nWays = " + nWays)
+    println("nSets = " + nSets)
+
+    (0 until reqWidth).foreach {
+      case i => {
+        io.req_way(i) := DontCare
+        when(io.req_set(i).valid) {
+          io.req_way(i) := replacer.way(io.req_set(i).bits)
+        }
+      }
+    }
+    replacer.access(io.touch_sets, io.touch_ways)
+  }
+
+
   //----------------------------------------
   // replacement algorithm
-  val replacer = ReplacementPolicy.fromString(cacheParams.replacer, nWays, nSets)
-
+  val replacer = Module(new DCachePLRUWrapper(3, nSets, nWays))
+  replacer.suggestName("DCcachePLURWrapper_0")
   val replWayReqs = ldu.map(_.io.replace_way) ++ Seq(mainPipe.io.replace_way)
-  replWayReqs.foreach{
-    case req =>
+
+  replWayReqs.zipWithIndex.foreach {
+    case (req, i) => {
       req.way := DontCare
-      when (req.set.valid) { req.way := replacer.way(req.set.bits) }
+      replacer.io.req_set(i) := req.set
+      when(req.set.valid) {
+        req.way := replacer.io.req_way(i)
+      }
+    }
   }
 
   val replAccessReqs = ldu.map(_.io.replace_access) ++ Seq(
@@ -795,7 +827,10 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
       w.bits := req.bits.way
   }
   val touchSets = replAccessReqs.map(_.bits.set)
-  replacer.access(touchSets, touchWays)
+  replacer.io.touch_sets := touchSets
+  replacer.io.touch_ways := touchWays
+  assert(replacer.io.touch_sets.length == touchSets.length)
+  assert(replacer.io.touch_ways.length == touchWays.length)
 
   //----------------------------------------
   // assertions
