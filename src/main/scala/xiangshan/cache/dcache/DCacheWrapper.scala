@@ -333,8 +333,9 @@ class DCacheWordResp(implicit p: Parameters) extends BaseDCacheWordResp
 
 class BankedDCacheWordResp(implicit p: Parameters) extends DCacheWordResp
 {
-  val bank_data = Vec(DCacheBanks, Bits(DCacheSRAMRowBits.W))
-  val bank_oh = UInt(DCacheBanks.W)
+//  val bank_data = Vec(DCacheBanks, Bits(DCacheSRAMRowBits.W))
+//  val bank_oh = UInt(DCacheBanks.W)
+  val load_data = UInt(DCacheSRAMRowBits.W)
 }
 
 class DCacheWordRespWithError(implicit p: Parameters) extends BaseDCacheWordResp

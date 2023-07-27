@@ -266,8 +266,9 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   val resp = Wire(ValidIO(new BankedDCacheWordResp))
   resp.valid := s2_valid
   resp.bits := DontCare
-  resp.bits.bank_data := VecInit(banked_data_resp.map(i => i.raw_data))
-  resp.bits.bank_oh := s2_bank_oh
+  resp.bits.load_data := Mux1H(s2_bank_oh,VecInit(banked_data_resp.map(i => i.raw_data)))
+//  resp.bits.bank_data := VecInit(banked_data_resp.map(i => i.raw_data))
+//  resp.bits.bank_oh := s2_bank_oh
   // * on miss or nack, upper level should replay request
   // but if we successfully sent the request to miss queue
   // upper level does not need to replay request
