@@ -62,12 +62,24 @@ class SQVPAddrModule( CommonNumRead : Int, CommonNumWrite : Int, numEntries : In
     val debug_data_p = Output(Vec(numEntries, UInt(PAddrWidth.W)))
   })
 
-  val data_vaddr = Reg(Vec(numEntries, UInt(VAddrWidth.W)))
-  val data_paddr = Reg(Vec(numEntries, UInt(PAddrWidth.W)))
+
+  val offset = 12
+  val data_vaddr = Reg(Vec(numEntries, UInt((VAddrWidth - offset).W)))
+  val data_paddr = Reg(Vec(numEntries, UInt((PAddrWidth - offset).W)))
+  val data_offset = Reg(Vec(numEntries, UInt(offset.W)))
   val data_lineflag_v_p_addr = Reg(Vec(numEntries, Bool())) // cache line match flag
 
-  io.debug_data_v := data_vaddr
-  io.debug_data_p := data_paddr
+
+  val data_vaddr_cat = Wire(Vec(numEntries, UInt(VAddrWidth.W)))
+  val data_paddr_cat = Wire(Vec(numEntries, UInt(PAddrWidth.W)))
+  (0 until numEntries).foreach({ case i =>
+    data_vaddr_cat(i) := Cat(data_vaddr(i), data_offset(i))
+    data_paddr_cat(i) := Cat(data_paddr(i), data_offset(i))
+  })
+
+  io.debug_data_v := data_vaddr_cat
+  io.debug_data_p := data_paddr_cat
+
   //s0
   val raddr = io.raddr
   val raddr_ext_v = io.raddr_ext_v
@@ -76,20 +88,26 @@ class SQVPAddrModule( CommonNumRead : Int, CommonNumWrite : Int, numEntries : In
   val raddr_ext_v_s1 = RegNext(raddr_ext_v)
 
   (0 until CommonNumRead).foreach({ i =>
-    io.rdata_p(i) := data_paddr(raddr_s1(i))
+    //    io.rdata_p(i) := data_paddr(raddr_s1(i))
+    io.rdata_p(i) := Cat(data_paddr(raddr_s1(i)), data_offset(raddr_s1(i)))
 
-    io.rdata_v(i) := data_vaddr(raddr_s1(i))
+    //    io.rdata_v(i) := data_vaddr(raddr_s1(i))
+    io.rdata_v(i) := Cat(data_vaddr(raddr_s1(i)), data_offset(raddr_s1(i)))
 
     io.rlineflag_v_p(i) := data_lineflag_v_p_addr(raddr_s1(i))
   })
 
   //specialized //todo
-  io.rdata_ext_v(0) := data_vaddr(raddr_ext_v_s1(0))
+  io.rdata_ext_v(0) := Cat(data_vaddr(raddr_ext_v_s1(0)), data_offset(raddr_ext_v_s1(0)))
 
   (0 until CommonNumWrite).foreach({ i =>
-    when(io.wen(i)){
-      data_vaddr(io.waddr(i)) := io.wdata_v(i)
-      data_paddr(io.waddr(i)) := io.wdata_p(i)
+    when(io.wen(i)) {
+      data_vaddr(io.waddr(i)) := io.wdata_v(i)(VAddrWidth - 1, offset)
+      data_paddr(io.waddr(i)) := io.wdata_p(i)(PAddrWidth - 1, offset)
+
+      assert(io.wdata_p(i)(offset - 1, 0) === io.wdata_v(i)(offset - 1, 0))
+
+      data_offset(io.waddr(i)) := io.wdata_v(i)(offset - 1, 0)
 
       data_lineflag_v_p_addr(io.waddr(i)) := io.wlineflag(i)
     }
@@ -99,15 +117,29 @@ class SQVPAddrModule( CommonNumRead : Int, CommonNumWrite : Int, numEntries : In
   for (i <- 0 until NumForward) {
     for (j <- 0 until numEntries) {
       //vaddr
-      val linehit_v = io.forwardMdata_v(i)(VAddrWidth - 1, DCacheLineOffset) === data_vaddr(j)(VAddrWidth - 1, DCacheLineOffset)
-      val wordhit_v = io.forwardMdata_v(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_vaddr(j)(DCacheLineOffset - 1, DCacheWordOffset)
+      val linehit_v = io.forwardMdata_v(i)(VAddrWidth - 1, DCacheLineOffset) === data_vaddr_cat(j)(VAddrWidth - 1, DCacheLineOffset)
+      val wordhit_v = io.forwardMdata_v(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_vaddr_cat(j)(DCacheLineOffset - 1, DCacheWordOffset)
       io.forwardMmask_v(i)(j) := linehit_v && (wordhit_v || data_lineflag_v_p_addr(j))
       //paddr
-      val linehit_p = io.forwardMdata_p(i)(PAddrWidth - 1, DCacheLineOffset) === data_paddr(j)(PAddrWidth - 1, DCacheLineOffset)
-      val wordhit_p = io.forwardMdata_p(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_paddr(j)(DCacheLineOffset - 1, DCacheWordOffset)
+      val linehit_p = io.forwardMdata_p(i)(PAddrWidth - 1, DCacheLineOffset) === data_paddr_cat(j)(PAddrWidth - 1, DCacheLineOffset)
+      val wordhit_p = io.forwardMdata_p(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_paddr_cat(j)(DCacheLineOffset - 1, DCacheWordOffset)
       io.forwardMmask_p(i)(j) := linehit_p && (wordhit_p || data_lineflag_v_p_addr(j))
     }
   }
+
+//  // content addressed match
+//  for (i <- 0 until NumForward) {
+//    for (j <- 0 until numEntries) {
+//      //vaddr
+//      val linehit_v = io.forwardMdata_v(i)(VAddrWidth - 1, DCacheLineOffset) === data_vaddr(j)(VAddrWidth - 1, DCacheLineOffset)
+//      val wordhit_v = io.forwardMdata_v(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_vaddr(j)(DCacheLineOffset - 1, DCacheWordOffset)
+//      io.forwardMmask_v(i)(j) := linehit_v && (wordhit_v || data_lineflag_v_p_addr(j))
+//      //paddr
+//      val linehit_p = io.forwardMdata_p(i)(PAddrWidth - 1, DCacheLineOffset) === data_paddr(j)(PAddrWidth - 1, DCacheLineOffset)
+//      val wordhit_p = io.forwardMdata_p(i)(DCacheLineOffset - 1, DCacheWordOffset) === data_paddr(j)(DCacheLineOffset - 1, DCacheWordOffset)
+//      io.forwardMmask_p(i)(j) := linehit_p && (wordhit_p || data_lineflag_v_p_addr(j))
+//    }
+//  }
 
 
   // DataModuleTemplate should not be used when there're any write conflicts
