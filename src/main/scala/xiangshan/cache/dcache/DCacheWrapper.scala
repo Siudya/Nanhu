@@ -493,7 +493,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val bankedDataArray = Module(new BankedDataArray(parentName = outer.parentName + "bankedDataArray_"))
   val metaArray = Module(new AsynchronousMetaArray(readPorts = 3, writePorts = 2))
   val errorArray = Module(new ErrorArray(readPorts = 3, writePorts = 2)) // TODO: add it to meta array
-  val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
+  val tagArray = Module(new DuplicatedTagArrayReg(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(3,s"${outer.parentName}_mbistPipe")))
   } else {
