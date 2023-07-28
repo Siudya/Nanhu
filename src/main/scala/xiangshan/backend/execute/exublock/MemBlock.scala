@@ -598,7 +598,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // delay dcache refill for 1 cycle for better timing
   // TODO: remove RegNext after fixing refill paddr timing
   // lsq.io.dcache         <> dcache.io.lsu.lsq
-  lsq.io.dcache         := RegNext(dcache.io.lsu.lsq)
+//  lsq.io.dcache         := RegNext(dcache.io.lsu.lsq)
+  lsq.io.dcache.valid := RegNext(dcache.io.lsu.lsq.valid)
+  lsq.io.dcache.bits := RegEnable(dcache.io.lsu.lsq.bits,dcache.io.lsu.lsq.valid)
   lsq.io.release        := dcache.io.lsu.release
   lsq.io.lqCancelCnt <> io.lqCancelCnt
   lsq.io.sqCancelCnt <> io.sqCancelCnt

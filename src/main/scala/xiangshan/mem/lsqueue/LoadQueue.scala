@@ -152,8 +152,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val commitCount = RegNext(io.rob.lcommit)
 
   val release1cycle = io.release
-  val release2cycle = RegNext(io.release)
-  val release2cycle_dup_lsu = RegNext(io.release)
+  val release2cycle_valid = RegNext(io.release.valid)
+  val release2cycle_paddr = RegEnable(io.release.bits.paddr, io.release.valid)
+  val release2cycle_paddr_dup_lsu = RegEnable(io.release.bits.paddr, io.release.valid)
 
   /**
     * Enqueue at dispatch
@@ -184,9 +185,21 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   }
   XSDebug(p"(ready, valid): ${io.enq.canAccept}, ${Binary(Cat(io.enq.req.map(_.valid)))}\n")
 
-  val lastCycleRedirect = RegNext(io.brqRedirect)
-  val lastlastCycleRedirect = RegNext(lastCycleRedirect)
+//  val lastCycleRedirect = RegNext(io.brqRedirect)
+//  val lastlastCycleRedirect = RegNext(lastCycleRedirect)
 
+  val lastCycleRedirect_valid = RegNext(io.brqRedirect.valid)
+  val lastCycleRedirect_bits = RegEnable(io.brqRedirect.bits, io.brqRedirect.valid)
+  val lastlastCycleRedirect_valid = RegNext(lastCycleRedirect_valid)
+  val lastlastCycleRedirect_bits = RegEnable(lastCycleRedirect_bits, lastCycleRedirect_valid)
+
+  val lastCycleRedirect = Wire(io.brqRedirect.cloneType)
+  lastCycleRedirect.valid := lastCycleRedirect_valid
+  lastCycleRedirect.bits := lastCycleRedirect_bits
+
+  val lastlastCycleRedirect = Wire(io.brqRedirect.cloneType)
+  lastlastCycleRedirect.valid := lastlastCycleRedirect_valid
+  lastlastCycleRedirect.bits := lastlastCycleRedirect_bits
   /**
     * Writeback load from load units
     *
@@ -250,8 +263,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
         miss(loadWbIndex) := dcacheMissed && !io.s2_load_data_forwarded(i)
       }
       pending(loadWbIndex) := io.loadIn(i).bits.mmio
-      released(loadWbIndex) := release2cycle.valid &&
-        io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle.bits.paddr(PAddrBits-1, DCacheLineOffset) ||
+      released(loadWbIndex) := release2cycle_valid &&
+        io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_paddr(PAddrBits-1, DCacheLineOffset) ||
         release1cycle.valid &&
         io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release1cycle.bits.paddr(PAddrBits-1, DCacheLineOffset)
     }
@@ -777,12 +790,12 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     io.loadViolationQuery.takeRight(1)(0).req.ready := false.B
   }
 
-  when(release2cycle.valid){
+  when(release2cycle_valid){
     // If a load comes in that cycle, we can not judge if it has ld-ld violation
     // We replay that load inst from RS
     io.loadViolationQuery.map(i => i.req.ready :=
       // use lsu side release2cycle_dup_lsu paddr for better timing
-      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset))
+      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_paddr_dup_lsu(PAddrBits-1, DCacheLineOffset))
     )
     // io.loadViolationQuery.map(i => i.req.ready := false.B) // For better timing
   }

@@ -243,7 +243,8 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
   io.feedbackSlow.valid := RegNext(store_s1.io.rsFeedback.valid && !store_s1.io.out.bits.uop.robIdx.needFlush(io.redirect), false.B)
 
   store_s2.io.pmpResp <> io.pmp
-  store_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+//  store_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+  store_s2.io.static_pm := RegEnable(io.tlb.resp.bits.static_pm,io.tlb.resp.valid)
   io.lsq_replenish := store_s2.io.out.bits // mmio and exception
   PipelineConnect(store_s2.io.out, store_s3.io.in, true.B, store_s2.io.out.bits.uop.robIdx.needFlush(io.redirect))
 
