@@ -48,6 +48,7 @@ class SqEnqIO(implicit p: Parameters) extends XSBundle {
   val needAlloc = Vec(exuParameters.LsExuCnt, Input(Bool()))
   val req = Vec(exuParameters.LsExuCnt, Flipped(ValidIO(new MicroOp)))
   val resp = Vec(exuParameters.LsExuCnt, Output(new SqPtr))
+  val reqNum = Input(UInt(exuParameters.LsExuCnt.W))
 }
 
 class DataBufferEntry (implicit p: Parameters)  extends DCacheBundle {
@@ -678,11 +679,13 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   val lastCycleRedirect = RegNext(io.brqRedirect.valid)
   val lastCycleCancelCount = PopCount(RegNext(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.lqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
+  val enqNumber_enq = Mux(io.enq.canAccept && io.enq.lqCanAccept, io.enq.reqNum, 0.U)
+
   when (lastCycleRedirect) {
     // we recover the pointers in the next cycle after redirect
     enqPtrExt := VecInit(enqPtrExt.map(_ - (lastCycleCancelCount + lastEnqCancel)))
   }.otherwise {
-    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber))
+    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber_enq))
   }
 
   deqPtrExt := deqPtrExtNext

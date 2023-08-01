@@ -69,6 +69,7 @@ class LqEnqIO(implicit p: Parameters) extends XSBundle {
   val needAlloc = Vec(exuParameters.LsExuCnt, Input(Bool()))
   val req = Vec(exuParameters.LsExuCnt, Flipped(ValidIO(new MicroOp)))
   val resp = Vec(exuParameters.LsExuCnt, Output(new LqPtr))
+  val reqNum = Input((UInt(exuParameters.LsExuCnt.W)))
 }
 
 class LqPaddrWriteBundle(implicit p: Parameters) extends XSBundle {
@@ -931,11 +932,15 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val lastEnqCancel = PopCount(RegNext(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
   val lastCycleCancelCount = PopCount(RegNext(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.sqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
+  val enqNumber_enq = Mux(io.enq.canAccept && io.enq.sqCanAccept, io.enq.reqNum, 0.U)
+
+  XSError(enqNumber =/= enqNumber_enq,"enqNumber and enqNumber_enq must be equal\n")
+
   when (lastCycleRedirect.valid) {
     // we recover the pointers in the next cycle after redirect
     enqPtrExt := VecInit(enqPtrExt.map(_ - (lastCycleCancelCount + lastEnqCancel)))
   }.otherwise {
-    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber))
+    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber_enq))
   }
 
   deqPtrExtNext := deqPtrExt + commitCount
