@@ -154,6 +154,7 @@ case class XSCoreParameters
   LoadPipelineWidth: Int = 2,
   StorePipelineWidth: Int = 2,
   StoreBufferSize: Int = 16,
+  EnsbufferWidth: Int = 2,
   StoreBufferThreshold: Int = 7,
   EnableLoadToLoadForward: Boolean = false,
   EnableFastForward: Boolean = false,
@@ -177,11 +178,11 @@ case class XSCoreParameters
   ),
   ldtlbParameters: TLBParameters = TLBParameters(
     name = "ldtlb",
-    normalNSets = 64,
+    normalNSets = 128,
     normalNWays = 1,
     normalAssociative = "sa",
     normalReplacer = Some("setplru"),
-    superNWays = 16,
+    superNWays = 8,
     normalAsVictim = true,
     outReplace = false,
     partialStaticPMP = true,
@@ -189,11 +190,11 @@ case class XSCoreParameters
   ),
   sttlbParameters: TLBParameters = TLBParameters(
     name = "sttlb",
-    normalNSets = 64,
+    normalNSets = 128,
     normalNWays = 1,
     normalAssociative = "sa",
     normalReplacer = Some("setplru"),
-    superNWays = 16,
+    superNWays = 8,
     normalAsVictim = true,
     outReplace = false,
     partialStaticPMP = true,
@@ -363,6 +364,7 @@ trait HasXSParameter {
   val StorePipelineWidth = coreParams.StorePipelineWidth
   val StoreBufferSize = coreParams.StoreBufferSize
   val StoreBufferThreshold = coreParams.StoreBufferThreshold
+  val EnsbufferWidth = coreParams.EnsbufferWidth
   val EnableLoadToLoadForward = coreParams.EnableLoadToLoadForward
   val EnableFastForward = coreParams.EnableFastForward
   val EnableLdVioCheckAfterReset = coreParams.EnableLdVioCheckAfterReset

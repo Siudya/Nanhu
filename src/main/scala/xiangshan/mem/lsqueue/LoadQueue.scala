@@ -423,12 +423,23 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val loadOddSelVecFire = getOddBits(loadWbSelVec) & ~oddFireMask
   val loadEvenSelVecNotFire = getEvenBits(loadWbSelVec)
   val loadOddSelVecNotFire = getOddBits(loadWbSelVec)
+//  val loadEvenSel = Mux(
+//    io.ldout(0).fire(),
+//    getFirstOne(toVec(loadEvenSelVecFire), evenDeqMask),
+//    getFirstOne(toVec(loadEvenSelVecNotFire), evenDeqMask)
+//  )
+//  val loadOddSel= Mux(
+//    io.ldout(1).fire(),
+//    getFirstOne(toVec(loadOddSelVecFire), oddDeqMask),
+//    getFirstOne(toVec(loadOddSelVecNotFire), oddDeqMask)
+//  )
+
   val loadEvenSel = Mux(
     io.ldout(0).fire(),
     getFirstOne(toVec(loadEvenSelVecFire), evenDeqMask),
     getFirstOne(toVec(loadEvenSelVecNotFire), evenDeqMask)
   )
-  val loadOddSel= Mux(
+  val loadOddSel = Mux(
     io.ldout(1).fire(),
     getFirstOne(toVec(loadOddSelVecFire), oddDeqMask),
     getFirstOne(toVec(loadOddSelVecNotFire), oddDeqMask)
