@@ -634,7 +634,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.dcache.s2_kill := load_s2.io.dcache_kill // to kill mmio resp which are redirected
   load_s2.io.dcacheResp <> io.dcache.resp
   load_s2.io.pmpResp <> io.pmp
-  load_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+//  load_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+  load_s2.io.static_pm := RegEnable(io.tlb.resp.bits.static_pm,io.tlb.resp.valid)
   load_s2.io.lsq.forwardData <> io.lsq.forward.forwardData
   load_s2.io.lsq.forwardMask <> io.lsq.forward.forwardMask
   load_s2.io.lsq.forwardMaskFast <> io.lsq.forward.forwardMaskFast // should not be used in load_s2
@@ -684,7 +685,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     !RegNext(load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect)) &&
     s2_dcache_hit // dcache hit in lsu side
 
-  io.fastUop.bits := RegNext(load_s1.io.out.bits.uop)
+//  io.fastUop.bits := RegNext(load_s1.io.out.bits.uop)
+  io.fastUop.bits := RegEnable(load_s1.io.out.bits.uop,load_s1.io.out.valid)
 
   XSDebug(load_s0.io.out.valid,
     p"S0: pc ${Hexadecimal(load_s0.io.out.bits.uop.cf.pc)}, lId ${Hexadecimal(load_s0.io.out.bits.uop.lqIdx.asUInt)}, " +
