@@ -41,7 +41,7 @@ class ICacheMissReq(implicit p: Parameters) extends ICacheBundle
     val paddr      = UInt(PAddrBits.W)
     val vaddr      = UInt(VAddrBits.W)
     val waymask   = UInt(nWays.W)
-    val coh       = new ClientMetadata
+  //  val coh       = new ClientMetadata
 
     def getVirSetIdx = get_idx(vaddr)
     def getPhyTag    = get_phy_tag(paddr)
@@ -73,6 +73,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
     //tilelink channel
     val mem_acquire = DecoupledIO(new TLBundleA(edge.bundle))
     val mem_grant = Flipped(DecoupledIO(new TLBundleD(edge.bundle)))
+
 
     val meta_write = DecoupledIO(new ICacheMetaWriteBundle)
     val data_write = DecoupledIO(new ICacheDataWriteBundle)
@@ -154,9 +155,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
           readBeatCnt := readBeatCnt + 1.U
           respDataReg(readBeatCnt) := io.mem_grant.bits.data
           req_corrupt := io.mem_grant.bits.corrupt
-          grant_param := io.mem_grant.bits.param
-      //    is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
-          is_dirty    := false.B
+          is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
           when(readBeatCnt === (refillCycles - 1).U) {
       //      assert(refill_done, "refill not done!")
             state := s_write_back
@@ -182,12 +181,10 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   }
 
   /** refill write and meta write */
-  val missCoh    = ClientMetadata(Nothing)
-  val grow_param = missCoh.onAccess(M_XRD)._2
   val acquireBlock = edge.Get(
     fromSource = io.id,
     toAddress = addrAlign(req.paddr, blockBytes, PAddrBits),
-    lgSize = (log2Up(cacheParams.blockBytes)).U,
+    lgSize = (log2Up(cacheParams.blockBytes)).U
   )._2
   io.mem_acquire.bits := acquireBlock
   // resolve cache alias by L2
@@ -196,19 +193,9 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
 
   //resp to ifu
   io.resp.valid := state === s_wait_resp
-  /** update coh meta */
-  def missCohGen(param: UInt, dirty: Bool): UInt = {
-    MuxLookup(Cat(param, dirty), Nothing, Seq(
-      Cat(toB, false.B) -> Branch,
-      Cat(toB, true.B)  -> Branch,
-      Cat(toT, false.B) -> Trunk,
-      Cat(toT, true.B)  -> Dirty))
-  }
-
-  val miss_new_coh = ClientMetadata(missCohGen(grant_param, is_dirty))
 
   io.meta_write.valid := (state === s_write_back)
-  io.meta_write.bits.generate(tag = req_tag, coh = miss_new_coh, idx = req_idx, waymask = req_waymask, bankIdx = req_idx(0))
+  io.meta_write.bits.generate(tag = req_tag, idx = req_idx, waymask = req_waymask, bankIdx = req_idx(0))
 
   io.data_write.valid := (state === s_write_back)
   val dataWriteEn = Wire(Vec(4, Bool()))

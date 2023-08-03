@@ -34,7 +34,7 @@ import xiangshan.cache.mmu.BlockTlbRequestIO
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 
 case class ICacheParameters(
-    nSets: Int = 256, //128,
+    nSets: Int = 128,//256,
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
@@ -50,7 +50,7 @@ case class ICacheParameters(
     blockBytes: Int = 64
 )extends L1CacheParameters {
 
-  val setBytes = nSets * blockBytes  //* 2
+  val setBytes = nSets * blockBytes * 2
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField(),
@@ -126,22 +126,20 @@ abstract class ICacheArray(implicit p: Parameters) extends XSModule
   with HasICacheParameters
 
 class ICacheMetadata(implicit p: Parameters) extends ICacheBundle {
-  val coh = new ClientMetadata
   val tag = UInt(tagBits.W)
 }
 
 object ICacheMetadata {
-  def apply(tag: Bits, coh: ClientMetadata)(implicit p: Parameters) = {
-    val meta = Wire(new L1Metadata)
+  def apply(tag: Bits)(implicit p: Parameters) = {
+    val meta = Wire(new ICacheMetadata)
     meta.tag := tag
-    meta.coh := coh
-    meta
+    meta.tag
   }
 }
 
 
 class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) extends ICacheArray {
-  def onReset = ICacheMetadata(0.U, ClientMetadata.onReset)
+  def onReset = ICacheMetadata(0.U)
 
   val metaBits = onReset.getWidth
   val metaEntryBits = cacheParams.tagCode.width(metaBits)
@@ -256,7 +254,7 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
 
   //Parity Encode
   val write = io.write.bits
-  write_meta_bits := cacheParams.tagCode.encode(ICacheMetadata(tag = write.phyTag, coh = write.coh).asUInt)
+  write_meta_bits := cacheParams.tagCode.encode(ICacheMetadata(tag = write.phyTag).asUInt)
 
   val wayNum   = OHToUInt(io.write.bits.waymask)
   val validPtr = Cat(io.write.bits.virIdx, wayNum)
@@ -363,6 +361,9 @@ class ICacheDataArray(parentName:String = "Unknown")(implicit p: Parameters) ext
   val port_0_read_1_reg = RegEnable(next = io.read.valid && io.read.bits.head.port_0_read_1, enable = io.read.fire())
   val port_1_read_1_reg = RegEnable(next = io.read.valid && io.read.bits.head.port_1_read_1, enable = io.read.fire())
   val port_1_read_0_reg = RegEnable(next = io.read.valid && io.read.bits.head.port_1_read_0, enable = io.read.fire())
+
+  //val bank_0_idx_vec = io.read.bits.map(copy =>  Mux(io.read.bits.dup_valids && copy.port_0_read_0, copy.vSetIdx(0), copy.vSetIdx(1)))
+  //val bank_1_idx_vec = io.read.bits.map(copy =>  Mux(io.read.valid && copy.port_0_read_1, copy.vSetIdx(0), copy.vSetIdx(1)))
 
   val bank_0_idx_vec = (0 until partWayNum).map(i => Mux(io.read.bits(i).readValid && io.read.bits(i).port_0_read_0, io.read.bits(i).vSetIdx(0), io.read.bits(i).vSetIdx(1)))
   val bank_1_idx_vec = (0 until partWayNum).map(i => Mux(io.read.bits(i).readValid && io.read.bits(i).port_0_read_1, io.read.bits(i).vSetIdx(0), io.read.bits(i).vSetIdx(1)))
@@ -505,8 +506,8 @@ class ICache(val parentName:String = "Unknown")(implicit p: Parameters) extends 
     Seq(TLMasterParameters.v1(
       name = "icache",
       sourceId = IdRange(0, cacheParams.nMissEntries + cacheParams.nReleaseEntries + cacheParams.nPrefetchEntries),
-   //   supportsProbe = TransferSizes(blockBytes),
-   //   supportsHint = TransferSizes(blockBytes)
+      supportsProbe = TransferSizes(blockBytes),
+      supportsHint = TransferSizes(blockBytes)
     )),
     requestFields = cacheParams.reqFields,
     echoFields = cacheParams.echoFields
@@ -589,7 +590,6 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   prefetchPipe.io.prefetchEnable := mainPipe.io.prefetchEnable
   prefetchPipe.io.prefetchDisable := mainPipe.io.prefetchDisable
 
-  //notify IFU that Icache pipeline is available
   io.toIFU := mainPipe.io.fetch.req.ready
 
   io.itlb(0)        <>    mainPipe.io.itlb(0)
@@ -611,6 +611,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   prefetchPipe.io.fromMSHR <> missUnit.io.prefetch_check
 
   bus.a <> missUnit.io.mem_acquire
+
   // connect bus d
   missUnit.io.mem_grant.valid := false.B
   missUnit.io.mem_grant.bits  := DontCare
