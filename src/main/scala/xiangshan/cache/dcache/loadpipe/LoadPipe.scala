@@ -130,7 +130,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   // dcache side tag match
   val s1_tag_eq_way_dup_dc = wayMap((w: Int) => tag_resp(w) === (get_tag(s1_paddr_dup_dcache))).asUInt
   val s1_tag_match_way_dup_dc = wayMap((w: Int) => s1_tag_eq_way_dup_dc(w) && meta_resp(w).coh.isValid()).asUInt
-  val s1_tag_match_dup_dc = s1_tag_match_way_dup_dc.orR
+  val s1_tag_match_dup_dc = Mux(s1_valid && !io.lsu.s1_kill, s1_tag_match_way_dup_dc.orR, false.B)
   when(s1_valid && !io.lsu.s1_kill) {
     assert(PopCount(s1_tag_match_way_dup_dc) <= 1.U, "tag should not match with more than 1 way")
   }
@@ -268,7 +268,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   resp.valid := s2_valid
   resp.bits := DontCare
 //  resp.bits.load_data := Mux1H(s2_bank_oh,VecInit(banked_data_resp.map(i => i.raw_data)))
-  resp.bits.load_data := banked_data_resp.raw_data
+  resp.bits.load_data := Mux(s2_valid,banked_data_resp.raw_data,0.U)  //to cut X state
 //  resp.bits.bank_data := VecInit(banked_data_resp.map(i => i.raw_data))
 //  resp.bits.bank_oh := s2_bank_oh
   // * on miss or nack, upper level should replay request
