@@ -31,7 +31,7 @@ import xiangshan.backend.execute.fu.csr.{PFEvent, SdtrigExt}
 import xiangshan.backend.execute.fu.fence.{FenceToSbuffer, SfenceBundle}
 import xiangshan.backend.rob.RobLsqIO
 import xiangshan.cache._
-import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbReplace}
+import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbIO, TlbReplace}
 import xiangshan.mem._
 import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
@@ -311,14 +311,30 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val sfence_dup = Seq.fill(NUMSfenceDup)(Pipe(io.sfence))
   val tlbcsr_dup = Seq.fill(NUMTlbCsrDup)(RegNext(io.tlbCsr))
 
-  val dtlb_ld = VecInit(Seq.fill(1){
-    val tlb_ld = Module(new TLB(ld_tlb_ports, 2, ldtlbParams))
-    tlb_ld.io // let the module have name in waveform
+
+  val dtlb_ld_st = VecInit(Seq.fill(1) {
+    val dtlb = Module(new TLB(ld_tlb_ports + exuParameters.StuCnt, 2, OnedtlbParams))
+    dtlb.io
   })
-  val dtlb_st = VecInit(Seq.fill(1){
-    val tlb_st = Module(new TLB(exuParameters.StuCnt, 1, sttlbParams))
-    tlb_st.io // let the module have name in waveform
-  })
+
+  val dtlb_ld : Seq[TlbIO] = if(UseOneDtlb) {
+    dtlb_ld_st.take(ld_tlb_ports)
+  } else {
+    VecInit(Seq.fill(1) {
+      val tlb_ld =  Module(new TLB(ld_tlb_ports, 2, ldtlbParams))
+      tlb_ld.io // let the module have name in waveform
+    })
+  }
+
+  val dtlb_st : Seq[TlbIO] = if(UseOneDtlb){
+    dtlb_ld_st.drop(ld_tlb_ports)
+  } else {
+      VecInit(Seq.fill(1) {
+      val tlb_st = Module(new TLB(exuParameters.StuCnt, 1, sttlbParams))
+      tlb_st.io // let the module have name in waveform
+    })
+  }
+
   val dtlb = dtlb_ld ++ dtlb_st
   val dtlb_reqs = dtlb.flatMap(_.requestor)
   val dtlb_pmps = dtlb.flatMap(_.pmp)
@@ -331,13 +347,15 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val replace = Module(new TlbReplace(total_tlb_ports, ldtlbParams))
     replace.io.apply_sep(dtlb_ld.map(_.replace) ++ dtlb_st.map(_.replace), io.ptw.resp.bits.data.entry.tag)
   } else {
-    if (ldtlbParams.outReplace) {
-      val replace_ld = Module(new TlbReplace(ld_tlb_ports, ldtlbParams))
-      replace_ld.io.apply_sep(dtlb_ld.map(_.replace), io.ptw.resp.bits.data.entry.tag)
-    }
-    if (sttlbParams.outReplace) {
-      val replace_st = Module(new TlbReplace(exuParameters.StuCnt, sttlbParams))
-      replace_st.io.apply_sep(dtlb_st.map(_.replace), io.ptw.resp.bits.data.entry.tag)
+    if(!UseOneDtlb){
+      if (ldtlbParams.outReplace) {
+        val replace_ld = Module(new TlbReplace(ld_tlb_ports, ldtlbParams))
+        replace_ld.io.apply_sep(dtlb_ld.map(_.replace), io.ptw.resp.bits.data.entry.tag)
+      }
+      if (sttlbParams.outReplace) {
+        val replace_st = Module(new TlbReplace(exuParameters.StuCnt, sttlbParams))
+        replace_st.io.apply_sep(dtlb_st.map(_.replace), io.ptw.resp.bits.data.entry.tag)
+      }
     }
   }
 
@@ -359,7 +377,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
       ptw_resp_next.data.entry.hit(tlb.bits.vpn, RegNext(tlbcsr_dup(i).satp.asid), allType = true, ignoreAsid = true))
   }
   dtlb.foreach(_.ptw.resp.bits := ptw_resp_next.data)
-  if (refillBothTlb) {
+  if (refillBothTlb || UseOneDtlb) {
     dtlb.foreach(_.ptw.resp.valid := ptw_resp_v && Cat(ptw_resp_next.vector).orR)
   } else {
     dtlb_ld.foreach(_.ptw.resp.valid := ptw_resp_v && Cat(ptw_resp_next.vector.take(ld_tlb_ports)).orR)

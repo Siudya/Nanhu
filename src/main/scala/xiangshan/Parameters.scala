@@ -164,6 +164,7 @@ case class XSCoreParameters
   EnablePTWPreferCache: Boolean = true,
   EnableAccurateLoadError: Boolean = true,
   MMUAsidLen: Int = 16, // max is 16, 0 is not supported now
+  UseOneDtlb: Boolean = false,
   itlbParameters: TLBParameters = TLBParameters(
     name = "itlb",
     fetchi = true,
@@ -175,6 +176,18 @@ case class XSCoreParameters
     superNWays = 4,
     superReplacer = Some("plru"),
     shouldBlock = true
+),
+  OnedtlbParams: TLBParameters = TLBParameters(
+    name = "tlb_ld_st",
+    normalNSets = 64,
+    normalNWays = 1,
+    normalAssociative = "sa",
+    normalReplacer = Some("setplru"),
+    superNWays = 16,
+    normalAsVictim = true,
+    outReplace = false,
+    partialStaticPMP = true,
+    saveLevel = true
   ),
   ldtlbParameters: TLBParameters = TLBParameters(
     name = "ldtlb",
@@ -382,6 +395,8 @@ trait HasXSParameter {
   val btlbParams = coreParams.btlbParameters
   val l2tlbParams = coreParams.l2tlbParameters
   val NumPerfCounters = coreParams.NumPerfCounters
+  val UseOneDtlb = coreParams.UseOneDtlb
+  val OnedtlbParams = coreParams.OnedtlbParams
 
   val instBytes = if (HasCExtension) 2 else 4
   val instOffsetBits = log2Ceil(instBytes)
