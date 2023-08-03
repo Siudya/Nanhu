@@ -119,10 +119,18 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   // val data = Reg(Vec(LoadQueueSize, new LsRobEntry))
   val dataModule = Module(new LoadQueueDataWrapper(LoadQueueSize, wbNumRead = LoadPipelineWidth, wbNumWrite = LoadPipelineWidth))
   dataModule.io := DontCare
-  val vaddrModule = Module(new SyncDataModuleTemplate(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
-  vaddrModule.io := DontCare
-  val vaddrTriggerResultModule = Module(new SyncDataModuleTemplate(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
+//  val vaddrModule = Module(new SyncDataModuleTemplate(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
+//  vaddrModule.io := DontCare  //todo
+
+  val vaddrModule = Module(new LoadQueueVaddrModule(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
+  vaddrModule.io := DontCare //todo
+
+//  val vaddrTriggerResultModule = Module(new SyncDataModuleTemplate(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
+//  vaddrTriggerResultModule.io := DontCare
+  val vaddrTriggerResultModule = Module(new vaddrTriggerResultDataModule(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
   vaddrTriggerResultModule.io := DontCare
+
+
   val allocated = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // lq entry has been allocated
   val datavalid = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // data is valid
   val writebacked = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // inst has been writebacked to CDB
@@ -467,7 +475,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   // writeback data to cdb
   (0 until LoadPipelineWidth).map(i => {
     // data select
-    dataModule.io.wb.raddr(i) := loadWbSelGen(i)
+//    dataModule.io.wb.raddr(i) := loadWbSelGen(i)
+    dataModule.io.wb.raddr(i) := loadWbSel(i)
     val rdata = dataModule.io.wb.rdata(i).data
     val seluop = uop(loadWbSel(i))
     val func = seluop.ctrl.fuOpType
@@ -862,7 +871,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   }
   io.uncache.req.valid := uncacheState === s_req
 
-  dataModule.io.uncache.raddr := deqPtrExtNext.value
+  dataModule.io.uncache.raddr := deqPtrExtNext.value  //todo
 
   io.uncache.req.bits.cmd  := MemoryOpConstants.M_XRD
   io.uncache.req.bits.addr := dataModule.io.uncache.rdata.paddr
@@ -898,16 +907,17 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   // Read vaddr for mem exception
   // no inst will be commited 1 cycle before tval update
-  vaddrModule.io.raddr(0) := (deqPtrExt + commitCount).value
+  vaddrModule.io.raddr(0) := RegNext((deqPtrExt + commitCount).value)
   io.exceptionAddr.vaddr := vaddrModule.io.rdata(0)
 
   // Read vaddr for debug
   (0 until LoadPipelineWidth).map(i => {
-    vaddrModule.io.raddr(i+1) := loadWbSel(i)
+    vaddrModule.io.raddr(i+1) := RegNext(loadWbSel(i))
   })
 
   (0 until LoadPipelineWidth).map(i => {
-    vaddrTriggerResultModule.io.raddr(i) := loadWbSelGen(i)
+//    vaddrTriggerResultModule.io.raddr(i) := loadWbSelGen(i)
+    vaddrTriggerResultModule.io.raddr(i) := loadWbSel(i)
     io.trigger(i).lqLoadAddrTriggerHitVec := Mux(
       loadWbSelV(i),
       vaddrTriggerResultModule.io.rdata(i),
