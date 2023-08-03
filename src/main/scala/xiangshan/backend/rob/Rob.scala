@@ -192,7 +192,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
 
   private val exuWb = writebackIn.filter(_._1.exuType != ExuType.std)
   private val stdWb = writebackIn.filter(_._1.exuType == ExuType.std)
-  private val wbWithFFlag = writebackIn.filter(_._1.writeFpRf)
+  private val wbWithFFlag = writebackIn.filter(_._1.writeFFlags)
   private val wbWithException = writebackIn.filter(_._1.hasException)
   println(s"Rob: size $RobSize, numWbPorts: $numWbPorts, commitwidth: $CommitWidth")
   println(s"exuPorts: ${exuWb.map(_._1.name)}")

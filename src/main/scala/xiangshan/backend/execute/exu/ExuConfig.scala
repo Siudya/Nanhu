@@ -81,6 +81,7 @@ case class ExuConfig
   val writeIntRf = fuConfigs.map(_.writeIntRf).reduce(_||_)
   val writeFpRf = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val writeVecRf = fuConfigs.map(_.writeVecRf).reduce(_||_)
+  val writeFFlags = fuConfigs.map(_.writeFflags).reduce(_||_)
   val wakeUpIntRs = fuConfigs.map(_.writeIntRf).reduce(_||_) && !hasFastWakeup
   val wakeUpFpRs = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val wakeUpMemRs =  fuConfigs.map(e => e.writeIntRf || e.writeFpRf).reduce(_||_) && !hasFastWakeup
