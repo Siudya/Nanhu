@@ -106,13 +106,15 @@ class MaskedBankedSyncDataModuleTemplate[T <: Data](
 
   // read ports
   for (i <- 0 until numRead) {
-    val raddr_dec = RegNext(UIntToOH(io.raddr(i)))
+//    val raddr_dec = RegNext(UIntToOH(io.raddr(i)))
+    val raddr_dec = UIntToOH(io.raddr(i))
     io.rdata(i) := Mux1H(raddr_dec, data)
   }
 
   // masked read ports
   for (i <- 0 until numMRead) {
-    io.mrdata(i) := Mux1H(RegNext(io.mrmask(i)), data)
+//    io.mrdata(i) := Mux1H(RegNext(io.mrmask(i)), data)
+    io.mrdata(i) := Mux1H((io.mrmask(i)), data)
   }
 
   val waddr_dec = io.waddr.map(a => UIntToOH(a))
