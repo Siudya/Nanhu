@@ -411,7 +411,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
 //  io.loadDataFromDcache.bankedDcacheData := io.dcacheResp.bits.bank_data
 //  io.loadDataFromDcache.bank_oh := io.dcacheResp.bits.bank_oh
   // io.loadDataFromDcache.dcacheData := io.dcacheResp.bits.data
-  io.loadDataFromDcache.load_data := io.dcacheResp.bits.load_data
+  io.loadDataFromDcache.load_data := Mux(io.dcacheResp.bits.miss,0.U,io.dcacheResp.bits.load_data)  //to cut X-prop
   io.loadDataFromDcache.forwardMask := forwardMask
   io.loadDataFromDcache.forwardData := forwardData
   io.loadDataFromDcache.uop := io.out.bits.uop
