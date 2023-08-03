@@ -176,7 +176,7 @@ case class XSCoreParameters
     superNWays = 4,
     superReplacer = Some("plru"),
     shouldBlock = true
-),
+  ),
   OnedtlbParams: TLBParameters = TLBParameters(
     name = "tlb_ld_st",
     normalNSets = 64,

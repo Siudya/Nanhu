@@ -316,6 +316,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val dtlb = Module(new TLB(ld_tlb_ports + exuParameters.StuCnt, 2, OnedtlbParams))
     dtlb.io
   })
+  if(!UseOneDtlb){
+    dtlb_ld_st := DontCare
+  }
 
   val dtlb_ld : Seq[TlbIO] = if(UseOneDtlb) {
     dtlb_ld_st.take(ld_tlb_ports)
