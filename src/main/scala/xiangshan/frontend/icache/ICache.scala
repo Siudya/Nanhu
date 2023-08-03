@@ -34,7 +34,7 @@ import xiangshan.cache.mmu.BlockTlbRequestIO
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 
 case class ICacheParameters(
-    nSets: Int = 128,//256,
+    nSets: Int = 256,//128,//256,
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
@@ -50,7 +50,7 @@ case class ICacheParameters(
     blockBytes: Int = 64
 )extends L1CacheParameters {
 
-  val setBytes = nSets * blockBytes * 2
+  val setBytes = nSets * blockBytes //* 2
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField(),
@@ -414,8 +414,6 @@ class ICacheDataArray(parentName:String = "Unknown")(implicit p: Parameters) ext
   io.readResp.datas(0) := Mux( port_0_read_1_reg, read_datas(1) , read_datas(0))
   io.readResp.datas(1) := Mux( port_1_read_0_reg, read_datas(0) , read_datas(1))
 
-
-  // val write_data_code = Wire(UInt(dataCodeEntryBits.W))
   val write_bank_0 = WireInit(io.write.valid && !io.write.bits.bankIdx)
   val write_bank_1 = WireInit(io.write.valid &&  io.write.bits.bankIdx)
   
@@ -549,12 +547,14 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   meta_read_arb.io.in(0)                <> prefetchPipe.io.toIMeta
   metaArray.io.read                     <> meta_read_arb.io.out
 
+
   mainPipe.io.metaArray.fromIMeta       <> metaArray.io.readResp
   prefetchPipe.io.fromIMeta             <> metaArray.io.readResp
 
   for(i <- 0 until partWayNum) {
     dataArray.io.read.bits(i) <> mainPipe.io.dataArray.toIData.bits(i)
   }
+
 
   dataArray.io.read.valid := Cat(mainPipe.io.dataArray.toIData.bits(0).readValid,mainPipe.io.dataArray.toIData.bits(1).readValid)
   mainPipe.io.dataArray.toIData.ready := dataArray.io.read.ready
@@ -590,6 +590,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   prefetchPipe.io.prefetchEnable := mainPipe.io.prefetchEnable
   prefetchPipe.io.prefetchDisable := mainPipe.io.prefetchDisable
 
+  //notify IFU that Icache pipeline is available
   io.toIFU := mainPipe.io.fetch.req.ready
 
   io.itlb(0)        <>    mainPipe.io.itlb(0)
@@ -610,6 +611,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   missUnit.io.hartId       := io.hartId
   prefetchPipe.io.fromMSHR <> missUnit.io.prefetch_check
 
+
   bus.a <> missUnit.io.mem_acquire
 
   // connect bus d
@@ -618,7 +620,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
   val hasVictim = VecInit(missUnit.io.victimInfor.map(_.valid))
   val victimSetSeq = VecInit(missUnit.io.victimInfor.map(_.vidx))
-
+  
   mainPipe.io.fetch.req <> io.fetch.req //&& !fetchShouldBlock(i)
   // in L1ICache, we only expect GrantData and ReleaseAck
   bus.d.ready := false.B

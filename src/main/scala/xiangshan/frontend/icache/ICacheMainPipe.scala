@@ -422,7 +422,6 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
 
   val s2_bank_miss    = RegEnable(next = s1_bank_miss, enable = s1_fire)
   val s2_waymask      = RegEnable(next = s1_victim_oh, enable = s1_fire)
- // val s2_victim_coh   = RegEnable(next = s1_victim_coh, enable = s1_fire)
   val s2_tag_match_vec = RegEnable(next = s1_tag_match_vec, enable = s1_fire)
 
   /** status imply that s2 is a secondary miss (no need to resend miss request) */
@@ -724,8 +723,6 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
       toMSHR(i).bits.paddr    := s2_req_paddr(i)
       toMSHR(i).bits.vaddr    := s2_req_vaddr(i)
       toMSHR(i).bits.waymask  := s2_waymask(i)
-     // toMSHR(i).bits.coh      := s2_victim_coh(i)
-
 
       when(toMSHR(i).fire() && missStateQueue(j)(i) === m_invalid){
         missStateQueue(j)(i)     := m_valid

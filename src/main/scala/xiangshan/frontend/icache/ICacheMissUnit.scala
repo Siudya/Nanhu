@@ -41,7 +41,7 @@ class ICacheMissReq(implicit p: Parameters) extends ICacheBundle
     val paddr      = UInt(PAddrBits.W)
     val vaddr      = UInt(VAddrBits.W)
     val waymask   = UInt(nWays.W)
-  //  val coh       = new ClientMetadata
+
 
     def getVirSetIdx = get_idx(vaddr)
     def getPhyTag    = get_phy_tag(paddr)
@@ -73,7 +73,6 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
     //tilelink channel
     val mem_acquire = DecoupledIO(new TLBundleA(edge.bundle))
     val mem_grant = Flipped(DecoupledIO(new TLBundleD(edge.bundle)))
-
 
     val meta_write = DecoupledIO(new ICacheMetaWriteBundle)
     val data_write = DecoupledIO(new ICacheDataWriteBundle)
@@ -119,8 +118,10 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   io.meta_write.bits := DontCare
   io.data_write.bits := DontCare
 
+
   io.req.ready := (state === s_idle)
   io.mem_acquire.valid := (state_dup(1) === s_send_mem_aquire)
+
 
   io.toPrefetch.valid := (state_dup(2) =/= s_idle)
   io.toPrefetch.bits  :=  addrAlign(req.paddr, blockBytes, PAddrBits)
@@ -184,7 +185,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   val acquireBlock = edge.Get(
     fromSource = io.id,
     toAddress = addrAlign(req.paddr, blockBytes, PAddrBits),
-    lgSize = (log2Up(cacheParams.blockBytes)).U
+    lgSize = (log2Up(cacheParams.blockBytes)).U,
   )._2
   io.mem_acquire.bits := acquireBlock
   // resolve cache alias by L2
@@ -307,6 +308,7 @@ class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMiss
   io.prefetch_req.ready := ParallelOR(prefEntries.map(_.io.req.ready))
   val tl_a_chanel = entries.map(_.io.mem_acquire) ++ prefEntries.map(_.io.mem_hint)
   TLArbiter.lowest(edge, io.mem_acquire, tl_a_chanel:_*)
+
 
   io.meta_write     <> meta_write_arb.io.out
   io.data_write     <> refill_arb.io.out
