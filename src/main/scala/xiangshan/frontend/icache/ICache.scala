@@ -504,8 +504,8 @@ class ICache(val parentName:String = "Unknown")(implicit p: Parameters) extends 
     Seq(TLMasterParameters.v1(
       name = "icache",
       sourceId = IdRange(0, cacheParams.nMissEntries + cacheParams.nReleaseEntries + cacheParams.nPrefetchEntries),
-      supportsProbe = TransferSizes(blockBytes),
-      supportsHint = TransferSizes(blockBytes)
+     // supportsProbe = TransferSizes(blockBytes),
+     // supportsHint = TransferSizes(blockBytes)
     )),
     requestFields = cacheParams.reqFields,
     echoFields = cacheParams.echoFields

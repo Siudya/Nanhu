@@ -156,7 +156,9 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
           readBeatCnt := readBeatCnt + 1.U
           respDataReg(readBeatCnt) := io.mem_grant.bits.data
           req_corrupt := io.mem_grant.bits.corrupt
-          is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
+          grant_param := io.mem_grant.bits.param
+       //   is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
+          is_dirty    := false.B
           when(readBeatCnt === (refillCycles - 1).U) {
       //      assert(refill_done, "refill not done!")
             state := s_write_back
