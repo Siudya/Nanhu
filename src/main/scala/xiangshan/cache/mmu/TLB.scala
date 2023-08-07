@@ -260,8 +260,10 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     when (RegEnable(io.requestor(i).req_kill, RegNext(io.requestor(i).req.fire))) {
       io.ptw.req(i).valid := false.B
     }
+    val reqValid_reg = RegNext(reqValid(i))
 //    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
-    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)))
+//    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)))
+    io.ptw.req(i).bits.vpn := need_RegEnable(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)),reqValid_reg)
   }
   io.ptw.resp.ready := true.B
 
