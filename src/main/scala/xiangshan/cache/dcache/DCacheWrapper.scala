@@ -620,7 +620,8 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   // atomics
   // atomics not finished yet
   io.lsu.atomics <> atomicsReplayUnit.io.lsu
-  atomicsReplayUnit.io.pipe_resp := RegNext(mainPipe.io.atomic_resp)
+  atomicsReplayUnit.io.pipe_resp.valid := RegNext(mainPipe.io.atomic_resp.valid)
+  atomicsReplayUnit.io.pipe_resp.bits := RegEnable(mainPipe.io.atomic_resp.bits,mainPipe.io.atomic_resp.valid)
   atomicsReplayUnit.io.block_lr <> mainPipe.io.block_lr
 
   //----------------------------------------
@@ -752,7 +753,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   wb.io.probe_ttob_check_resp <> mainPipe.io.probe_ttob_check_resp
 
   io.lsu.release.valid := RegNext(wb.io.req.fire())
-  io.lsu.release.bits.paddr := RegNext(wb.io.req.bits.addr)
+  io.lsu.release.bits.paddr := RegEnable(wb.io.req.bits.addr,wb.io.req.fire)
   // Note: RegNext() is required by:
   // * load queue released flag update logic
   // * load / load violation check logic
