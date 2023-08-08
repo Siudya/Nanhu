@@ -155,8 +155,10 @@ class TLBFA(
     entries(io.w.bits.wayIdx).apply(io.w.bits.data, io.csr.satp.asid, io.w.bits.data_replenish)
   }
 
-  val refill_vpn_reg = RegNext(io.w.bits.data.entry.tag)
-  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
+//  val refill_vpn_reg = RegNext(io.w.bits.data.entry.tag)
+//  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
+  val refill_vpn_reg = RegEnable(io.w.bits.data.entry.tag,io.w.valid)
+  val refill_wayIdx_reg = RegEnable(io.w.bits.wayIdx,io.w.valid)
   when (RegNext(io.w.valid)) {
     io.access.map { access =>
       access.sets := get_set_idx(refill_vpn_reg, nSets)
@@ -262,7 +264,8 @@ class TLBSA(
 
     val ridx = get_set_idx(vpn, nSets)
     val v_resize = v.asTypeOf(Vec(VPRE_SELECT, Vec(VPOST_SELECT, UInt(nWays.W))))
-    val vidx_resize = RegNext(v_resize(get_set_idx(drop_set_idx(vpn, VPOST_SELECT), VPRE_SELECT)))
+//    val vidx_resize = RegNext(v_resize(get_set_idx(drop_set_idx(vpn, VPOST_SELECT), VPRE_SELECT)))
+    val vidx_resize = RegEnable(v_resize(get_set_idx(drop_set_idx(vpn, VPOST_SELECT), VPRE_SELECT)),req.valid)
     val vidx = vidx_resize(get_set_idx(vpn_reg, VPOST_SELECT)).asBools.map(_ && RegNext(req.fire()))
     val vidx_bypass = RegNext((entries.io.waddr === ridx) && entries.io.wen)
     entries.io.raddr(i) := ridx
@@ -303,7 +306,8 @@ class TLBSA(
   }
 
   val refill_vpn_reg = RegNext(Mux(io.victim.in.valid, io.victim.in.bits.entry.tag, io.w.bits.data.entry.tag))
-  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
+//  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
+  val refill_wayIdx_reg = RegEnable(io.w.bits.wayIdx,io.w.valid)
   when (RegNext(io.w.valid || io.victim.in.valid)) {
     io.access.map { access =>
       access.sets := get_set_idx(refill_vpn_reg, nSets)
