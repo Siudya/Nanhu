@@ -60,7 +60,7 @@ case class DCacheParameters
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField()
   ) ++ aliasBitsOpt.map(AliasField)
-  val echoFields: Seq[BundleFieldBase] = Seq(DirtyField())
+  val echoFields: Seq[BundleFieldBase] = Nil // Seq(DirtyField())
 
   def tagCode: Code = Code.fromString(tagECC)
 
@@ -333,9 +333,8 @@ class DCacheWordResp(implicit p: Parameters) extends BaseDCacheWordResp
 
 class BankedDCacheWordResp(implicit p: Parameters) extends DCacheWordResp
 {
-//  val bank_data = Vec(DCacheBanks, Bits(DCacheSRAMRowBits.W))
-//  val bank_oh = UInt(DCacheBanks.W)
-  val load_data = UInt(DCacheSRAMRowBits.W)
+  val bank_data = Vec(DCacheBanks, Bits(DCacheSRAMRowBits.W))
+  val bank_oh = UInt(DCacheBanks.W)
 }
 
 class DCacheWordRespWithError(implicit p: Parameters) extends BaseDCacheWordResp
@@ -493,7 +492,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val bankedDataArray = Module(new BankedDataArray(parentName = outer.parentName + "bankedDataArray_"))
   val metaArray = Module(new AsynchronousMetaArray(readPorts = 3, writePorts = 2))
   val errorArray = Module(new ErrorArray(readPorts = 3, writePorts = 2)) // TODO: add it to meta array
-  val tagArray = Module(new DuplicatedTagArrayReg(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
+  val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(3,s"${outer.parentName}_mbistPipe")))
   } else {
@@ -586,20 +585,19 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   bankedDataArray.io.readline <> mainPipe.io.data_read
   bankedDataArray.io.readline_intend := mainPipe.io.data_read_intend
   mainPipe.io.readline_error_delayed := bankedDataArray.io.readline_error_delayed
-  mainPipe.io.data_resp := bankedDataArray.io.readline_resp
+  mainPipe.io.data_resp := bankedDataArray.io.resp
 
   (0 until LoadPipelineWidth).map(i => {
     bankedDataArray.io.read(i) <> ldu(i).io.banked_data_read
     bankedDataArray.io.read_error_delayed(i) <> ldu(i).io.read_error_delayed
 
-    ldu(i).io.banked_data_resp := bankedDataArray.io.resp(i)
     ldu(i).io.bank_conflict_fast := bankedDataArray.io.bank_conflict_fast(i)
     ldu(i).io.bank_conflict_slow := bankedDataArray.io.bank_conflict_slow(i)
   })
 
-//  (0 until LoadPipelineWidth).map(i => {
-//    ldu(i).io.banked_data_resp := bankedDataArray.io.resp
-//  })
+  (0 until LoadPipelineWidth).map(i => {
+    ldu(i).io.banked_data_resp := bankedDataArray.io.resp
+  })
 
   //----------------------------------------
   // load pipe
@@ -776,47 +774,15 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
     assert (!bus.d.fire())
   }
 
-
-  class DCachePLRUWrapper(reqWidth: Int = 3, nSets: Int, nWays: Int) extends Module {
-    val io = IO(new Bundle() {
-      val req_set = Input(Vec(reqWidth, Valid(UInt(log2Up(nSets).W))))
-      val req_way = Output(Vec(reqWidth, UInt(log2Up(nWays).W)))
-
-      val touch_sets = Input(Vec(reqWidth, UInt(log2Up(nSets).W)))
-      val touch_ways = Input(Vec(reqWidth, Valid(UInt(log2Up(nWays).W))))
-    })
-    val replacer = ReplacementPolicy.fromString(cacheParams.replacer, nWays, nSets)
-
-    println("DCcachePLRUWrapper:")
-    println("nWays = " + nWays)
-    println("nSets = " + nSets)
-
-    (0 until reqWidth).foreach {
-      case i => {
-        io.req_way(i) := DontCare
-        when(io.req_set(i).valid) {
-          io.req_way(i) := replacer.way(io.req_set(i).bits)
-        }
-      }
-    }
-    replacer.access(io.touch_sets, io.touch_ways)
-  }
-
-
   //----------------------------------------
   // replacement algorithm
-  val replacer = Module(new DCachePLRUWrapper(3, nSets, nWays))
-  replacer.suggestName("DCcachePLURWrapper_0")
-  val replWayReqs = ldu.map(_.io.replace_way) ++ Seq(mainPipe.io.replace_way)
+  val replacer = ReplacementPolicy.fromString(cacheParams.replacer, nWays, nSets)
 
-  replWayReqs.zipWithIndex.foreach {
-    case (req, i) => {
+  val replWayReqs = ldu.map(_.io.replace_way) ++ Seq(mainPipe.io.replace_way)
+  replWayReqs.foreach{
+    case req =>
       req.way := DontCare
-      replacer.io.req_set(i) := req.set
-      when(req.set.valid) {
-        req.way := replacer.io.req_way(i)
-      }
-    }
+      when (req.set.valid) { req.way := replacer.way(req.set.bits) }
   }
 
   val replAccessReqs = ldu.map(_.io.replace_access) ++ Seq(
@@ -829,10 +795,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
       w.bits := req.bits.way
   }
   val touchSets = replAccessReqs.map(_.bits.set)
-  replacer.io.touch_sets := touchSets
-  replacer.io.touch_ways := touchWays
-  assert(replacer.io.touch_sets.length == touchSets.length)
-  assert(replacer.io.touch_ways.length == touchWays.length)
+  replacer.access(touchSets, touchWays)
 
   //----------------------------------------
   // assertions

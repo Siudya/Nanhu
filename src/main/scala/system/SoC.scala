@@ -31,6 +31,7 @@ import top.BusPerfMonitor
 import huancun._
 import huancun.debug.TLLogger
 import xiangshan.backend.execute.fu.PMAConst
+import coupledL3._
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -40,9 +41,8 @@ case class SoCParameters
   PAddrBits: Int = 36,
   extIntrs: Int = 64,
   L3NBanks: Int = 4,
-  L3CacheParamsOpt: Option[HCCacheParameters] = Some(HCCacheParameters(
+  L3CacheParamsOpt: Option[L3Param] = Some(L3Param(
     name = "l3",
-    level = 3,
     ways = 8,
     sets = 2048 // 1MB per bank
   ))
