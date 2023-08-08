@@ -110,6 +110,211 @@ class TagArray(parentName:String = "Unknown")(implicit p: Parameters) extends DC
   io.ecc_read.ready := !wen//!ecc_wen
 }
 
+class TagArrayReg_2(readPorts: Int)(implicit p: Parameters) extends DCacheModule{
+  val io = IO(new Bundle() {
+    val read = Vec(readPorts,Flipped(DecoupledIO(new TagReadReq)))
+    val resp = Vec(readPorts,Output(Vec(nWays, UInt(tagBits.W))))
+    val write = Flipped(DecoupledIO(new TagWriteReq))
+    // ecc
+    val ecc_read = Vec(readPorts,Flipped(DecoupledIO(new TagReadReq)))
+    val ecc_resp = Vec(readPorts,Output(Vec(nWays, UInt(eccTagBits.W))))
+    val ecc_write = Flipped(DecoupledIO(new TagEccWriteReq))
+  })
+
+  io.ecc_read.map(_.ready := true.B)
+  io.ecc_resp := 0.U.asTypeOf(io.ecc_resp.cloneType)
+  io.write.ready := true.B
+  io.ecc_write.ready := true.B
+
+  val s0_way_wen = Wire(Vec(nWays,Bool()))
+  val s1_way_wen = Wire(Vec(nWays,Bool()))
+  val s1_way_waddr = Wire(Vec(nWays,UInt(idxBits.W)))
+  val s1_way_wdata = Wire(Vec(nWays,UInt(tagBits.W)))
+
+  val tag_array = RegInit(
+    VecInit(Seq.fill(nSets)(
+      VecInit(Seq.fill(nWays)(0.U(tagBits.W)))
+    ))
+  )
+
+  io.read.zip(io.resp).zipWithIndex.foreach{
+    case ((read,resp),i) =>
+      read.ready := true.B
+      (0 until nWays).map(way => {
+        val read_way_bypass = WireInit(false.B)
+        val bypass_data = Wire(UInt(tagBits.W))
+        bypass_data := DontCare
+        //write
+        when(s1_way_wen(way) && (s1_way_waddr(way) === read.bits.idx)){
+          read_way_bypass := true.B
+          bypass_data := s1_way_wdata(way)
+        }
+
+        resp(way) := Mux(
+          RegEnable(read_way_bypass,read.valid),
+          RegEnable(bypass_data,read_way_bypass),
+          RegEnable(tag_array(read.bits.idx)(way),read.valid)
+        )
+      })
+  }
+
+  val write = io.write
+  write.ready := true.B
+  write.bits.way_en.asBools.zipWithIndex.foreach{
+    case (wen,way) =>
+      s0_way_wen(way) := write.valid && wen
+      s1_way_wen(way) := RegNext(s0_way_wen(way))
+      s1_way_waddr(way) := RegEnable(write.bits.idx,s0_way_wen(way))
+      s1_way_wdata(way) := RegEnable(write.bits.tag,s0_way_wen(way))
+      when(s1_way_wen(way)){
+        tag_array(s1_way_waddr(way))(way) := s1_way_wdata(way)
+      }
+  }
+}
+
+class TagArrayReg(readPorts: Int)(implicit p: Parameters) extends DCacheModule{
+  val io = IO(new Bundle() {
+    val read = Vec(readPorts,Flipped(DecoupledIO(new TagReadReq)))
+    val resp = Vec(readPorts,Output(Vec(nWays, UInt(tagBits.W))))
+    val write = Flipped(DecoupledIO(new TagWriteReq))
+    // ecc
+    val ecc_read = Vec(readPorts,Flipped(DecoupledIO(new TagReadReq)))
+    val ecc_resp = Vec(readPorts,Output(Vec(nWays, UInt(eccTagBits.W))))
+    val ecc_write = Flipped(DecoupledIO(new TagEccWriteReq))
+  })
+
+  val wSet = io.write.bits.idx
+  val wWay = io.write.bits.way_en
+  val wdata = io.write.bits.tag
+
+  val tag_array = RegInit(
+    VecInit(Seq.fill(nSets)(
+      VecInit(Seq.fill(nWays)(0.U(tagBits.W)))
+    ))
+  )
+  when(io.write.valid){
+    tag_array(wSet)(wWay) := wdata
+  }
+
+  (0 until readPorts).foreach(i => {
+    io.read(i).ready := true.B
+    io.resp(i) := tag_array(io.read(i).bits.idx)
+    io.ecc_read(i).ready := true.B
+  })
+
+  io.ecc_resp := 0.U.asTypeOf(io.ecc_resp.cloneType)
+  io.write.ready := true.B
+  io.ecc_write.ready := true.B
+}
+
+class DuplicatedTagArrayReg(readPorts: Int, parentName:String = "Unknown")(implicit p: Parameters) extends DCacheModule{
+  val io = IO(new Bundle() {
+    val read = Vec(readPorts, Flipped(DecoupledIO(new TagReadReq)))
+    val resp = Output(Vec(readPorts, Vec(nWays, UInt(encTagBits.W))))
+    val write = Flipped(DecoupledIO(new TagWriteReq))
+    // customized cache op port
+    val cacheOp = Flipped(new L1CacheInnerOpIO)
+    val cacheOp_req_dup = Vec(11, Flipped(Valid(new CacheCtrlReqInfo)))
+    val cacheOp_req_bits_opCode_dup = Input(Vec(11, UInt(XLEN.W)))
+  })
+
+  val array = Module(new TagArrayReg_2(readPorts))
+
+  def getECCFromEncTag(encTag: UInt) = {
+    require(encTag.getWidth == encTagBits)
+    encTag(encTagBits - 1, tagBits)
+  }
+
+  array.io.write.valid := io.write.valid
+  array.io.write.bits := io.write.bits
+  array.io.ecc_write.valid := io.write.valid
+  array.io.ecc_write.bits.idx := io.write.bits.idx
+  array.io.ecc_write.bits.way_en := io.write.bits.way_en
+  val ecc = getECCFromEncTag(cacheParams.tagCode.encode(io.write.bits.tag))
+  array.io.ecc_write.bits.ecc := ecc
+  io.write.ready := true.B
+
+  (0 until readPorts).foreach(i => {
+    array.io.read(i) <> io.read(i)
+    array.io.ecc_read(i).valid := io.read(i).valid
+    array.io.ecc_read(i).bits := io.read(i).bits
+    io.resp(i) := ((array.io.ecc_resp(i)) zip( array.io.resp(i))).map { case (e, r) => Cat(e, r)}
+    io.read(i).ready := array.io.read(i).ready && array.io.ecc_read(i).ready
+  })
+
+  //--------------------------------------------
+  // deal with customized cache op
+  require(nWays <= 32)
+  io.cacheOp.resp.bits := DontCare
+  val cacheOpShouldResp = WireInit(false.B)
+
+  when(io.cacheOp.req.valid && isReadTag(io.cacheOp.req.bits.opCode)) {
+    for (i <- 0 until (readPorts / 3)) {
+      array.io.read(i).valid := true.B
+      array.io.read(i).bits.idx := io.cacheOp.req.bits.index
+      array.io.read(i).bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  when(io.cacheOp_req_dup(1).valid && isWriteTag(io.cacheOp_req_bits_opCode_dup(1))) {
+    for (i <- 0 until (readPorts / 3)) {
+      array.io.write.valid := true.B
+      array.io.write.bits.idx := io.cacheOp.req.bits.index
+      array.io.write.bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+      array.io.write.bits.tag := io.cacheOp.req.bits.write_tag_low
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  when(io.cacheOp_req_dup(3).valid && isReadTag(io.cacheOp_req_bits_opCode_dup(3))) {
+    for (i <- (readPorts / 3) until ((readPorts / 3) * 2)) {
+      array.io.read(i).valid := true.B
+      array.io.read(i).bits.idx := io.cacheOp.req.bits.index
+      array.io.read(i).bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  when(io.cacheOp_req_dup(5).valid && isWriteTag(io.cacheOp_req_bits_opCode_dup(5))) {
+    for (i <- (readPorts / 3) until ((readPorts / 3) * 2)) {
+      array.io.write.valid := true.B
+      array.io.write.bits.idx := io.cacheOp.req.bits.index
+      array.io.write.bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+      array.io.write.bits.tag := io.cacheOp.req.bits.write_tag_low
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  when(io.cacheOp_req_dup(7).valid && isReadTag(io.cacheOp_req_bits_opCode_dup(7))) {
+    for (i <- ((readPorts / 3) * 2) until readPorts) {
+      array.io.read(i).valid := true.B
+      array.io.read(i).bits.idx := io.cacheOp.req.bits.index
+      array.io.read(i).bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  when(io.cacheOp_req_dup(9).valid && isWriteTag(io.cacheOp_req_bits_opCode_dup(9))) {
+    for (i <- ((readPorts / 3) * 2) until readPorts) {
+      array.io.write.valid := true.B
+      array.io.write.bits.idx := io.cacheOp.req.bits.index
+      array.io.write.bits.way_en := UIntToOH(io.cacheOp.req.bits.wayNum(4, 0))
+      array.io.write.bits.tag := io.cacheOp.req.bits.write_tag_low
+    }
+    cacheOpShouldResp := true.B
+  }
+
+  io.cacheOp.resp.valid := RegNext(io.cacheOp.req.valid && cacheOpShouldResp)
+  io.cacheOp.resp.bits.read_tag_low := 0.U
+  io.cacheOp.resp.bits.read_tag_ecc := 0.U
+}
+
+
+
+
+
+
 class DuplicatedTagArray(readPorts: Int, parentName:String = "Unknown")(implicit p: Parameters) extends DCacheModule {
   val io = IO(new Bundle() {
     val read = Vec(readPorts, Flipped(DecoupledIO(new TagReadReq)))

@@ -64,6 +64,7 @@ class MinimalConfig(n: Int = 1) extends Config(
         DecodeWidth = 2,
         RenameWidth = 2,
         FetchWidth = 4,
+        IssQueSize = 8,
         NRPhyRegs = 64,
         LoadQueueSize = 16,
         LoadQueueNWriteBanks = 4,

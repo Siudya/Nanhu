@@ -69,6 +69,7 @@ class LqEnqIO(implicit p: Parameters) extends XSBundle {
   val needAlloc = Vec(exuParameters.LsExuCnt, Input(Bool()))
   val req = Vec(exuParameters.LsExuCnt, Flipped(ValidIO(new MicroOp)))
   val resp = Vec(exuParameters.LsExuCnt, Output(new LqPtr))
+  val reqNum = Input((UInt(exuParameters.LsExuCnt.W)))
 }
 
 class LqPaddrWriteBundle(implicit p: Parameters) extends XSBundle {
@@ -119,10 +120,18 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   // val data = Reg(Vec(LoadQueueSize, new LsRobEntry))
   val dataModule = Module(new LoadQueueDataWrapper(LoadQueueSize, wbNumRead = LoadPipelineWidth, wbNumWrite = LoadPipelineWidth))
   dataModule.io := DontCare
-  val vaddrModule = Module(new SyncDataModuleTemplate(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
-  vaddrModule.io := DontCare
-  val vaddrTriggerResultModule = Module(new SyncDataModuleTemplate(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
+//  val vaddrModule = Module(new SyncDataModuleTemplate(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
+//  vaddrModule.io := DontCare  //todo
+
+  val vaddrModule = Module(new LoadQueueVaddrModule(UInt(VAddrBits.W), LoadQueueSize, numRead = LoadPipelineWidth + 1, numWrite = LoadPipelineWidth, "LqVaddr"))
+  vaddrModule.io := DontCare //todo
+
+//  val vaddrTriggerResultModule = Module(new SyncDataModuleTemplate(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
+//  vaddrTriggerResultModule.io := DontCare
+  val vaddrTriggerResultModule = Module(new vaddrTriggerResultDataModule(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
   vaddrTriggerResultModule.io := DontCare
+
+
   val allocated = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // lq entry has been allocated
   val datavalid = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // data is valid
   val writebacked = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // inst has been writebacked to CDB
@@ -152,8 +161,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val commitCount = RegNext(io.rob.lcommit)
 
   val release1cycle = io.release
-  val release2cycle = RegNext(io.release)
-  val release2cycle_dup_lsu = RegNext(io.release)
+  val release2cycle_valid = RegNext(io.release.valid)
+  val release2cycle_paddr = RegEnable(io.release.bits.paddr, io.release.valid)
+  val release2cycle_paddr_dup_lsu = RegEnable(io.release.bits.paddr, io.release.valid)
 
   /**
     * Enqueue at dispatch
@@ -184,9 +194,21 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   }
   XSDebug(p"(ready, valid): ${io.enq.canAccept}, ${Binary(Cat(io.enq.req.map(_.valid)))}\n")
 
-  val lastCycleRedirect = RegNext(io.brqRedirect)
-  val lastlastCycleRedirect = RegNext(lastCycleRedirect)
+//  val lastCycleRedirect = RegNext(io.brqRedirect)
+//  val lastlastCycleRedirect = RegNext(lastCycleRedirect)
 
+  val lastCycleRedirect_valid = RegNext(io.brqRedirect.valid)
+  val lastCycleRedirect_bits = RegEnable(io.brqRedirect.bits, io.brqRedirect.valid)
+  val lastlastCycleRedirect_valid = RegNext(lastCycleRedirect_valid)
+  val lastlastCycleRedirect_bits = RegEnable(lastCycleRedirect_bits, lastCycleRedirect_valid)
+
+  val lastCycleRedirect = Wire(io.brqRedirect.cloneType)
+  lastCycleRedirect.valid := lastCycleRedirect_valid
+  lastCycleRedirect.bits := lastCycleRedirect_bits
+
+  val lastlastCycleRedirect = Wire(io.brqRedirect.cloneType)
+  lastlastCycleRedirect.valid := lastlastCycleRedirect_valid
+  lastlastCycleRedirect.bits := lastlastCycleRedirect_bits
   /**
     * Writeback load from load units
     *
@@ -250,8 +272,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
         miss(loadWbIndex) := dcacheMissed && !io.s2_load_data_forwarded(i)
       }
       pending(loadWbIndex) := io.loadIn(i).bits.mmio
-      released(loadWbIndex) := release2cycle.valid &&
-        io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle.bits.paddr(PAddrBits-1, DCacheLineOffset) ||
+      released(loadWbIndex) := release2cycle_valid &&
+        io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_paddr(PAddrBits-1, DCacheLineOffset) ||
         release1cycle.valid &&
         io.loadIn(i).bits.paddr(PAddrBits-1, DCacheLineOffset) === release1cycle.bits.paddr(PAddrBits-1, DCacheLineOffset)
     }
@@ -410,12 +432,23 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val loadOddSelVecFire = getOddBits(loadWbSelVec) & ~oddFireMask
   val loadEvenSelVecNotFire = getEvenBits(loadWbSelVec)
   val loadOddSelVecNotFire = getOddBits(loadWbSelVec)
+//  val loadEvenSel = Mux(
+//    io.ldout(0).fire(),
+//    getFirstOne(toVec(loadEvenSelVecFire), evenDeqMask),
+//    getFirstOne(toVec(loadEvenSelVecNotFire), evenDeqMask)
+//  )
+//  val loadOddSel= Mux(
+//    io.ldout(1).fire(),
+//    getFirstOne(toVec(loadOddSelVecFire), oddDeqMask),
+//    getFirstOne(toVec(loadOddSelVecNotFire), oddDeqMask)
+//  )
+
   val loadEvenSel = Mux(
     io.ldout(0).fire(),
     getFirstOne(toVec(loadEvenSelVecFire), evenDeqMask),
     getFirstOne(toVec(loadEvenSelVecNotFire), evenDeqMask)
   )
-  val loadOddSel= Mux(
+  val loadOddSel = Mux(
     io.ldout(1).fire(),
     getFirstOne(toVec(loadOddSelVecFire), oddDeqMask),
     getFirstOne(toVec(loadOddSelVecNotFire), oddDeqMask)
@@ -443,7 +476,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   // writeback data to cdb
   (0 until LoadPipelineWidth).map(i => {
     // data select
-    dataModule.io.wb.raddr(i) := loadWbSelGen(i)
+//    dataModule.io.wb.raddr(i) := loadWbSelGen(i)
+    dataModule.io.wb.raddr(i) := loadWbSel(i)
     val rdata = dataModule.io.wb.rdata(i).data
     val seluop = uop(loadWbSel(i))
     val func = seluop.ctrl.fuOpType
@@ -777,12 +811,12 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     io.loadViolationQuery.takeRight(1)(0).req.ready := false.B
   }
 
-  when(release2cycle.valid){
+  when(release2cycle_valid){
     // If a load comes in that cycle, we can not judge if it has ld-ld violation
     // We replay that load inst from RS
     io.loadViolationQuery.map(i => i.req.ready :=
       // use lsu side release2cycle_dup_lsu paddr for better timing
-      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_dup_lsu.bits.paddr(PAddrBits-1, DCacheLineOffset))
+      !(i.req.bits.paddr(PAddrBits-1, DCacheLineOffset) === release2cycle_paddr_dup_lsu(PAddrBits-1, DCacheLineOffset))
     )
     // io.loadViolationQuery.map(i => i.req.ready := false.B) // For better timing
   }
@@ -838,7 +872,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   }
   io.uncache.req.valid := uncacheState === s_req
 
-  dataModule.io.uncache.raddr := deqPtrExtNext.value
+  dataModule.io.uncache.raddr := deqPtrExtNext.value  //todo
 
   io.uncache.req.bits.cmd  := MemoryOpConstants.M_XRD
   io.uncache.req.bits.addr := dataModule.io.uncache.rdata.paddr
@@ -874,16 +908,17 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   // Read vaddr for mem exception
   // no inst will be commited 1 cycle before tval update
-  vaddrModule.io.raddr(0) := (deqPtrExt + commitCount).value
+  vaddrModule.io.raddr(0) := RegNext((deqPtrExt + commitCount).value)
   io.exceptionAddr.vaddr := vaddrModule.io.rdata(0)
 
   // Read vaddr for debug
   (0 until LoadPipelineWidth).map(i => {
-    vaddrModule.io.raddr(i+1) := loadWbSel(i)
+    vaddrModule.io.raddr(i+1) := RegNext(loadWbSel(i))
   })
 
   (0 until LoadPipelineWidth).map(i => {
-    vaddrTriggerResultModule.io.raddr(i) := loadWbSelGen(i)
+//    vaddrTriggerResultModule.io.raddr(i) := loadWbSelGen(i)
+    vaddrTriggerResultModule.io.raddr(i) := loadWbSel(i)
     io.trigger(i).lqLoadAddrTriggerHitVec := Mux(
       loadWbSelV(i),
       vaddrTriggerResultModule.io.rdata(i),
@@ -905,13 +940,17 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     * update pointers
     */
   val lastEnqCancel = PopCount(RegNext(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
-  val lastCycleCancelCount = PopCount(RegNext(needCancel))
+  val lastCycleCancelCount = RegNext(PopCount(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.sqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
+  val enqNumber_enq = Mux(io.enq.canAccept && io.enq.sqCanAccept, io.enq.reqNum, 0.U)
+
+  XSError(enqNumber =/= enqNumber_enq,"enqNumber and enqNumber_enq must be equal\n")
+
   when (lastCycleRedirect.valid) {
     // we recover the pointers in the next cycle after redirect
     enqPtrExt := VecInit(enqPtrExt.map(_ - (lastCycleCancelCount + lastEnqCancel)))
   }.otherwise {
-    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber))
+    enqPtrExt := VecInit(enqPtrExt.map(_ + enqNumber_enq))
   }
 
   deqPtrExtNext := deqPtrExt + commitCount
