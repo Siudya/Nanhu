@@ -372,7 +372,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   for (i <- 0 until LoadPipelineWidth) {
     val loadWbIndex = io.loadIn(i).bits.uop.lqIdx.value
-    val lastCycleLoadWbIndex = RegNext(loadWbIndex)
+    val lastCycleLoadWbIndex = RegEnable(loadWbIndex,io.loadIn(i).valid)
     // update miss state in load s3
     if(!EnableFastForward){
       // s2_dcache_require_replay will be used to update lq flag 1 cycle after for better timing
@@ -611,8 +611,8 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val lqViolationVec = VecInit((0 until LoadQueueSize).map(j => {
       addrMaskMatch(j) && entryNeedCheck(j)
     }))
-    val lqViolation = lqViolationVec.asUInt().orR() && RegNext(!io.storeIn(i).bits.miss)
-    val lqViolationIndex = getFirstOne(lqViolationVec, RegNext(lqIdxMask))
+    val lqViolation = lqViolationVec.asUInt().orR() && RegEnable(!io.storeIn(i).bits.miss,io.storeIn(i).valid)
+    val lqViolationIndex = getFirstOne(lqViolationVec, RegEnable(lqIdxMask,io.storeIn(i).valid))
     val lqViolationUop = uop(lqViolationIndex)
     // lqViolationUop.lqIdx.flag := deqMask(lqViolationIndex) ^ deqPtrExt.flag
     // lqViolationUop.lqIdx.value := lqViolationIndex
@@ -695,8 +695,10 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     rollbackL1(i).bits.flag := i.U
     rollbackL1Wb(2*i) := rollbackL1(i)
     rollbackL1Wb(2*i+1) := rollbackWb(i)
-    stFtqIdxS2(i) := RegNext(io.storeIn(i).bits.uop.cf.ftqPtr)
-    stFtqOffsetS2(i) := RegNext(io.storeIn(i).bits.uop.cf.ftqOffset)
+//    stFtqIdxS2(i) := RegNext(io.storeIn(i).bits.uop.cf.ftqPtr)
+//    stFtqOffsetS2(i) := RegNext(io.storeIn(i).bits.uop.cf.ftqOffset)
+    stFtqIdxS2(i) := RegEnable(io.storeIn(i).bits.uop.cf.ftqPtr,io.storeIn(i).valid)
+    stFtqOffsetS2(i) := RegEnable(io.storeIn(i).bits.uop.cf.ftqOffset,io.storeIn(i).valid)
   }
 
   val rollbackL1WbSelected = ParallelOperation(rollbackL1Wb, rollbackSel)

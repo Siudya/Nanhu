@@ -144,11 +144,11 @@ class SbufferData(implicit p: Parameters) extends XSModule with HasSbufferConst 
   val req = io.writeReq
   //s1
   val w_valid_s1 = req.map(a => RegNext(a.valid))
-  val w_data_s1 = req.map(a => RegNext(a.bits.data))
-  val w_wline_s1 = req.map(a => RegNext(a.bits.wline))
-  val w_mask_s1 = req.map(a => RegNext(a.bits.mask))
-  val w_addr_s1 = req.map(a => RegNext(OHToUInt(a.bits.wvec)))
-  val w_word_offset_s1 = req.map(a => RegNext(a.bits.wordOffset(WordsWidth - 1, 0)))
+  val w_data_s1 = req.map(a => RegEnable(a.bits.data,a.valid))
+  val w_wline_s1 = req.map(a => RegEnable(a.bits.wline,a.valid))
+  val w_mask_s1 = req.map(a => RegEnable(a.bits.mask,a.valid))
+  val w_addr_s1 = req.map(a => RegEnable(OHToUInt(a.bits.wvec),a.valid))
+  val w_word_offset_s1 = req.map(a => RegEnable(a.bits.wordOffset(WordsWidth - 1, 0),a.valid))
 
   w_valid_s1.zipWithIndex.foreach({ case (valid, i) =>
     for (word <- 0 until CacheLineWords) {

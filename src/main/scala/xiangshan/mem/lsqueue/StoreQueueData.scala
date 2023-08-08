@@ -388,6 +388,7 @@ class SQDataEntry(implicit p: Parameters) extends XSBundle {
 class SQDataModule(numEntries: Int, numRead: Int, numWrite: Int, numForward: Int)(implicit p: Parameters) extends XSModule with HasDCacheParameters with HasCircularQueuePtrHelper {
   val io = IO(new Bundle() {
     // sync read port
+    val ren   = Vec(numRead,  Input(Bool()))
     val raddr = Vec(numRead,  Input(UInt(log2Up(numEntries).W)))
     val rdata = Vec(numRead,  Output(new SQDataEntry))
     // data write port
