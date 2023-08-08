@@ -170,16 +170,21 @@ class StoreMaskBundle(implicit p: Parameters) extends XSBundle {
 }
 
 class LoadDataFromDcacheBundle(implicit p: Parameters) extends DCacheBundle {
-  val bankedDcacheData = Vec(DCacheBanks, UInt(64.W))
-  val bank_oh = UInt(DCacheBanks.W)
+  val load_data = UInt(64.W)
+//  val bankedDcacheData = Vec(DCacheBanks, UInt(64.W))
+//  val bank_oh = UInt(DCacheBanks.W)
   val forwardMask = Vec(8, Bool())
   val forwardData = Vec(8, UInt(8.W))
   val uop = new MicroOp // for data selection, only fwen and fuOpType are used
   val addrOffset = UInt(3.W) // for data selection
 
   // val dcacheData = UInt(64.W)
+//  def dcacheData(): UInt = {
+//    Mux1H(bank_oh, bankedDcacheData)
+//  }
+
   def dcacheData(): UInt = {
-    Mux1H(bank_oh, bankedDcacheData)
+    load_data
   }
 
   def mergedData(): UInt = {

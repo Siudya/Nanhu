@@ -186,8 +186,8 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
   })
 
   val s1_uop = io.in.bits.uop
-  val s1_paddr_dup_lsu = io.dtlbResp.bits.paddr(0)
-  val s1_paddr_dup_dcache = io.dtlbResp.bits.paddr(1)
+  val s1_paddr_dup_lsu = Mux(io.dtlbResp.valid && !io.dtlbResp.bits.miss, io.dtlbResp.bits.paddr(0), 0.U)
+  val s1_paddr_dup_dcache = Mux(io.dtlbResp.valid && !io.dtlbResp.bits.miss, io.dtlbResp.bits.paddr(1), 0.U)
   // af & pf exception were modified below.
   val s1_exception = ExceptionNO.selectByFu(io.out.bits.uop.cf.exceptionVec, lduCfg).asUInt.orR
   val s1_tlb_miss = io.dtlbResp.bits.miss
@@ -408,9 +408,10 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
   }
   io.out.bits.uop.ctrl.fpWen := io.in.bits.uop.ctrl.fpWen && !s2_exception
 
-  io.loadDataFromDcache.bankedDcacheData := io.dcacheResp.bits.bank_data
-  io.loadDataFromDcache.bank_oh := io.dcacheResp.bits.bank_oh
+//  io.loadDataFromDcache.bankedDcacheData := io.dcacheResp.bits.bank_data
+//  io.loadDataFromDcache.bank_oh := io.dcacheResp.bits.bank_oh
   // io.loadDataFromDcache.dcacheData := io.dcacheResp.bits.data
+  io.loadDataFromDcache.load_data := Mux(io.dcacheResp.bits.miss,0.U,io.dcacheResp.bits.load_data)  //to cut X-prop
   io.loadDataFromDcache.forwardMask := forwardMask
   io.loadDataFromDcache.forwardData := forwardData
   io.loadDataFromDcache.uop := io.out.bits.uop
@@ -634,7 +635,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   io.dcache.s2_kill := load_s2.io.dcache_kill // to kill mmio resp which are redirected
   load_s2.io.dcacheResp <> io.dcache.resp
   load_s2.io.pmpResp <> io.pmp
-  load_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+//  load_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
+  load_s2.io.static_pm := RegEnable(io.tlb.resp.bits.static_pm,io.tlb.resp.valid)
   load_s2.io.lsq.forwardData <> io.lsq.forward.forwardData
   load_s2.io.lsq.forwardMask <> io.lsq.forward.forwardMask
   load_s2.io.lsq.forwardMaskFast <> io.lsq.forward.forwardMaskFast // should not be used in load_s2
@@ -684,7 +686,8 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
     !RegNext(load_s1.io.out.bits.uop.robIdx.needFlush(io.redirect)) &&
     s2_dcache_hit // dcache hit in lsu side
 
-  io.fastUop.bits := RegNext(load_s1.io.out.bits.uop)
+//  io.fastUop.bits := RegNext(load_s1.io.out.bits.uop)
+  io.fastUop.bits := RegEnable(load_s1.io.out.bits.uop,load_s1.io.out.valid)
 
   XSDebug(load_s0.io.out.valid,
     p"S0: pc ${Hexadecimal(load_s0.io.out.bits.uop.cf.pc)}, lId ${Hexadecimal(load_s0.io.out.bits.uop.lqIdx.asUInt)}, " +
@@ -735,17 +738,17 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
   // data from load queue refill
   val s3_loadDataFromLQ = RegEnable(io.lsq.ldRawData, io.lsq.ldout.valid)
   val s3_rdataLQ = s3_loadDataFromLQ.mergedData()
-  val s3_rdataSelLQ = LookupTree(s3_loadDataFromLQ.addrOffset, List(
-    "b000".U -> s3_rdataLQ(63, 0),
-    "b001".U -> s3_rdataLQ(63, 8),
-    "b010".U -> s3_rdataLQ(63, 16),
-    "b011".U -> s3_rdataLQ(63, 24),
-    "b100".U -> s3_rdataLQ(63, 32),
-    "b101".U -> s3_rdataLQ(63, 40),
-    "b110".U -> s3_rdataLQ(63, 48),
-    "b111".U -> s3_rdataLQ(63, 56)
-  ))
-  val s3_rdataPartialLoadLQ = rdataHelper(s3_loadDataFromLQ.uop, s3_rdataSelLQ)
+//  val s3_rdataSelLQ = LookupTree(s3_loadDataFromLQ.addrOffset, List(
+//    "b000".U -> s3_rdataLQ(63, 0),
+//    "b001".U -> s3_rdataLQ(63, 8),
+//    "b010".U -> s3_rdataLQ(63, 16),
+//    "b011".U -> s3_rdataLQ(63, 24),
+//    "b100".U -> s3_rdataLQ(63, 32),
+//    "b101".U -> s3_rdataLQ(63, 40),
+//    "b110".U -> s3_rdataLQ(63, 48),
+//    "b111".U -> s3_rdataLQ(63, 56)
+//  ))
+//  val s3_rdataPartialLoadLQ = rdataHelper(s3_loadDataFromLQ.uop, s3_rdataSelLQ)
 
   // data from dcache hit
   val s3_loadDataFromDcache = RegEnable(load_s2.io.loadDataFromDcache, load_s2.io.in.valid)

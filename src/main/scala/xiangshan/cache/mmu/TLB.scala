@@ -40,7 +40,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val resp = io.requestor.map(_.resp)
   val ptw = io.ptw
   val pmp = io.pmp
-  val ptw_resp = if (q.sameCycle) RegNext(ptw.resp.bits) else ptw.resp.bits
+  val ptw_resp = if (q.sameCycle) RegEnable(ptw.resp.bits,ptw.resp.valid) else ptw.resp.bits
+  //  val ptw_resp = if (q.sameCycle) RegNext(ptw.resp.bits) else ptw.resp.bits
   val ptw_resp_v = if (q.sameCycle) RegNext(ptw.resp.valid, init = false.B) else ptw.resp.valid
 
   val mode_tmp = if (q.useDmode) io.csr.priv.dmode else io.csr.priv.imode
@@ -55,9 +56,9 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val ifecth = if (q.fetchi) true.B else false.B
 
   val reqAddr = req.map(_.bits.vaddr.asTypeOf(new VaBundle))
+  val reqValid = req.map(_.valid)
   val vpn = reqAddr.map(_.vpn)
   val cmd = req.map(_.bits.cmd)
-  val valid = req.map(_.valid)
 
   def widthMapSeq[T <: Seq[Data]](f: Int => T) = (0 until Width).map(f)
 
@@ -119,10 +120,16 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
 
     val hit = normal_hit || super_hit
     val hit_sameCycle = n_hit_sameCycle || s_hit_sameCycle
-    val cmdReg = if (!q.sameCycle) RegNext(cmd(i)) else cmd(i)
-    val validReg = if (!q.sameCycle) RegNext(valid(i)) else valid(i)
-    val offReg = if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off
-    val sizeReg = if (!q.sameCycle) RegNext(req(i).bits.size) else req(i).bits.size
+//    val cmdReg = if (!q.sameCycle) RegNext(cmd(i)) else cmd(i)
+//    val validReg = if (!q.sameCycle) RegNext(valid(i)) else valid(i)
+//    val offReg = if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off
+//    val sizeReg = if (!q.sameCycle) RegNext(req(i).bits.size) else req(i).bits.size
+    val cmdReg = if (!q.sameCycle) RegEnable(cmd(i),reqValid(i)) else cmd(i)
+    val validReg = if (!q.sameCycle) RegNext(reqValid(i)) else reqValid(i)
+    val offReg = if (!q.sameCycle) RegEnable(reqAddr(i).off,reqValid(i)) else reqAddr(i).off
+    val sizeReg = if (!q.sameCycle) RegEnable(req(i).bits.size,reqValid(i)) else req(i).bits.size
+
+
 
     /** *************** next cycle when two cycle is false******************* */
     val miss = !hit && vmEnable_dup(i)
@@ -141,7 +148,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     // for timing optimization, pmp check is divided into dynamic and static
     // dynamic: superpage (or full-connected reg entries) -> check pmp when translation done
     // static: 4K pages (or sram entries) -> check pmp with pre-checked results
-    val pmp_paddr = Mux(vmEnable_dup(i), Cat(super_ppn(0), offReg), if (!q.sameCycle) RegNext(vaddr) else vaddr)
+//    val pmp_paddr = Mux(vmEnable_dup(i), Cat(super_ppn(0), offReg), if (!q.sameCycle) RegNext(vaddr) else vaddr)
+    val pmp_paddr = Mux(vmEnable_dup(i), Cat(super_ppn(0), offReg), if (!q.sameCycle) RegEnable(vaddr,reqValid(i)) else vaddr)
     pmp(i).valid := resp(i).valid
     pmp(i).bits.addr := pmp_paddr
     pmp(i).bits.size := sizeReg
@@ -158,7 +166,7 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
       val pf = perm.pf
       val af = perm.af
       val paddr = Cat(ppn, offReg)
-      resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr)
+      resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegEnable(vaddr,reqValid(i)) else vaddr)
 
       val ldUpdate = !perm.a && TlbCmd.isRead(cmdReg) && !TlbCmd.isAmo(cmdReg) // update A/D through exception
       val stUpdate = (!perm.a || !perm.d) && (TlbCmd.isWrite(cmdReg) || TlbCmd.isAmo(cmdReg)) // update A/D through exception
@@ -252,12 +260,17 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     when (RegEnable(io.requestor(i).req_kill, RegNext(io.requestor(i).req.fire))) {
       io.ptw.req(i).valid := false.B
     }
-    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
+//    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
+    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)))
   }
   io.ptw.resp.ready := true.B
 
   def need_RegNext[T <: Data](need: Boolean, data: T): T = {
     if (need) RegNext(data)
+    else data
+  }
+  def need_RegEnable[T <: Data](need: Boolean, data: T, enable: Bool): T = {
+    if (need) RegEnable(data,enable)
     else data
   }
   def need_RegNextInit[T <: Data](need: Boolean, data: T, init_value: T): T = {
@@ -303,8 +316,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   }
 
   XSDebug(sfence_dup.head.valid, p"Sfence: ${sfence_dup.head}\n")
-  XSDebug(ParallelOR(valid)|| ptw.resp.valid, p"CSR: ${csr_dup.head}\n")
-  XSDebug(ParallelOR(valid) || ptw.resp.valid, p"vmEnable:${vmEnable_dup.head} hit:${Binary(VecInit(hitVec).asUInt)} miss:${Binary(VecInit(missVec).asUInt)}\n")
+  XSDebug(ParallelOR(reqValid)|| ptw.resp.valid, p"CSR: ${csr_dup.head}\n")
+  XSDebug(ParallelOR(reqValid) || ptw.resp.valid, p"vmEnable:${vmEnable_dup.head} hit:${Binary(VecInit(hitVec).asUInt)} miss:${Binary(VecInit(missVec).asUInt)}\n")
   for (i <- ptw.req.indices) {
     XSDebug(ptw.req(i).fire(), p"L2TLB req:${ptw.req(i).bits}\n")
   }
@@ -395,7 +408,8 @@ object TLB {
         // NOTE: the resp.valid seems to be useless, it must be true when need
         //       But don't know what happens when true but not need, so keep it correct value, not just true.B
         if (q.missSameCycle && !q.sameCycle) {
-          in(i).resp.valid := tlb.io.requestor(i).resp.valid && !RegNext(tlb.io.requestor(i).resp.bits.miss)
+//          in(i).resp.valid := tlb.io.requestor(i).resp.valid && !RegNext(tlb.io.requestor(i).resp.bits.miss)
+          in(i).resp.valid := tlb.io.requestor(i).resp.valid && !RegEnable(tlb.io.requestor(i).resp.bits.miss,tlb.io.requestor(i).resp.valid)
         } else {
           in(i).resp.valid := tlb.io.requestor(i).resp.valid && !tlb.io.requestor(i).resp.bits.miss
         }

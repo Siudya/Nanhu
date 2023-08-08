@@ -21,7 +21,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan._
 import utils._
-import xs.utils.{GetEvenBits, GetOddBits, ParallelOR, PriorityEncoderWithFlag, PseudoLRU}
+import xs.utils.{GetEvenBits, GetOddBits, ParallelOR, PriorityEncoderWithFlag, PseudoLRU, ValidPseudoLRU}
 import xiangshan.cache._
 import difftest._
 import freechips.rocketchip.util._
@@ -86,7 +86,7 @@ class MaskFlushReq(implicit p: Parameters) extends SbufferBundle {
 class SbufferData(implicit p: Parameters) extends XSModule with HasSbufferConst {
   val io = IO(new Bundle(){
     // update data and mask when alloc or merge
-    val writeReq = Vec(StorePipelineWidth, Flipped(ValidIO(new DataWriteReq)))
+    val writeReq = Vec(EnsbufferWidth, Flipped(ValidIO(new DataWriteReq)))
     // clean mask when deq
     val maskFlushReq = Vec(NumDcacheWriteResp, Flipped(ValidIO(new MaskFlushReq)))
     val dataOut = Output(Vec(StoreBufferSize, Vec(CacheLineWords, Vec(DataBytes, UInt(8.W)))))
@@ -103,54 +103,116 @@ class SbufferData(implicit p: Parameters) extends XSModule with HasSbufferConst 
     ))
   )
 
-  // 2 cycle line mask clean
-  for(line <- 0 until StoreBufferSize){
-    val line_mask_clean_flag = RegNext(
-      io.maskFlushReq.map(a => a.valid && a.bits.wvec(line)).reduce(_ || _)
-    )
-    line_mask_clean_flag.suggestName("line_mask_clean_flag_"+line)
-    when(line_mask_clean_flag){
-      for(word <- 0 until CacheLineWords){
-        for(byte <- 0 until DataBytes){
+  //  // 2 cycle line mask clean
+  //  for(line <- 0 until StoreBufferSize){
+  //    val line_mask_clean_flag = RegNext(
+  //      io.maskFlushReq.map(a => a.valid && a.bits.wvec(line)).reduce(_ || _)
+  //    )
+  //    line_mask_clean_flag.suggestName("line_mask_clean_flag_"+line)
+  //    when(line_mask_clean_flag){
+  //      for(word <- 0 until CacheLineWords){
+  //        for(byte <- 0 until DataBytes){
+  //          mask(line)(word)(byte) := false.B
+  //        }
+  //      }
+  //    }
+  //  }
+
+  val line_mask_clean_valid = io.maskFlushReq.map(a => RegNext(a.valid))
+  val line_mask_clean_line = io.maskFlushReq.map(a => RegNext(OHToUInt(a.bits.wvec)))
+
+  io.maskFlushReq.map({ case req =>
+    when(req.valid) {
+      assert(PopCount(req.bits.wvec) <= 1.U) //must be one hot code
+    }
+  })
+
+  line_mask_clean_valid.zipWithIndex.map({ case (v, i) => v.suggestName("line_mask_clean_valid_" + i) })
+  line_mask_clean_line.zipWithIndex.map({ case (v, i) => v.suggestName("line_mask_clean_line_" + i) })
+
+  line_mask_clean_valid.zip(line_mask_clean_line).foreach { case (valid, line) =>
+    when(valid) {
+      for (word <- 0 until CacheLineWords) {
+        for (byte <- 0 until DataBytes) {
           mask(line)(word)(byte) := false.B
         }
       }
     }
   }
 
-  // 2 cycle data / mask update
-  for(i <- 0 until StorePipelineWidth) {
-    val req = io.writeReq(i)
-    for(line <- 0 until StoreBufferSize){
-      val sbuffer_in_s1_line_wen = req.valid && req.bits.wvec(line)
-      val sbuffer_in_s2_line_wen = RegNext(sbuffer_in_s1_line_wen)
-      val line_write_buffer_data = RegEnable(req.bits.data, sbuffer_in_s1_line_wen)
-      val line_write_buffer_wline = RegEnable(req.bits.wline, sbuffer_in_s1_line_wen)
-      val line_write_buffer_mask = RegEnable(req.bits.mask, sbuffer_in_s1_line_wen)
-      val line_write_buffer_offset = RegEnable(req.bits.wordOffset(WordsWidth-1, 0), sbuffer_in_s1_line_wen)
-      sbuffer_in_s1_line_wen.suggestName("sbuffer_in_s1_line_wen_"+line)
-      sbuffer_in_s2_line_wen.suggestName("sbuffer_in_s2_line_wen_"+line)
-      line_write_buffer_data.suggestName("line_write_buffer_data_"+line)
-      line_write_buffer_wline.suggestName("line_write_buffer_wline_"+line)
-      line_write_buffer_mask.suggestName("line_write_buffer_mask_"+line)
-      line_write_buffer_offset.suggestName("line_write_buffer_offset_"+line)
-      for(word <- 0 until CacheLineWords){
-        for(byte <- 0 until DataBytes){
-          val write_byte = sbuffer_in_s2_line_wen && (
-            line_write_buffer_mask(byte) && (line_write_buffer_offset === word.U) || 
-            line_write_buffer_wline
+  //s0
+  val req = io.writeReq
+  //s1
+  val w_valid_s1 = req.map(a => RegNext(a.valid))
+  val w_data_s1 = req.map(a => RegNext(a.bits.data))
+  val w_wline_s1 = req.map(a => RegNext(a.bits.wline))
+  val w_mask_s1 = req.map(a => RegNext(a.bits.mask))
+  val w_addr_s1 = req.map(a => RegNext(OHToUInt(a.bits.wvec)))
+  val w_word_offset_s1 = req.map(a => RegNext(a.bits.wordOffset(WordsWidth - 1, 0)))
+
+  w_valid_s1.zipWithIndex.foreach({ case (valid, i) =>
+    for (word <- 0 until CacheLineWords) {
+      for (byte <- 0 until DataBytes) {
+        val wen = valid && (
+          (w_mask_s1(i)(byte) && (w_word_offset_s1(i) === word.U)) ||
+            w_wline_s1(i)
           )
-          when(write_byte){
-            data(line)(word)(byte) := line_write_buffer_data(byte*8+7, byte*8)
-            mask(line)(word)(byte) := true.B
-          }
+        when(wen) {
+          data(w_addr_s1(i))(word)(byte) := w_data_s1(i)(byte * 8 + 7, byte * 8)
+          mask(w_addr_s1(i))(word)(byte) := true.B
         }
       }
     }
-  }
+  })
+
+//  // 2 cycle line mask clean
+//  for(line <- 0 until StoreBufferSize){
+//    val line_mask_clean_flag = RegNext(
+//      io.maskFlushReq.map(a => a.valid && a.bits.wvec(line)).reduce(_ || _)
+//    )
+//    line_mask_clean_flag.suggestName("line_mask_clean_flag_"+line)
+//    when(line_mask_clean_flag){
+//      for(word <- 0 until CacheLineWords){
+//        for(byte <- 0 until DataBytes){
+//          mask(line)(word)(byte) := false.B
+//        }
+//      }
+//    }
+//  }
+//
+//  // 2 cycle data / mask update
+//  for(i <- 0 until EnsbufferWidth) {
+//    val req = io.writeReq(i)
+//    for(line <- 0 until StoreBufferSize){
+//      val sbuffer_in_s1_line_wen = req.valid && req.bits.wvec(line)
+//      val sbuffer_in_s2_line_wen = RegNext(sbuffer_in_s1_line_wen)
+//      val line_write_buffer_data = RegEnable(req.bits.data, sbuffer_in_s1_line_wen)
+//      val line_write_buffer_wline = RegEnable(req.bits.wline, sbuffer_in_s1_line_wen)
+//      val line_write_buffer_mask = RegEnable(req.bits.mask, sbuffer_in_s1_line_wen)
+//      val line_write_buffer_offset = RegEnable(req.bits.wordOffset(WordsWidth-1, 0), sbuffer_in_s1_line_wen)
+//      sbuffer_in_s1_line_wen.suggestName("sbuffer_in_s1_line_wen_"+line)
+//      sbuffer_in_s2_line_wen.suggestName("sbuffer_in_s2_line_wen_"+line)
+//      line_write_buffer_data.suggestName("line_write_buffer_data_"+line)
+//      line_write_buffer_wline.suggestName("line_write_buffer_wline_"+line)
+//      line_write_buffer_mask.suggestName("line_write_buffer_mask_"+line)
+//      line_write_buffer_offset.suggestName("line_write_buffer_offset_"+line)
+//      for(word <- 0 until CacheLineWords){
+//        for(byte <- 0 until DataBytes){
+//          val write_byte = sbuffer_in_s2_line_wen && (
+//            line_write_buffer_mask(byte) && (line_write_buffer_offset === word.U) ||
+//            line_write_buffer_wline
+//          )
+//          when(write_byte){
+//            data(line)(word)(byte) := line_write_buffer_data(byte*8+7, byte*8)
+//            mask(line)(word)(byte) := true.B
+//          }
+//        }
+//      }
+//    }
+//  }
 
   // 1 cycle line mask clean
-  // for(i <- 0 until StorePipelineWidth) {
+  // for(i <- 0 until EnsbufferWidth) {
   //   val req = io.writeReq(i)
   //   when(req.valid){
   //     for(line <- 0 until StoreBufferSize){
@@ -193,10 +255,26 @@ class PLRUWrapper(nWay: Int,accessWay: Int,accessType : UInt) extends Module{
   io.replaceWay := plru.way
 }
 
+
+class ValidPLRUWrapper(nWay: Int,accessWay: Int,accessType : UInt) extends Module{
+  require(isPow2(nWay))
+  val set_num = log2Up(nWay)
+
+  val io = IO(new Bundle() {
+    val access = Input(Vec(accessWay, Valid(accessType)))
+    val candidateVec = Input(Vec(nWay, Bool()))
+    val replaceWay = Output(UInt(set_num.W))
+  })
+
+  val plru = new ValidPseudoLRU(nWay)
+  plru.access(io.access)
+  io.replaceWay := plru.way(io.candidateVec.reverse)._2
+}
+
 class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst with HasPerfEvents {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))
-    val in = Vec(StorePipelineWidth, Flipped(Decoupled(new DCacheWordReqWithVaddr)))  //Todo: store logic only support Width == 2 now
+    val in = Vec(EnsbufferWidth, Flipped(Decoupled(new DCacheWordReqWithVaddr)))  //Todo: store logic only support Width == 2 now
     val dcache = Flipped(new DCacheToSbufferIO)
     val forward = Vec(LoadPipelineWidth, Flipped(new LoadForwardQueryIO))
     val sqempty = Input(Bool())
@@ -258,17 +336,31 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
 
   // sbuffer entry count
 
-//  val plru = new PseudoLRU(StoreBufferSize)
-  val accessIdx = Wire(Vec(StorePipelineWidth + 1, Valid(UInt(SbufferIndexWidth.W))))
+  val plru = Module(new ValidPLRUWrapper(StoreBufferSize, EnsbufferWidth + 1, UInt(SbufferIndexWidth.W)))
+  plru.suggestName("Sbuffer_PLRU")
 
-//  val replaceIdx = plru.way
-//  val replaceIdxOH = UIntToOH(plru.way)
-//  plru.access(accessIdx)
+  val accessIdx = Wire(Vec(EnsbufferWidth + 1, Valid(UInt(SbufferIndexWidth.W))))
+  val candidateVec = VecInit(stateVec.map(s => s.isDcacheReqCandidate()))
+  //  val replaceAlgoNotDcacheCandidate = Wire(!stateVec(replaceAlgoIdx).isDcacheReqCandidate())
+  //  assert(!(candidateVec.asUInt().orR && replaceAlgoNotDcacheCandidate), "we have way to select, but replace algo selects invalid way")
 
-  val plru = Module(new PLRUWrapper(StoreBufferSize,StorePipelineWidth + 1,UInt(SbufferIndexWidth.W)))
+  plru.io.candidateVec := candidateVec
   plru.io.access := accessIdx
-  val replaceIdx = plru.io.replaceWay
-  plru.suggestName("sbufferPLRU")
+  val replaceAlgoIdx = plru.io.replaceWay
+  val replaceIdx = replaceAlgoIdx
+
+
+////  val plru = new PseudoLRU(StoreBufferSize)
+//  val accessIdx = Wire(Vec(EnsbufferWidth + 1, Valid(UInt(SbufferIndexWidth.W))))
+//
+////  val replaceIdx = plru.way
+////  val replaceIdxOH = UIntToOH(plru.way)
+////  plru.access(accessIdx)
+//
+//  val plru = Module(new PLRUWrapper(StoreBufferSize,EnsbufferWidth + 1,UInt(SbufferIndexWidth.W)))
+//  plru.io.access := accessIdx
+//  val replaceIdx = plru.io.replaceWay
+//  plru.suggestName("sbufferPLRU")
 
 
   //-------------------------cohCount-----------------------------
@@ -302,6 +394,7 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   // * remove dcache write block (if there is)
 
   val activeMask = VecInit(stateVec.map(s => s.isActive()))
+  val validMask  = VecInit(stateVec.map(s => s.isValid()))
   val drainIdx = PriorityEncoder(activeMask)
 
   val inflightMask = VecInit(stateVec.map(s => s.isInflight()))
@@ -314,12 +407,12 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   val sameWord = firstWord === secondWord
 
   // merge condition
-  val mergeMask = Wire(Vec(StorePipelineWidth, Vec(StoreBufferSize, Bool())))
+  val mergeMask = Wire(Vec(EnsbufferWidth, Vec(StoreBufferSize, Bool())))
   val mergeIdx = mergeMask.map(PriorityEncoder(_)) // avoid using mergeIdx for better timing
   val canMerge = mergeMask.map(ParallelOR(_))
   val mergeVec = mergeMask.map(_.asUInt)
 
-  for(i <- 0 until StorePipelineWidth){
+  for(i <- 0 until EnsbufferWidth){
     mergeMask(i) := widthMap(j =>
       inptags(i) === ptag(j) && activeMask(j)
     )
@@ -483,12 +576,12 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   val sq_empty = !Cat(io.in.map(_.valid)).orR()
   val empty = sbuffer_empty && sq_empty
   val threshold = RegNext(io.csrCtrl.sbuffer_threshold +& 1.U)
-  val validCount = PopCount(activeMask)
-  val do_eviction = RegNext(validCount >= threshold || validCount === (StoreBufferSize-1).U, init = false.B)
+  val ActiveCount = PopCount(activeMask)
+  val ValidCount = PopCount(validMask)
+  val do_eviction = RegNext(ActiveCount >= threshold || ActiveCount === (StoreBufferSize - 1).U || ValidCount === (StoreBufferSize).U, init = false.B)
   require((StoreBufferThreshold + 1) <= StoreBufferSize)
 
-  XSDebug(p"validCount[$validCount]\n")
-
+  XSDebug(p"ActiveCount[$ActiveCount]\n")
   io.flush.empty := RegNext(empty && io.sqempty)
   // lru.io.flush := sbuffer_state === x_drain_all && empty
   switch(sbuffer_state){
@@ -591,7 +684,7 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   // ---------------------------------------------------------------------------
 
   // TODO: use EnsbufferWidth
-  val shouldWaitWriteFinish = RegNext(VecInit((0 until StorePipelineWidth).map{i =>
+  val shouldWaitWriteFinish = RegNext(VecInit((0 until EnsbufferWidth).map{i =>
     (writeReq(i).bits.wvec.asUInt & UIntToOH(sbuffer_out_s0_evictionIdx).asUInt).orR &&
     writeReq(i).valid
   }).asUInt.orR)
@@ -623,9 +716,9 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   XSDebug(p"sbuffer_out_s0_valid:$sbuffer_out_s0_valid evictIdx:$sbuffer_out_s0_evictionIdx dcache ready:${io.dcache.req.ready}\n")
   // Note: if other dcache req in the same block are inflight,
   // the lru update may not accurate
-  accessIdx(StorePipelineWidth).valid := invalidMask(replaceIdx) || (
+  accessIdx(EnsbufferWidth).valid := invalidMask(replaceIdx) || (
     need_replace && !need_drain && !cohHasTimeOut && !missqReplayHasTimeOut && sbuffer_out_s0_cango && activeMask(replaceIdx))
-  accessIdx(StorePipelineWidth).bits := replaceIdx
+  accessIdx(EnsbufferWidth).bits := replaceIdx
   val sbuffer_out_s1_evictionIdx = RegEnable(sbuffer_out_s0_evictionIdx, enable = sbuffer_out_s0_fire)
   val sbuffer_out_s1_evictionPTag = RegEnable(ptag(sbuffer_out_s0_evictionIdx), enable = sbuffer_out_s0_fire)
   val sbuffer_out_s1_evictionVTag = RegEnable(vtag(sbuffer_out_s0_evictionIdx), enable = sbuffer_out_s0_fire)
