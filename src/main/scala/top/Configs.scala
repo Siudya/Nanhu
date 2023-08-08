@@ -33,6 +33,7 @@ import xiangshan.backend.execute.exublock.ExuParameters
 import device.{EnableJtag, XSDebugModuleParams}
 import huancun._
 import coupledL2._
+import coupledL3._
 import xiangshan.mem.prefetch.SMSParams
 
 class BaseConfig(n: Int) extends Config((site, here, up) => {
@@ -168,18 +169,18 @@ class MinimalConfig(n: Int = 1) extends Config(
       val tiles = site(XSTileKey)
       up(SoCParamsKey).copy(
         L3CacheParamsOpt = Some(up(SoCParamsKey).L3CacheParamsOpt.get.copy(
-          sets = 1024,
-          inclusive = false,
-          clientCaches = tiles.map{ p =>
-            CacheParameters(
-              "dcache",
-              sets = 2 * p.dcacheParametersOpt.get.nSets,
-              ways = p.dcacheParametersOpt.get.nWays + 2,
-              blockGranularity = log2Ceil(2 * p.dcacheParametersOpt.get.nSets),
-              aliasBitsOpt = None
-            )
-          },
-          simulation = !site(DebugOptionsKey).FPGAPlatform
+          // sets = 1024,
+          // inclusive = false,
+          // clientCaches = tiles.map{ p =>
+          //   CacheParameters(
+          //     "dcache",
+          //     sets = 2 * p.dcacheParametersOpt.get.nSets,
+          //     ways = p.dcacheParametersOpt.get.nWays + 2,
+          //     blockGranularity = log2Ceil(2 * p.dcacheParametersOpt.get.nSets),
+          //     aliasBitsOpt = None
+          //   )
+          // },
+          // simulation = !site(DebugOptionsKey).FPGAPlatform
         )),
         L3NBanks = 1
       )
@@ -249,7 +250,7 @@ class WithNKBL2
           aliasBitsOpt = p.dcacheParametersOpt.get.aliasBitsOpt
         )),
         reqField = Seq(utility.ReqSourceField()),
-        echoField = Seq(huancun.DirtyField()),
+        echoField = Seq(coupledL2.DirtyField()),
         // prefetch = Some(coupledL2.prefetch.PrefetchReceiverParams()),
         prefetch = Some(coupledL2.prefetch.PrefetchReceiverParams()),
         elaboratedTopDown = false
@@ -274,28 +275,45 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
     }.sum
     up(SoCParamsKey).copy(
       L3NBanks = banks,
-      L3CacheParamsOpt = Some(HCCacheParameters(
+      // L3CacheParamsOpt = Some(HCCacheParameters(
+      //   name = "L3",
+      //   level = 3,
+      //   ways = ways,
+      //   sets = sets,
+      //   inclusive = inclusive,
+      //   clientCaches = tiles.map{ core =>
+      //     val l2params = core.L2CacheParamsOpt.get.toCacheParams
+      //     l2params.copy(
+      //       sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64,
+      //       blockGranularity = log2Ceil(clientDirBytes / core.L2NBanks / l2params.ways / 64 / tiles.size)
+      //     )
+      //   },
+      //   enablePerf = true,
+      //   ctrl = None,
+      //   sramClkDivBy2 = true,
+      //   sramDepthDiv = 4,
+      //   tagECC = None,
+      //   dataECC = None,
+      //   hasShareBus = false,
+      //   hasMbist = false,
+      //   simulation = !site(DebugOptionsKey).FPGAPlatform
+      // ))
+      L3CacheParamsOpt = Some(L3Param(
         name = "L3",
-        level = 3,
         ways = ways,
         sets = sets,
-        inclusive = inclusive,
+        inclusionPolicy = "NINE",
         clientCaches = tiles.map{ core =>
           val l2params = core.L2CacheParamsOpt.get.toCacheParams
           l2params.copy(
-            sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64,
+            sets = clientDirBytes / core.L2NBanks / l2params.ways / 64,
+            ways = l2params.ways * 2,
             blockGranularity = log2Ceil(clientDirBytes / core.L2NBanks / l2params.ways / 64 / tiles.size)
           )
         },
-        enablePerf = true,
-        ctrl = None,
-        sramClkDivBy2 = true,
-        sramDepthDiv = 4,
-        tagECC = None,
-        dataECC = None,
-        hasShareBus = false,
-        hasMbist = false,
-        simulation = !site(DebugOptionsKey).FPGAPlatform
+        enablePerf = false,
+        tagEccCode = None,
+        dataEccCode = None
       ))
     )
 })

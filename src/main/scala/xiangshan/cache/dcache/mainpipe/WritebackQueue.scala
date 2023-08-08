@@ -21,7 +21,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleC, TLBundleD, TLEdgeOut}
-import huancun.DirtyKey
+import coupledL2.DirtyKey
 import utils.{HasPerfEvents, HasTLDump, XSDebug, XSPerfAccumulate}
 
 class WritebackReqCtrl(implicit p: Parameters) extends DCacheBundle {

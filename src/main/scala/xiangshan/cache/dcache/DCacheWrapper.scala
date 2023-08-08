@@ -60,7 +60,7 @@ case class DCacheParameters
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField()
   ) ++ aliasBitsOpt.map(AliasField)
-  val echoFields: Seq[BundleFieldBase] = Seq(DirtyField())
+  val echoFields: Seq[BundleFieldBase] = Nil // Seq(DirtyField())
 
   def tagCode: Code = Code.fromString(tagECC)
 
