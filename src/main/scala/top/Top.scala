@@ -29,6 +29,7 @@ import freechips.rocketchip.util.{ElaborationArtefacts, HasRocketChipStageUtils}
 import huancun.{HCCacheParamsKey, HuanCun}
 import xs.utils.{ResetGen, DFTResetSignals}
 import xs.utils.sram.BroadCastBundle
+import coupledL3._
 
 abstract class BaseXSSoc()(implicit p: Parameters) extends LazyModule
   with BindingScope
@@ -66,9 +67,14 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter
     })))
   })
 
+  // val l3cacheOpt = soc.L3CacheParamsOpt.map(l3param =>
+  //   LazyModule(new HuanCun("XSTop_L3_")(new Config((_, _, _) => {
+  //     case HCCacheParamsKey => l3param.copy(enableTopDown = debugOpts.EnableTopDown)
+  //   })))
+  // )
   val l3cacheOpt = soc.L3CacheParamsOpt.map(l3param =>
-    LazyModule(new HuanCun("XSTop_L3_")(new Config((_, _, _) => {
-      case HCCacheParamsKey => l3param.copy(enableTopDown = debugOpts.EnableTopDown)
+    LazyModule(new CoupledL3()(new Config((_, _, _) => {
+      case L3ParamKey => l3param
     })))
   )
 
@@ -81,16 +87,17 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter
     misc.core_to_l3_ports(i) :=* core_with_l2(i).memory_port
   }
 
-  l3cacheOpt.map(_.ctlnode.map(_ := misc.peripheralXbar))
-  l3cacheOpt.map(_.intnode.map(int => {
-    misc.plic.intnode := IntBuffer() := int
-  }))
+  // l3cacheOpt.map(_.ctlnode.map(_ := misc.peripheralXbar))
+  // l3cacheOpt.map(_.intnode.map(int => {
+  //   misc.plic.intnode := IntBuffer() := int
+  // }))
 
-  val core_rst_nodes = if(l3cacheOpt.nonEmpty && l3cacheOpt.get.rst_nodes.nonEmpty){
-    l3cacheOpt.get.rst_nodes.get
-  } else {
-    core_with_l2.map(_ => BundleBridgeSource(() => Reset()))
-  }
+  // val core_rst_nodes = if(l3cacheOpt.nonEmpty && l3cacheOpt.get.rst_nodes.nonEmpty){
+  //   l3cacheOpt.get.rst_nodes.get
+  // } else {
+  //   core_with_l2.map(_ => BundleBridgeSource(() => Reset()))
+  // }
+  val core_rst_nodes = core_with_l2.map(_ => BundleBridgeSource(() => Reset()))
 
   core_rst_nodes.zip(core_with_l2.map(_.core_reset_sink)).foreach({
     case (source, sink) =>  sink := source
@@ -162,15 +169,24 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter
       io.riscv_halt(i) := core.moduleInstance.io.cpu_halt
     }
 
-    if(l3cacheOpt.isEmpty || l3cacheOpt.get.rst_nodes.isEmpty){
+    // if(l3cacheOpt.isEmpty || l3cacheOpt.get.rst_nodes.isEmpty){
+    //   // tie off core soft reset
+    //   for(node <- core_rst_nodes){
+    //     node.out.head._1 := false.B.asAsyncReset()
+    //   }
+    //   if(l3cacheOpt.get.module.dfx_reset.isDefined) {
+    //     l3cacheOpt.get.module.dfx_reset.get := dfx_reset
+    //   }
+    // }
+    // if(l3cacheOpt.isEmpty || l3cacheOpt.get.rst_nodes.isEmpty){
       // tie off core soft reset
       for(node <- core_rst_nodes){
         node.out.head._1 := false.B.asAsyncReset()
       }
-      if(l3cacheOpt.get.module.dfx_reset.isDefined) {
-        l3cacheOpt.get.module.dfx_reset.get := dfx_reset
-      }
-    }
+      // if(l3cacheOpt.get.module.dfx_reset.isDefined) {
+      //   l3cacheOpt.get.module.dfx_reset.get := dfx_reset
+      // }
+    // }
 
     misc.module.debug_module_io.resetCtrl.hartIsInReset := core_with_l2.map(_.moduleInstance.ireset.asBool)
     misc.module.debug_module_io.clock := io.clock
@@ -197,13 +213,14 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter
       None
     }
     val mbistBroadCastToL3 = if(l3cacheOpt.isDefined) {
-      if(l3cacheOpt.get.module.dft.isDefined){
-        val res = Some(Wire(new BroadCastBundle))
-        l3cacheOpt.get.module.dft.get := res.get
-        res
-      } else {
-        None
-      }
+      // if(l3cacheOpt.get.module.dft.isDefined){
+      //   val res = Some(Wire(new BroadCastBundle))
+      //   l3cacheOpt.get.module.dft.get := res.get
+      //   res
+      // } else {
+      //   None
+      // }
+      None
     } else {
       None
     }
@@ -217,7 +234,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter
         mbistBroadCastToTile.get := dft.get
       }
       if(mbistBroadCastToL3.isDefined){
-        mbistBroadCastToL3.get := dft.get
+        // mbistBroadCastToL3.get := dft.get
       }
     }
 

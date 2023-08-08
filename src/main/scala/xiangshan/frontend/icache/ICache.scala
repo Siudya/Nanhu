@@ -23,7 +23,8 @@ import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp, Trans
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.BundleFieldBase
 import xs.utils.mbist.MBISTPipeline
-import huancun.{AliasField, DirtyField, PreferCacheField, PrefetchField}
+import huancun.PreferCacheField
+import coupledL2.{AliasField, DirtyField, PrefetchField}
 import xiangshan._
 import xiangshan.frontend._
 import xiangshan.cache._
@@ -34,7 +35,7 @@ import xiangshan.cache.mmu.BlockTlbRequestIO
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 
 case class ICacheParameters(
-    nSets: Int = 256,//128,//256,
+    nSets: Int = 256, //128,
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,
@@ -54,9 +55,9 @@ case class ICacheParameters(
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField(),
-    PreferCacheField()
+    // PreferCacheField()
   ) ++ aliasBitsOpt.map(AliasField)
-  val echoFields: Seq[BundleFieldBase] = Seq(DirtyField())
+  val echoFields: Seq[BundleFieldBase] = Nil // Seq(DirtyField())
   def tagCode: Code = Code.fromString(tagECC)
   def dataCode: Code = Code.fromString(dataECC)
   def replacement = ReplacementPolicy.fromString(replacer,nWays,nSets)
@@ -620,7 +621,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
   val hasVictim = VecInit(missUnit.io.victimInfor.map(_.valid))
   val victimSetSeq = VecInit(missUnit.io.victimInfor.map(_.vidx))
-  
+
   mainPipe.io.fetch.req <> io.fetch.req //&& !fetchShouldBlock(i)
   // in L1ICache, we only expect GrantData and ReleaseAck
   bus.d.ready := false.B

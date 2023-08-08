@@ -21,7 +21,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleC, TLBundleD, TLEdgeOut}
-import huancun.DirtyKey
+import coupledL2.DirtyKey
 import utils.{HasPerfEvents, HasTLDump, XSDebug, XSPerfAccumulate}
 
 class WritebackReqCtrl(implicit p: Parameters) extends DCacheBundle {
@@ -517,7 +517,7 @@ class WritebackEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModu
 //  io.probe_ttob_check_resp.bits.toN := state_dup_1 === s_sleep &&
 //    RegNext(io.probe_ttob_check_req.bits.addr) === paddr_dup_0 &&
 //    RegNext(io.probe_ttob_check_req.valid)
-  io.probe_ttob_check_resp.bits.toN := state_dup_1 === s_sleep &&
+  io.probe_ttob_check_resp.bits.toN := state_dup_1 === s_sleep && 
     RegEnable(io.probe_ttob_check_req.bits.addr,io.probe_ttob_check_req.valid) === paddr_dup_0 &&
     RegNext(io.probe_ttob_check_req.valid)
 
