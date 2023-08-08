@@ -33,6 +33,7 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
   numBanks: Int
 ) extends Module {
   val io = IO(new Bundle {
+    val ren   = Vec(numRead, Input(Bool())) //for clock-gating
     val raddr = Vec(numRead, Input(UInt(log2Ceil(numEntries).W)))
     val rdata = Vec(numRead, Vec(numDup, Output(gen)))
     val wen   = Input(Bool())
@@ -73,7 +74,9 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
     for (j <- 0 until numDup) {
       bank_index_dup(j) := UIntToOH(bankIndex(io.raddr(i)))
       for (k <- 0 until numBanks) {
-        data_read_dup(j)(k) := dataBanks(k)(bankOffset(io.raddr(i)))
+        when(io.ren(i)){
+          data_read_dup(j)(k) := dataBanks(k)(bankOffset(io.raddr(i)))
+        }
       }
     }
     // next cycle
@@ -268,6 +271,7 @@ class TLBSA(
     val vidx_resize = RegEnable(v_resize(get_set_idx(drop_set_idx(vpn, VPOST_SELECT), VPRE_SELECT)),req.valid)
     val vidx = vidx_resize(get_set_idx(vpn_reg, VPOST_SELECT)).asBools.map(_ && RegNext(req.fire()))
     val vidx_bypass = RegNext((entries.io.waddr === ridx) && entries.io.wen)
+    entries.io.ren(i) := req.valid
     entries.io.raddr(i) := ridx
 
     val data = entries.io.rdata(i)
