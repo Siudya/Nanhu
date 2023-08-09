@@ -21,6 +21,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan.DebugOptionsKey
 import xiangshan._
+import xs.utils.RegNextWithCG
 
 object XSPerfAccumulate {
   def apply(perfName: String, perfCnt: UInt)(implicit p: Parameters) = {
@@ -187,14 +188,14 @@ class HPerfCounter(val numPCnt: Int)(implicit p: Parameters) extends XSModule wi
     val events_sets = Input(Vec(numPCnt, new PerfEvent))
   })
 
-  val events_incr_0 = RegNext(io.events_sets(io.hpm_event( 9,  0)))
-  val events_incr_1 = RegNext(io.events_sets(io.hpm_event(19, 10)))
-  val events_incr_2 = RegNext(io.events_sets(io.hpm_event(29, 20)))
-  val events_incr_3 = RegNext(io.events_sets(io.hpm_event(39, 30)))
+  val events_incr_0 = RegNextWithCG(io.events_sets(io.hpm_event( 9,  0)))
+  val events_incr_1 = RegNextWithCG(io.events_sets(io.hpm_event(19, 10)))
+  val events_incr_2 = RegNextWithCG(io.events_sets(io.hpm_event(29, 20)))
+  val events_incr_3 = RegNextWithCG(io.events_sets(io.hpm_event(39, 30)))
 
-  val event_op_0 = RegNext(io.hpm_event(44, 40))
-  val event_op_1 = RegNext(io.hpm_event(49, 45))
-  val event_op_2 = RegNext(io.hpm_event(54, 50))
+  val event_op_0 = RegNextWithCG(io.hpm_event(44, 40))
+  val event_op_1 = RegNextWithCG(io.hpm_event(49, 45))
+  val event_op_2 = RegNextWithCG(io.hpm_event(54, 50))
 
   def combineEvents(cnt_1: UInt, cnt_2: UInt, optype: UInt): UInt =
     Mux(optype(0), cnt_1 & cnt_2,
@@ -207,8 +208,8 @@ class HPerfCounter(val numPCnt: Int)(implicit p: Parameters) extends XSModule wi
 
   // add registers to optimize the timing (like pipelines)
   val event_op_2_reg = RegNext(event_op_2)
-  val event_step_0_reg = RegNext(event_step_0)
-  val event_step_1_reg = RegNext(event_step_1)
+  val event_step_0_reg = RegNextWithCG(event_step_0)
+  val event_step_1_reg = RegNextWithCG(event_step_1)
   val selected = combineEvents(event_step_0_reg, event_step_1_reg, event_op_2_reg)
 
   val perfEvents = Seq(("selected", selected))
