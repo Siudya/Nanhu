@@ -416,16 +416,16 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     // val vpmaskNotEqual = ((paddrModule.io.forwardMmask(i).asUInt ^ vaddrModule.io.forwardMmask(i).asUInt) & needForward) =/= 0.U
     // val vaddrMatchFailed = vpmaskNotEqual && io.forward(i).valid
     val vpmaskNotEqual = (
-      (RegNextWithCG(v_pAddrModule.io.forwardMmask_p(i).asUInt) ^ RegNextWithCG(v_pAddrModule.io.forwardMmask_v(i).asUInt)) &
-        RegNextWithCG(needForward) &
-        RegNextWithCG(addrValidVec)
+      (RegNext(v_pAddrModule.io.forwardMmask_p(i).asUInt) ^ RegNext(v_pAddrModule.io.forwardMmask_v(i).asUInt)) &
+        RegNext(needForward) &
+        RegNext(addrValidVec)
     ) =/= 0.U
     val vaddrMatchFailed = vpmaskNotEqual && RegNext(io.forward(i).valid)
     when (vaddrMatchFailed) {
       XSInfo("vaddrMatchFailed: pc %x pmask %x vmask %x\n",
-        RegNextWithCG(io.forward(i).uop.cf.pc),
-        RegNextWithCG(needForward & v_pAddrModule.io.forwardMmask_p(i).asUInt),
-        RegNextWithCG(needForward & v_pAddrModule.io.forwardMmask_v(i).asUInt)
+        RegNext(io.forward(i).uop.cf.pc),
+        RegNext(needForward & v_pAddrModule.io.forwardMmask_p(i).asUInt),
+        RegNext(needForward & v_pAddrModule.io.forwardMmask_v(i).asUInt)
       );
     }
     XSPerfAccumulate("vaddr_match_failed", vpmaskNotEqual)
