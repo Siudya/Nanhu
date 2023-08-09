@@ -162,7 +162,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   val deqMask = UIntToMask(deqPtr, StoreQueueSize)
   val enqMask = UIntToMask(enqPtr, StoreQueueSize)
 
-  val commitCount = RegNext(io.rob.scommit)
+  val commitCount = RegNextWithCG(io.rob.scommit)
 
   // Read dataModule
   // rdataPtrExtNext and rdataPtrExtNext+1 entry will be read from dataModule
@@ -316,7 +316,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     }
 
     // re-replinish mmio, for pma/pmp will get mmio one cycle later
-    val storeInFireReg = RegNext(io.storeIn(i).fire() && !io.storeIn(i).bits.miss)
+    val storeInFireReg = RegNextWithCG(io.storeIn(i).fire() && !io.storeIn(i).bits.miss)
     val stWbIndexReg = RegEnable(stWbIndex, io.storeIn(i).valid)
     when (storeInFireReg) {
       pending(stWbIndexReg) := io.storeInRe(i).mmio
@@ -359,7 +359,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     }
     // sq data write s1
     when (
-      RegNext(io.storeDataIn(i).fire())
+      RegNextWithCG(io.storeDataIn(i).fire())
       // && !RegNext(io.storeDataIn(i).bits.uop).robIdx.needFlush(io.brqRedirect)
     ) {
       datavalid(RegNext(stWbIndex)) := true.B
@@ -416,16 +416,16 @@ class StoreQueue(implicit p: Parameters) extends XSModule
     // val vpmaskNotEqual = ((paddrModule.io.forwardMmask(i).asUInt ^ vaddrModule.io.forwardMmask(i).asUInt) & needForward) =/= 0.U
     // val vaddrMatchFailed = vpmaskNotEqual && io.forward(i).valid
     val vpmaskNotEqual = (
-      (RegNext(v_pAddrModule.io.forwardMmask_p(i).asUInt) ^ RegNext(v_pAddrModule.io.forwardMmask_v(i).asUInt)) &
-      RegNext(needForward) &
-      RegNext(addrValidVec)
+      (RegNextWithCG(v_pAddrModule.io.forwardMmask_p(i).asUInt) ^ RegNextWithCG(v_pAddrModule.io.forwardMmask_v(i).asUInt)) &
+        RegNextWithCG(needForward) &
+        RegNextWithCG(addrValidVec)
     ) =/= 0.U
     val vaddrMatchFailed = vpmaskNotEqual && RegNext(io.forward(i).valid)
     when (vaddrMatchFailed) {
       XSInfo("vaddrMatchFailed: pc %x pmask %x vmask %x\n",
-        RegNext(io.forward(i).uop.cf.pc),
-        RegNext(needForward & v_pAddrModule.io.forwardMmask_p(i).asUInt),
-        RegNext(needForward & v_pAddrModule.io.forwardMmask_v(i).asUInt)
+        RegNextWithCG(io.forward(i).uop.cf.pc),
+        RegNextWithCG(needForward & v_pAddrModule.io.forwardMmask_p(i).asUInt),
+        RegNextWithCG(needForward & v_pAddrModule.io.forwardMmask_v(i).asUInt)
       );
     }
     XSPerfAccumulate("vaddr_match_failed", vpmaskNotEqual)
@@ -508,7 +508,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   val cbo_mmio_addr = v_pAddrModule.io.rdata_p(0) >> 2 << 2 // clear lowest 2 bits for op
   val cbo_mmio_op = 0.U //TODO
   val cbo_mmio_data = cbo_mmio_addr | cbo_mmio_op
-  when(RegNext(LSUOpType.isCbo(uop(deqPtr).ctrl.fuOpType))){
+  when(RegNextWithCG(LSUOpType.isCbo(uop(deqPtr).ctrl.fuOpType))){
     io.uncache.req.bits.addr := DontCare // TODO
 //    io.uncache.req.bits.data := paddrModule.io.rdata(0)
     io.uncache.req.bits.data := v_pAddrModule.io.rdata_p(0)
@@ -675,9 +675,9 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   /**
     * update pointers
     */
-  val lastEnqCancel = PopCount(RegNext(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
-  val lastCycleRedirect = RegNext(io.brqRedirect.valid)
-  val lastCycleCancelCount = PopCount(RegNext(needCancel))
+  val lastEnqCancel = PopCount(RegNextWithCG(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
+  val lastCycleRedirect = RegNextWithCG(io.brqRedirect.valid)
+  val lastCycleCancelCount = PopCount(RegNextWithCG(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.lqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
   val enqNumber_enq = Mux(io.enq.canAccept && io.enq.lqCanAccept, io.enq.reqNum, 0.U)
 
@@ -694,13 +694,13 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   // val dequeueCount = Mux(io.sbuffer(1).fire(), 2.U, Mux(io.sbuffer(0).fire() || io.mmioStout.fire(), 1.U, 0.U))
 
   // If redirect at T0, sqCancelCnt is at T2
-  io.sqCancelCnt := RegNext(lastCycleCancelCount + lastEnqCancel)
+  io.sqCancelCnt := RegNextWithCG(lastCycleCancelCount + lastEnqCancel)
 
   // io.sqempty will be used by sbuffer
   // We delay it for 1 cycle for better timing
   // When sbuffer need to check if it is empty, the pipeline is blocked, which means delay io.sqempty
   // for 1 cycle will also promise that sq is empty in that cycle
-  io.sqempty := RegNext(
+  io.sqempty := RegNextWithCG(
     enqPtrExt(0).value === deqPtrExt(0).value && 
     enqPtrExt(0).flag === deqPtrExt(0).flag
   )

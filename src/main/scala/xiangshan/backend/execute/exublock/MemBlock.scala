@@ -35,7 +35,7 @@ import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbIO, TlbReplace}
 import xiangshan.mem._
 import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
-import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, RegNextWithCG, ValidIODelay}
+import xs.utils.{DelayN, DelayNWithCG, ParallelPriorityMux, RegNextN, RegNextNWithCG, RegNextWithCG, ValidIODelay}
 
 class Std(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle{
@@ -202,7 +202,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val dcache = outer.dcache.module
   val uncache = outer.uncache.module
 
-  val csrCtrl = DelayN(io.csrCtrl, 2)
+  val csrCtrl = DelayNWithCG(io.csrCtrl, 2)
   dcache.io.csr.distribute_csr <> csrCtrl.distribute_csr
   dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only, false.B)
   io.csrUpdate := RegNextWithCG(dcache.io.csr.update)
@@ -219,8 +219,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher.get match {
     case sms_sender: SMSParams =>
       val sms = Module(new SMSPrefetcher(parentName = outer.parentName + "sms_"))
-      sms.io_agt_en := RegNextN(io.csrCtrl.l1D_pf_enable_agt, 2, Some(false.B))
-      sms.io_pht_en := RegNextN(io.csrCtrl.l1D_pf_enable_pht, 2, Some(false.B))
+      sms.io_agt_en := RegNextNWithCG(io.csrCtrl.l1D_pf_enable_agt, 2)
+      sms.io_pht_en := RegNextNWithCG(io.csrCtrl.l1D_pf_enable_pht, 2)
       sms.io_act_threshold := RegNextN(io.csrCtrl.l1D_pf_active_threshold, 2, Some(12.U))
       sms.io_act_stride := RegNextN(io.csrCtrl.l1D_pf_active_stride, 2, Some(30.U))
       sms.io_stride_en := RegNextN(io.csrCtrl.l1D_pf_enable_stride, 2, Some(true.B))
@@ -449,9 +449,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     // pmp
     loadUnits(i).io.pmp <> pmp_check(i).resp
     //cancel
-    io.earlyWakeUpCancel.foreach(w => w(i) := RegNext(loadUnits(i).io.cancel,false.B))
+    io.earlyWakeUpCancel.foreach(w => w(i) := RegNextWithCG(loadUnits(i).io.cancel))
     // prefetch
-    val pcDelay1Valid = RegNext(lduIssues(i).issue.fire, false.B)
+    val pcDelay1Valid = RegNextWithCG(lduIssues(i).issue.fire)
     val pcDelay1Bits = RegEnable(lduIssues(i).issue.bits.uop.cf.pc, lduIssues(i).issue.fire)
     val pcDelay2Bits = RegEnable(pcDelay1Bits, pcDelay1Valid)
     prefetcherOpt.foreach(pf => {
@@ -688,7 +688,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // Exception address is used several cycles after flush.
   // We delay it by 10 cycles to ensure its flush safety.
   val atomicsException = RegInit(false.B)
-  when (DelayN(redirectIn.valid, 10) && atomicsException) {
+  when (DelayNWithCG(redirectIn.valid, 10) && atomicsException) {
     atomicsException := false.B
   }.elsewhen (atomicsUnit.io.exceptionAddr.valid) {
     atomicsException := true.B
@@ -697,9 +697,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   io.lsqio.exceptionAddr.vaddr := RegNext(Mux(atomicsException, atomicsExceptionAddress, lsq.io.exceptionAddr.vaddr))
   XSError(atomicsException && atomicsUnit.io.in.valid, "new instruction before exception triggers\n")
 
-  io.memInfo.sqFull := RegNext(lsq.io.sqFull)
-  io.memInfo.lqFull := RegNext(lsq.io.lqFull)
-  io.memInfo.dcacheMSHRFull := RegNext(dcache.io.mshrFull)
+  io.memInfo.sqFull := RegNextWithCG(lsq.io.sqFull)
+  io.memInfo.lqFull := RegNextWithCG(lsq.io.lqFull)
+  io.memInfo.dcacheMSHRFull := RegNextWithCG(dcache.io.mshrFull)
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(4,s"${outer.parentName}_mbistPipe")))

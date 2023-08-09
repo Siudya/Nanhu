@@ -45,12 +45,12 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val ptw_resp_v = if (q.sameCycle) RegNext(ptw.resp.valid, init = false.B) else ptw.resp.valid
 
   val mode_tmp = if (q.useDmode) io.csr.priv.dmode else io.csr.priv.imode
-  val mode_dup = Seq.fill(Width)(RegNext(mode_tmp))
+  val mode_dup = Seq.fill(Width)(RegNextWithCG(mode_tmp))
   val vmEnable_tmp = if (EnbaleTlbDebug) (io.csr.satp.mode === 8.U)
     else (io.csr.satp.mode === 8.U && (mode_tmp < ModeM))
-  val vmEnable_dup = Seq.fill(Width)(RegNext(vmEnable_tmp))
-  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
-  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+  val vmEnable_dup = Seq.fill(Width)(RegNextWithCG(vmEnable_tmp))
+  val sfence_dup = Seq.fill(2)(RegNextWithCG(io.sfence))
+  val csr_dup = Seq.fill(Width)(RegNextWithCG(io.csr))
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
   val ifecth = if (q.fetchi) true.B else false.B
