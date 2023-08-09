@@ -35,7 +35,7 @@ import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbIO, TlbReplace}
 import xiangshan.mem._
 import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
-import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, ValidIODelay}
+import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, RegNextWithCG, ValidIODelay}
 
 class Std(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle{
@@ -205,8 +205,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val csrCtrl = DelayN(io.csrCtrl, 2)
   dcache.io.csr.distribute_csr <> csrCtrl.distribute_csr
   dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only, false.B)
-  io.csrUpdate := RegNext(dcache.io.csr.update)
-  io.error <> RegNext(RegNext(dcache.io.error))
+  io.csrUpdate := RegNextWithCG(dcache.io.csr.update)
+  io.error <> RegNextWithCG(RegNextWithCG(dcache.io.error))
   when(!csrCtrl.cache_error_enable){
     io.error.report_to_beu := false.B
     io.error.valid := false.B
@@ -309,7 +309,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val NUMSfenceDup = 3
   val NUMTlbCsrDup = 8
   val sfence_dup = Seq.fill(NUMSfenceDup)(Pipe(io.sfence))
-  val tlbcsr_dup = Seq.fill(NUMTlbCsrDup)(RegNext(io.tlbCsr))
+  val tlbcsr_dup = Seq.fill(NUMTlbCsrDup)(RegNextWithCG(io.tlbCsr))
 
 
   val dtlb_ld_st = VecInit(Seq.fill(1) {
@@ -377,7 +377,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
       else if (i < ld_tlb_ports) Cat(ptw_resp_next.vector.take(ld_tlb_ports)).orR
       else Cat(ptw_resp_next.vector.drop(ld_tlb_ports)).orR
     io.ptw.req(i).valid := tlb.valid && !(ptw_resp_v && vector_hit &&
-      ptw_resp_next.data.entry.hit(tlb.bits.vpn, RegNext(tlbcsr_dup(i).satp.asid), allType = true, ignoreAsid = true))
+      ptw_resp_next.data.entry.hit(tlb.bits.vpn, RegNextWithCG(tlbcsr_dup(i).satp.asid), allType = true, ignoreAsid = true))
   }
   dtlb.foreach(_.ptw.resp.bits := ptw_resp_next.data)
   if (refillBothTlb || UseOneDtlb) {
@@ -395,7 +395,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val pmp_check = VecInit(Seq.fill(total_tlb_ports)(
     Module(new PMPChecker(3, leaveHitMux = true)).io
   ))
-  val tlbcsr_pmp = tlbcsr_dup.drop(2).map(RegNext(_))
+  val tlbcsr_pmp = tlbcsr_dup.drop(2).map(RegNextWithCG(_))
   for (((p,d),i) <- (pmp_check zip dtlb_pmps).zipWithIndex) {
     p.apply(tlbcsr_pmp(i).priv.dmode, pmp.io.pmp, pmp.io.pma, d)
     require(p.req.bits.size.getWidth == d.bits.size.getWidth)
@@ -409,8 +409,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   dtlb.foreach(_.ptw_replenish := pmp_check_ptw.io.resp)
 
   val tdata = RegInit(VecInit(Seq.fill(TriggerNum)(0.U.asTypeOf(new MatchTriggerIO))))
-  val tEnable = RegInit(VecInit(Seq.fill(TriggerNum)(false.B)))
-  tEnable := csrCtrl.mem_trigger.tEnableVec
+//  val tEnable = RegInit(VecInit(Seq.fill(TriggerNum)(false.B)))
+//  tEnable := csrCtrl.mem_trigger.tEnableVec
+  val tEnable = RegNextWithCG(csrCtrl.mem_trigger.tEnableVec)
   when(csrCtrl.mem_trigger.tUpdate.valid) {
     tdata(csrCtrl.mem_trigger.tUpdate.bits.addr) := csrCtrl.mem_trigger.tUpdate.bits.tdata
   }
