@@ -205,8 +205,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val csrCtrl = DelayNWithCG(io.csrCtrl, 2)
   dcache.io.csr.distribute_csr <> csrCtrl.distribute_csr
   dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only, false.B)
-  io.csrUpdate := RegNextWithCG(dcache.io.csr.update)
-  io.error <> RegNextWithCG(RegNextWithCG(dcache.io.error))
+  io.csrUpdate := RegNext(dcache.io.csr.update)
+  io.error <> RegNext(RegNext(dcache.io.error))
   when(!csrCtrl.cache_error_enable){
     io.error.report_to_beu := false.B
     io.error.valid := false.B
@@ -449,9 +449,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     // pmp
     loadUnits(i).io.pmp <> pmp_check(i).resp
     //cancel
-    io.earlyWakeUpCancel.foreach(w => w(i) := RegNextWithCG(loadUnits(i).io.cancel))
+    io.earlyWakeUpCancel.foreach(w => w(i) := RegNext(loadUnits(i).io.cancel))
     // prefetch
-    val pcDelay1Valid = RegNextWithCG(lduIssues(i).issue.fire)
+    val pcDelay1Valid = RegNext(lduIssues(i).issue.fire)
     val pcDelay1Bits = RegEnable(lduIssues(i).issue.bits.uop.cf.pc, lduIssues(i).issue.fire)
     val pcDelay2Bits = RegEnable(pcDelay1Bits, pcDelay1Valid)
     prefetcherOpt.foreach(pf => {
@@ -697,9 +697,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   io.lsqio.exceptionAddr.vaddr := RegNext(Mux(atomicsException, atomicsExceptionAddress, lsq.io.exceptionAddr.vaddr))
   XSError(atomicsException && atomicsUnit.io.in.valid, "new instruction before exception triggers\n")
 
-  io.memInfo.sqFull := RegNextWithCG(lsq.io.sqFull)
-  io.memInfo.lqFull := RegNextWithCG(lsq.io.lqFull)
-  io.memInfo.dcacheMSHRFull := RegNextWithCG(dcache.io.mshrFull)
+  io.memInfo.sqFull := RegNext(lsq.io.sqFull)
+  io.memInfo.lqFull := RegNext(lsq.io.lqFull)
+  io.memInfo.dcacheMSHRFull := RegNext(dcache.io.mshrFull)
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(4,s"${outer.parentName}_mbistPipe")))
