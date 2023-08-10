@@ -172,14 +172,33 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     */
   io.enq.canAccept := allowEnqueue
 
+  //for uop(index).robidx clock-gating
+  val wen_robIdx = Wire(Vec(LoadQueueSize,Bool()))
   val canEnqueue = io.enq.req.map(_.valid)
   val enqCancel = io.enq.req.map(_.bits.robIdx.needFlush(io.brqRedirect))
+
+  (0 until LoadQueueSize).foreach(i => {
+    val req_valid = Wire(Vec(exuParameters.LsExuCnt,Bool()))
+    (0 until exuParameters.LsExuCnt).foreach(j => {
+      req_valid(j) := canEnqueue(j) && !enqCancel(j) && (io.enq.req(j).bits.lqIdx.value === i.U)
+    })
+    wen_robIdx(i) := req_valid.asUInt.orR
+    val w_addr = OHToUInt(req_valid)
+    val w_data = io.enq.req(w_addr).bits.robIdx
+    when(wen_robIdx(i)){
+      uop(i).robIdx := w_data
+    }
+  })
+
+
+//  val canEnqueue = io.enq.req.map(_.valid)
+//  val enqCancel = io.enq.req.map(_.bits.robIdx.needFlush(io.brqRedirect))
   for (i <- 0 until io.enq.req.length) {
     val offset = if (i == 0) 0.U else PopCount(io.enq.needAlloc.take(i))
     val lqIdx = enqPtrExt(offset)
     val index = io.enq.req(i).bits.lqIdx.value
     when (canEnqueue(i) && !enqCancel(i)) {
-      uop(index).robIdx := io.enq.req(i).bits.robIdx
+//      uop(index).robIdx := io.enq.req(i).bits.robIdx
       allocated(index) := true.B
       datavalid(index) := false.B
       writebacked(index) := false.B
@@ -193,6 +212,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     io.enq.resp(i) := lqIdx
   }
   XSDebug(p"(ready, valid): ${io.enq.canAccept}, ${Binary(Cat(io.enq.req.map(_.valid)))}\n")
+
 
 //  val lastCycleRedirect = RegNext(io.brqRedirect)
 //  val lastlastCycleRedirect = RegNext(lastCycleRedirect)
