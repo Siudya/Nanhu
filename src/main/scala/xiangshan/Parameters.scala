@@ -164,7 +164,7 @@ case class XSCoreParameters
   EnablePTWPreferCache: Boolean = true,
   EnableAccurateLoadError: Boolean = true,
   MMUAsidLen: Int = 16, // max is 16, 0 is not supported now
-  UseOneDtlb: Boolean = false,
+  UseOneDtlb: Boolean = true,
   itlbParameters: TLBParameters = TLBParameters(
     name = "itlb",
     fetchi = true,

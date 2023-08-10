@@ -179,7 +179,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val lqIdx = enqPtrExt(offset)
     val index = io.enq.req(i).bits.lqIdx.value
     when (canEnqueue(i) && !enqCancel(i)) {
-      uop(index).robIdx := io.enq.req(i).bits.robIdx
+      uop(index).robIdx := io.enq.req(i).bits.robIdx  //todo
       allocated(index) := true.B
       datavalid(index) := false.B
       writebacked(index) := false.B
