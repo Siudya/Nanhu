@@ -48,6 +48,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val vmEnable_tmp = if (EnbaleTlbDebug) (io.csr.satp.mode === 8.U)
     else (io.csr.satp.mode === 8.U && (mode_tmp < ModeM))
   val vmEnable_dup = Seq.fill(Width)(RegNext(vmEnable_tmp))
+  //val sfence_dup = Seq.fill(2)(RegEnable(RegNext(io.sfence),io.sfence.valid))
+  // val csr_dup = Seq.fill(Width)(RegEnable(RegNext(io.csr),io.csr.satp.changed))
   val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
   val csr_dup = Seq.fill(Width)(RegNext(io.csr))
   val satp = csr_dup.head.satp
@@ -121,7 +123,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     val hit_sameCycle = n_hit_sameCycle || s_hit_sameCycle
     val cmdReg = if (!q.sameCycle) RegNext(cmd(i)) else cmd(i)
     val validReg = if (!q.sameCycle) RegNext(valid(i)) else valid(i)
-    val offReg = if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off
+    //val offReg = if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off
+    val offReg = RegEnable(if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off, enable = req(i).valid)
     val sizeReg = if (!q.sameCycle) RegNext(req(i).bits.size) else req(i).bits.size
 
     /** *************** next cycle when two cycle is false******************* */
@@ -158,7 +161,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
       val pf = perm.pf
       val af = perm.af
       val paddr = Cat(ppn, offReg)
-      resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr)
+     // resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr)
+      resp(i).bits.paddr(d) := RegEnable(Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr),enable = req(i).valid)
 
       val ldUpdate = !perm.a && TlbCmd.isRead(cmdReg) && !TlbCmd.isAmo(cmdReg) // update A/D through exception
       val stUpdate = (!perm.a || !perm.d) && (TlbCmd.isWrite(cmdReg) || TlbCmd.isAmo(cmdReg)) // update A/D through exception
@@ -252,7 +256,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     when (RegEnable(io.requestor(i).req_kill, RegNext(io.requestor(i).req.fire))) {
       io.ptw.req(i).valid := false.B
     }
-    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
+    //io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, RegEnable(reqAddr(i).vpn,io.ptw.req(i).valid)))
+        io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
   }
   io.ptw.resp.ready := true.B
 

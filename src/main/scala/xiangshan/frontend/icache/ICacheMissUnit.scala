@@ -90,7 +90,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   io.meta_write.bits := DontCare
   io.data_write.bits := DontCare
 
-  val s_idle  :: s_send_mem_aquire :: s_wait_mem_grant :: s_write_back :: s_send_grant_ack :: s_send_replace :: s_wait_replace :: s_wait_resp :: Nil = Enum(8)
+  val s_idle  :: s_send_mem_aquire :: s_wait_mem_grant :: s_write_back :: s_wait_resp :: Nil = Enum(5)
   val state = RegInit(s_idle)
   val state_dup = Seq.fill(5)(RegInit(s_idle))
   /** control logic transformation */
@@ -102,7 +102,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   val release_id  = Cat(MainPipeKey.U, id.U)
   val req_corrupt = RegInit(false.B)
 
-  io.victimInfor.valid := state_dup(0) === s_send_replace || state_dup(0) === s_wait_replace || state_dup(0) === s_write_back || state_dup(0) === s_wait_resp
+  io.victimInfor.valid := state_dup(0) === s_write_back || state_dup(0) === s_wait_resp
   io.victimInfor.vidx  := req_idx
 
   val (_, _, refill_done, refill_address_inc) = edge.addr_inc(io.mem_grant)
@@ -156,9 +156,8 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
           readBeatCnt := readBeatCnt + 1.U
           respDataReg(readBeatCnt) := io.mem_grant.bits.data
           req_corrupt := io.mem_grant.bits.corrupt
-          grant_param := io.mem_grant.bits.param
+       //   grant_param := io.mem_grant.bits.param
        //   is_dirty    := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
-          is_dirty    := false.B
           when(readBeatCnt === (refillCycles - 1).U) {
       //      assert(refill_done, "refill not done!")
             state := s_write_back

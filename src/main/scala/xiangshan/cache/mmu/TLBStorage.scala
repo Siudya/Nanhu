@@ -156,7 +156,7 @@ class TLBFA(
   }
 
   val refill_vpn_reg = RegNext(io.w.bits.data.entry.tag)
-  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
+  val refill_wayIdx_reg = RegEnable(RegNext(io.w.bits.wayIdx),io.w.valid)
   when (RegNext(io.w.valid)) {
     io.access.map { access =>
       access.sets := get_set_idx(refill_vpn_reg, nSets)
