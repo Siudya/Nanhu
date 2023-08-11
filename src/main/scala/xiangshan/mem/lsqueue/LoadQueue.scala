@@ -958,24 +958,11 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     }
   }
 
-
-  //op for lastCycleCancelCount
-  val splitNum = 5
-  val eachNum = LoadQueueSize / splitNum
-  require(LoadQueueSize % splitNum == 0)
-  val needCancelSub = RegInit(VecInit(List.fill(splitNum)(0.U(log2Up(LoadQueueSize / splitNum).W))))
-  (0 until splitNum).foreach(i => {
-    val needCancelSubBits = needCancel.asUInt(eachNum * (i + 1) - 1, eachNum * i)
-    needCancelSub(i) := PopCount(needCancelSubBits)
-  })
-
-  val lastCycleCancelCount = needCancelSub.reduce(_+_)
-
   /**
     * update pointers
     */
   val lastEnqCancel = PopCount(RegNext(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
-//  val lastCycleCancelCount = RegNext(PopCount(needCancel))
+  val lastCycleCancelCount = RegNext(PopCount(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.sqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
   val enqNumber_enq = Mux(io.enq.canAccept && io.enq.sqCanAccept, io.enq.reqNum, 0.U)
 
