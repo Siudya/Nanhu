@@ -204,7 +204,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   val csrCtrl = DelayNWithCG(io.csrCtrl, 2)
   dcache.io.csr.distribute_csr <> csrCtrl.distribute_csr
-  dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only, false.B)
+  dcache.io.l2_pf_store_only := RegNextWithCG(io.csrCtrl.l2_pf_store_only)
   io.csrUpdate := RegNext(dcache.io.csr.update)
   io.error <> RegNext(RegNext(dcache.io.error))
   when(!csrCtrl.cache_error_enable){
@@ -309,7 +309,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val NUMSfenceDup = 3
   val NUMTlbCsrDup = 8
   val sfence_dup = Seq.fill(NUMSfenceDup)(Pipe(io.sfence))
-  val tlbcsr_dup = Seq.fill(NUMTlbCsrDup)(RegNext(io.tlbCsr))
+  val tlbcsr_dup = Seq.fill(NUMTlbCsrDup)(RegNextWithCG(io.tlbCsr))
 
 
   val dtlb_ld_st = VecInit(Seq.fill(1) {
