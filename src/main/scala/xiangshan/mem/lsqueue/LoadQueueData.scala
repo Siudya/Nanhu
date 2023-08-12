@@ -301,6 +301,7 @@ class LoadQueueDataWrapper(size: Int, wbNumRead: Int, wbNumWrite: Int)(implicit 
       val wen = Input(Bool())
       val waddr = Input(UInt(log2Up(size).W))
       val wdata = Input(UInt(XLEN.W)) // only write back uncache data
+      val ren   = Input(Bool())
       val raddr = Input(UInt(log2Up(size).W))
       val rdata = Output(new LQDataEntry)
     }
@@ -362,9 +363,9 @@ class LoadQueueDataWrapper(size: Int, wbNumRead: Int, wbNumWrite: Int)(implicit 
   maskModule.io.raddr(wbNumRead) := io.uncache.raddr
   dataModule.io.raddr(wbNumRead) := io.uncache.raddr
 
-  io.uncache.rdata.paddr := RegNext(paddrModule.io.rdata(wbNumRead))
-  io.uncache.rdata.mask := RegNext(maskModule.io.rdata(wbNumRead))
-  io.uncache.rdata.data  := RegNext(dataModule.io.rdata(wbNumRead))
+  io.uncache.rdata.paddr := RegEnable(paddrModule.io.rdata(wbNumRead),io.uncache.ren)
+  io.uncache.rdata.mask := RegEnable(maskModule.io.rdata(wbNumRead),io.uncache.ren)
+  io.uncache.rdata.data  := RegEnable(dataModule.io.rdata(wbNumRead),io.uncache.ren)
   io.uncache.rdata.fwdMask := DontCare
 
   // write data
