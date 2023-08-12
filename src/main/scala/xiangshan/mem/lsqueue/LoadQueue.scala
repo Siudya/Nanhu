@@ -625,9 +625,13 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     dataModule.io.violation(i).paddr := io.storeIn(i).bits.paddr
     dataModule.io.violation(i).mask := io.storeIn(i).bits.mask
     val addrMaskMatch = RegEnable(dataModule.io.violation(i).violationMask,io.storeIn(i).valid)
-    val entryNeedCheck = RegNext(VecInit((0 until LoadQueueSize).map(j => {     ///todo:more
-      allocated(j) && stToEnqPtrMask(j) && (datavalid(j) || miss(j))
-    })))
+    val entryNeedCheck = VecInit((0 until LoadQueueSize).map(j => {
+      RegEnable(allocated(j) && stToEnqPtrMask(j) && (datavalid(j) || miss(j)),io.storeIn(i).valid)
+    }))
+
+//    val entryNeedCheck = RegNext(VecInit((0 until LoadQueueSize).map(j => {     ///todo:more
+//      allocated(j) && stToEnqPtrMask(j) && (datavalid(j) || miss(j))
+//    })))
     val lqViolationVec = VecInit((0 until LoadQueueSize).map(j => {
       addrMaskMatch(j) && entryNeedCheck(j)
     }))
@@ -649,7 +653,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val wbUopNext = VecInit(io.loadIn.map(in => {
       RegEnable(in.bits.uop,in.valid)
     }))
-    val wbViolationUop = getOldestInTwo(wbViolationVec, wbUopNext)    ///todo:no clock-gating
+    val wbViolationUop = getOldestInTwo(wbViolationVec, wbUopNext)
     XSDebug(wbViolation, p"${Binary(Cat(wbViolationVec))}, $wbViolationUop\n")
 
     // check if rollback is needed for load in l1
@@ -663,7 +667,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val l1UopNext = VecInit(io.load_s1.map(in => {
       RegEnable(in.uop,in.valid)
     }))
-    val l1ViolationUop = getOldestInTwo(l1ViolationVec, l1UopNext)      ///todo: no-clocking-get
+    val l1ViolationUop = getOldestInTwo(l1ViolationVec, l1UopNext)
     XSDebug(l1Violation, p"${Binary(Cat(l1ViolationVec))}, $l1ViolationUop\n")
 
     XSDebug(
@@ -749,8 +753,17 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val rollbackUopExt = Mux(oneAfterZero && mask(2)(0),
     rollbackUopExtVec(0),
     Mux(!oneAfterZero && mask(2)(1), rollbackUopExtVec(1), rollbackUopExtVec(2)))
-  val stFtqIdxS3 = RegNext(stFtqIdxS2)                //more:todo
-  val stFtqOffsetS3 = RegNext(stFtqOffsetS2)          //more:todo
+
+  val storeInValidNext = io.storeIn.map(in => RegNext(in.valid))
+  val stFtqIdxS3 = VecInit(storeInValidNext.zip(stFtqIdxS2).map({ case (v, d) => {
+    RegEnable(d, v)
+  }}))
+  val stFtqOffsetS3 = VecInit(storeInValidNext.zip(stFtqOffsetS2).map({ case (v, d) => {
+    RegEnable(d, v)
+  }}))
+
+  //  val stFtqIdxS3 = RegNext(stFtqIdxS2)                //more:todo
+  //  val stFtqOffsetS3 = RegNext(stFtqOffsetS2)          //more:todo
   val rollbackUop = rollbackUopExt.uop
   val rollbackStFtqIdx = stFtqIdxS3(rollbackUopExt.flag)
   val rollbackStFtqOffset = stFtqOffsetS3(rollbackUopExt.flag)
