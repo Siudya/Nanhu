@@ -49,8 +49,33 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val vmEnable_tmp = if (EnbaleTlbDebug) (io.csr.satp.mode === 8.U)
     else (io.csr.satp.mode === 8.U && (mode_tmp < ModeM))
   val vmEnable_dup = Seq.fill(Width)(RegNext(vmEnable_tmp))
-  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
-  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+//  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
+  val sfence_dup_valid = Seq.fill(2)(RegNext(io.sfence.valid))
+  val sfence_dup_bits = Seq.fill(2)(RegEnable(io.sfence.bits,io.sfence.valid))
+  val sfence_dup = Seq.fill(2)(Wire(new SfenceBundle))
+  sfence_dup.zipWithIndex.foreach({ case (s, i) => {
+    s.valid := sfence_dup_valid(i)
+    s.bits := sfence_dup_bits(i)
+  }})
+
+
+
+  val csr_dup_satp_change = Seq.fill(Width)(RegNext(io.csr.satp.changed))
+  val csr_dup_satp_mode = Seq.fill(Width)(RegEnable(io.csr.satp.mode,io.csr.satp.changed))
+  val csr_dup_satp_asid = Seq.fill(Width)(RegEnable(io.csr.satp.asid,io.csr.satp.changed))
+  val csr_dup_satp_ppn = Seq.fill(Width)(RegEnable(io.csr.satp.ppn,io.csr.satp.changed))
+  val csr_dup_priv = Seq.fill(Width)(RegNext(io.csr.priv))
+
+  val csr_dup = Seq.fill(Width)(Wire(new TlbCsrBundle))
+  csr_dup.zipWithIndex.foreach({case(d,i) => {
+    d.priv := csr_dup_priv(i)
+    d.satp.mode := csr_dup_satp_mode(i)
+    d.satp.changed := csr_dup_satp_change(i)
+    d.satp.asid := csr_dup_satp_asid(i)
+    d.satp.ppn := csr_dup_satp_ppn(i)
+  }})
+//  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
   val ifecth = if (q.fetchi) true.B else false.B
