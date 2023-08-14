@@ -60,21 +60,21 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
 
 
 
-  val csr_dup_satp_change = Seq.fill(Width)(RegNext(io.csr.satp.changed))
-  val csr_dup_satp_mode = Seq.fill(Width)(RegEnable(io.csr.satp.mode,io.csr.satp.changed))
-  val csr_dup_satp_asid = Seq.fill(Width)(RegEnable(io.csr.satp.asid,io.csr.satp.changed))
-  val csr_dup_satp_ppn = Seq.fill(Width)(RegEnable(io.csr.satp.ppn,io.csr.satp.changed))
-  val csr_dup_priv = Seq.fill(Width)(RegNext(io.csr.priv))
-
-  val csr_dup = Seq.fill(Width)(Wire(new TlbCsrBundle))
-  csr_dup.zipWithIndex.foreach({case(d,i) => {
-    d.priv := csr_dup_priv(i)
-    d.satp.mode := csr_dup_satp_mode(i)
-    d.satp.changed := csr_dup_satp_change(i)
-    d.satp.asid := csr_dup_satp_asid(i)
-    d.satp.ppn := csr_dup_satp_ppn(i)
-  }})
-//  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+//  val csr_dup_satp_change = Seq.fill(Width)(RegNext(io.csr.satp.changed))
+//  val csr_dup_satp_mode = Seq.fill(Width)(RegEnable(io.csr.satp.mode,io.csr.satp.changed))
+//  val csr_dup_satp_asid = Seq.fill(Width)(RegEnable(io.csr.satp.asid,io.csr.satp.changed))
+//  val csr_dup_satp_ppn = Seq.fill(Width)(RegEnable(io.csr.satp.ppn,io.csr.satp.changed))
+//  val csr_dup_priv = Seq.fill(Width)(RegNext(io.csr.priv))
+//
+//  val csr_dup = Seq.fill(Width)(Wire(new TlbCsrBundle))
+//  csr_dup.zipWithIndex.foreach({case(d,i) => {
+//    d.priv := csr_dup_priv(i)
+//    d.satp.mode := csr_dup_satp_mode(i)
+//    d.satp.changed := csr_dup_satp_change(i)
+//    d.satp.asid := csr_dup_satp_asid(i)
+//    d.satp.ppn := csr_dup_satp_ppn(i)
+//  }})
+  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
 
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
