@@ -176,10 +176,10 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
   val write1 = io.write.bits
 
   when(write_bank_0) {
-    v(0)(write1.virIdx(highestIdxBit,1))(UIntToOH(write1.waymask)) := true.B
+    v(0)(write1.virIdx(highestIdxBit,1))(OHToUInt(write1.waymask)) := true.B
   }.otherwise {
     when (write_bank_1) {
-      v(1)(write1.virIdx(highestIdxBit,1))(UIntToOH(write1.waymask)) := true.B
+      v(1)(write1.virIdx(highestIdxBit,1))(OHToUInt(write1.waymask)) := true.B
     }
   }
 

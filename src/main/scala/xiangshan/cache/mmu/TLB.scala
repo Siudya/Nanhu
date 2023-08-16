@@ -48,10 +48,21 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val vmEnable_tmp = if (EnbaleTlbDebug) (io.csr.satp.mode === 8.U)
     else (io.csr.satp.mode === 8.U && (mode_tmp < ModeM))
   val vmEnable_dup = Seq.fill(Width)(RegNext(vmEnable_tmp))
-  //val sfence_dup = Seq.fill(2)(RegEnable(RegNext(io.sfence),io.sfence.valid))
-  // val csr_dup = Seq.fill(Width)(RegEnable(RegNext(io.csr),io.csr.satp.changed))
-  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
-  val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+  val sfence_dup = Wire(Vec(2, new SfenceBundle()))
+     (0 until 2) foreach { i =>
+  sfence_dup(i).valid := RegNext(io.sfence.valid)
+  sfence_dup(i).bits := RegEnable(io.sfence.bits,io.sfence.valid)  
+     }
+  val csr_dup = Wire(Vec(Width, new TlbCsrBundle()))
+   (0 until Width) foreach { i =>
+  csr_dup(i).satp.changed := RegNext(io.csr.satp.changed)
+  csr_dup(i).satp.mode := RegEnable(io.csr.satp.mode,io.csr.satp.changed)
+  csr_dup(i).satp.asid := RegEnable(io.csr.satp.asid,io.csr.satp.changed)
+  csr_dup(i).satp.ppn := RegEnable(io.csr.satp.ppn,io.csr.satp.changed)
+  csr_dup(i).priv := RegNext(io.csr.priv)
+   }
+  //val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
+  //val csr_dup = Seq.fill(Width)(RegNext(io.csr))
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
   val ifecth = if (q.fetchi) true.B else false.B
@@ -124,7 +135,7 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     val cmdReg = if (!q.sameCycle) RegNext(cmd(i)) else cmd(i)
     val validReg = if (!q.sameCycle) RegNext(valid(i)) else valid(i)
     //val offReg = if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off
-    val offReg = RegEnable(if (!q.sameCycle) RegNext(reqAddr(i).off) else reqAddr(i).off, enable = req(i).valid)
+    val offReg = if (!q.sameCycle) RegEnable(reqAddr(i).off, enable = req(i).valid) else reqAddr(i).off
     val sizeReg = if (!q.sameCycle) RegNext(req(i).bits.size) else req(i).bits.size
 
     /** *************** next cycle when two cycle is false******************* */
@@ -134,7 +145,7 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     hit.suggestName(s"hit_${i}")
     miss.suggestName(s"miss_${i}")
 
-    val vaddr = SignExt(req(i).bits.vaddr, PAddrBits)
+    val vaddr = RegEnable(SignExt(req(i).bits.vaddr, PAddrBits), req(i).valid)
     req(i).ready := resp(i).ready
     resp(i).valid := validReg
     resp(i).bits.miss := { if (q.missSameCycle) miss_sameCycle else miss }
@@ -144,7 +155,7 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     // for timing optimization, pmp check is divided into dynamic and static
     // dynamic: superpage (or full-connected reg entries) -> check pmp when translation done
     // static: 4K pages (or sram entries) -> check pmp with pre-checked results
-    val pmp_paddr = Mux(vmEnable_dup(i), Cat(super_ppn(0), offReg), if (!q.sameCycle) RegNext(vaddr) else vaddr)
+    val pmp_paddr = Mux(vmEnable_dup(i), Cat(super_ppn(0), offReg), if (!q.sameCycle) vaddr else SignExt(req(i).bits.vaddr, PAddrBits))
     pmp(i).valid := resp(i).valid
     pmp(i).bits.addr := pmp_paddr
     pmp(i).bits.size := sizeReg
@@ -161,8 +172,9 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
       val pf = perm.pf
       val af = perm.af
       val paddr = Cat(ppn, offReg)
-     // resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr)
-      resp(i).bits.paddr(d) := RegEnable(Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr),enable = req(i).valid)
+   //   resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) RegNext(vaddr) else vaddr)
+      resp(i).bits.paddr(d) := Mux(vmEnable_dup(i), paddr, if (!q.sameCycle) vaddr else  SignExt(req(i).bits.vaddr, PAddrBits))
+
 
       val ldUpdate = !perm.a && TlbCmd.isRead(cmdReg) && !TlbCmd.isAmo(cmdReg) // update A/D through exception
       val stUpdate = (!perm.a || !perm.d) && (TlbCmd.isWrite(cmdReg) || TlbCmd.isAmo(cmdReg)) // update A/D through exception
@@ -256,15 +268,20 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     when (RegEnable(io.requestor(i).req_kill, RegNext(io.requestor(i).req.fire))) {
       io.ptw.req(i).valid := false.B
     }
-    //io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, RegEnable(reqAddr(i).vpn,io.ptw.req(i).valid)))
-        io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
+    //io.ptw.req(i).bits.vpn := RegEnable(need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn)),validRegVec(i) & missVec(i))
+    io.ptw.req(i).bits.vpn := RegEnable( need_RegNext(!q.sameCycle, reqAddr(i).vpn,validRegVec(i) & missVec(i) ),validRegVec(i) & missVec(i))
+    //    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
   }
   io.ptw.resp.ready := true.B
 
-  def need_RegNext[T <: Data](need: Boolean, data: T): T = {
-    if (need) RegNext(data)
+  def need_RegNext[T <: Data](need: Boolean, data: T, valid: Bool): T = {
+    if (need) RegEnable(data, RegNext(valid))
     else data
   }
+  // def need_RegNext[T <: Data](need: Boolean, data: T): T = {
+  //   if (need) RegNext(data)
+  //   else data
+  // }
   def need_RegNextInit[T <: Data](need: Boolean, data: T, init_value: T): T = {
     if (need) RegNext(data, init = init_value)
     else data
