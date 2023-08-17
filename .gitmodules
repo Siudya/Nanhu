@@ -16,9 +16,10 @@
 [submodule "xs-utils"]
 	path = xs-utils
 	url = https://github.com/Siudya/xs-utils
-[submodule "coupledL2"]
-	path = coupledL2
-	url = https://github.com/BNWeee/CoupledL2.git
 [submodule "utility"]
 	path = utility
 	url = https://github.com/OpenXiangShan/utility
+[submodule "CoupledL2"]
+	path = CoupledL2
+	url = https://github.com/cyril0124/CoupledL2
+	branch = integrate_cpl2_cpl3

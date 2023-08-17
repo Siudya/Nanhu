@@ -601,6 +601,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
   io.toIbuffer.bits.acf         := f3_af_vec
   io.toIbuffer.bits.crossPageIPFFix := f3_crossPageFault
   io.toIbuffer.bits.triggered   := f3_triggered
+  io.toIbuffer.bits.mmioFetch   := false.B
 
   when(f3_lastHalf.valid){
     io.toIbuffer.bits.enqEnable := checkerOutStage1.fixedRange.asUInt & f3_instr_valid.asUInt & f3_lastHalf_mask
@@ -647,6 +648,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
     io.toIbuffer.bits.pd(0).brType  := brType
     io.toIbuffer.bits.pd(0).isCall  := isCall
     io.toIbuffer.bits.pd(0).isRet   := isRet
+    io.toIbuffer.bits.mmioFetch     := true.B
 
     io.toIbuffer.bits.acf(0) := mmio_resend_af
     io.toIbuffer.bits.ipf(0) := mmio_resend_pf

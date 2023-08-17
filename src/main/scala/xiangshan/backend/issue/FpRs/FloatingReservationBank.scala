@@ -84,6 +84,7 @@ class FloatingReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loa
       port.addr := iAddr.bits
       iData.bits := port.data
       iData.valid := iAddr.valid
+      when(iAddr.valid){assert(PopCount(iAddr.bits) === 1.U)}
     }
   })
 }

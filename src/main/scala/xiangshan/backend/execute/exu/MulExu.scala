@@ -54,7 +54,7 @@ class MulExuImpl(outer:MulExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   private val i2f = Module(new IntToFP)
 
   issuePort.issue.ready := true.B
-  private val finalIssueSignals = bypassSigGen(io.bypassIn :+ io.bypassOut, issuePort, true)
+  private val finalIssueSignals = bypassSigGen(io.bypassIn :+ io.bypassOut, issuePort, outer.bypassInNum > 0)
   private val fuSeq = Seq(mul, bku, i2f)
   fuSeq.zip(exuCfg.fuConfigs).foreach({case(m, cfg) =>
     m.io.redirectIn := redirectIn

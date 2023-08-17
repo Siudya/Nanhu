@@ -126,25 +126,24 @@ case class XSCoreParameters
       (preds, ras.io.out)
     }),
   IBufSize: Int = 48,
-  DecodeWidth: Int = 6,
-  RenameWidth: Int = 6,
+  DecodeWidth: Int = 4,
+  RenameWidth: Int = 4,
   CommitWidth: Int = 6,
   FtqSize: Int = 64,
   EnableLoadFastWakeUp: Boolean = true, // NOTE: not supported now, make it false
-  IssQueSize: Int = 16,
-  NRPhyRegs: Int = 192,
+  NRPhyRegs: Int = 128,
   LoadQueueSize: Int = 80,
   LoadQueueNWriteBanks: Int = 8,
   StoreQueueSize: Int = 64,
   StoreQueueNWriteBanks: Int = 8,
-  RobSize: Int = 256,
+  RobSize: Int = 192,
   dpParams: DispatchParameters = DispatchParameters(
     IntDqSize = 16,
     FpDqSize = 16,
     LsDqSize = 16
   ),
-  intRsDepth:Int = 48,
-  fpRsDepth:Int = 48,
+  intRsDepth:Int = 32,
+  fpRsDepth:Int = 32,
   memRsDepth:Int = 48,
   rsBankNum:Int = 4,
   exuParameters: ExuParameters = ExuParameters(),
@@ -154,6 +153,7 @@ case class XSCoreParameters
   LoadPipelineWidth: Int = 2,
   StorePipelineWidth: Int = 2,
   StoreBufferSize: Int = 16,
+  EnsbufferWidth: Int = 2,
   StoreBufferThreshold: Int = 7,
   EnableLoadToLoadForward: Boolean = false,
   EnableFastForward: Boolean = false,
@@ -163,6 +163,7 @@ case class XSCoreParameters
   EnablePTWPreferCache: Boolean = true,
   EnableAccurateLoadError: Boolean = true,
   MMUAsidLen: Int = 16, // max is 16, 0 is not supported now
+  UseOneDtlb: Boolean = false,
   itlbParameters: TLBParameters = TLBParameters(
     name = "itlb",
     fetchi = true,
@@ -175,8 +176,8 @@ case class XSCoreParameters
     superReplacer = Some("plru"),
     shouldBlock = true
   ),
-  ldtlbParameters: TLBParameters = TLBParameters(
-    name = "ldtlb",
+  OnedtlbParams: TLBParameters = TLBParameters(
+    name = "tlb_ld_st",
     normalNSets = 64,
     normalNWays = 1,
     normalAssociative = "sa",
@@ -187,13 +188,25 @@ case class XSCoreParameters
     partialStaticPMP = true,
     saveLevel = true
   ),
-  sttlbParameters: TLBParameters = TLBParameters(
-    name = "sttlb",
-    normalNSets = 64,
+  ldtlbParameters: TLBParameters = TLBParameters(
+    name = "ldtlb",
+    normalNSets = 128,
     normalNWays = 1,
     normalAssociative = "sa",
     normalReplacer = Some("setplru"),
-    superNWays = 16,
+    superNWays = 8,
+    normalAsVictim = true,
+    outReplace = false,
+    partialStaticPMP = true,
+    saveLevel = true
+  ),
+  sttlbParameters: TLBParameters = TLBParameters(
+    name = "sttlb",
+    normalNSets = 128,
+    normalNWays = 1,
+    normalAssociative = "sa",
+    normalReplacer = Some("setplru"),
+    superNWays = 8,
     normalAsVictim = true,
     outReplace = false,
     partialStaticPMP = true,
@@ -347,7 +360,6 @@ trait HasXSParameter {
   val RenameWidth = coreParams.RenameWidth
   val CommitWidth = coreParams.CommitWidth
   val FtqSize = coreParams.FtqSize
-  val IssQueSize = coreParams.IssQueSize
   val EnableLoadFastWakeUp = coreParams.EnableLoadFastWakeUp
   val NRPhyRegs = coreParams.NRPhyRegs
   val PhyRegIdxWidth = log2Up(NRPhyRegs)
@@ -363,6 +375,7 @@ trait HasXSParameter {
   val StorePipelineWidth = coreParams.StorePipelineWidth
   val StoreBufferSize = coreParams.StoreBufferSize
   val StoreBufferThreshold = coreParams.StoreBufferThreshold
+  val EnsbufferWidth = coreParams.EnsbufferWidth
   val EnableLoadToLoadForward = coreParams.EnableLoadToLoadForward
   val EnableFastForward = coreParams.EnableFastForward
   val EnableLdVioCheckAfterReset = coreParams.EnableLdVioCheckAfterReset
@@ -380,6 +393,8 @@ trait HasXSParameter {
   val btlbParams = coreParams.btlbParameters
   val l2tlbParams = coreParams.l2tlbParameters
   val NumPerfCounters = coreParams.NumPerfCounters
+  val UseOneDtlb = coreParams.UseOneDtlb
+  val OnedtlbParams = coreParams.OnedtlbParams
 
   val instBytes = if (HasCExtension) 2 else 4
   val instOffsetBits = log2Ceil(instBytes)

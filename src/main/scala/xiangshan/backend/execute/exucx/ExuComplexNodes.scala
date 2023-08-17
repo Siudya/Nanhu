@@ -38,6 +38,7 @@ case class ExuComplexParam
   val hasFmisc: Boolean = exuConfigs.map(_.exuType == ExuType.fmisc).reduce(_ || _)
   val hasFdiv: Boolean = exuConfigs.map(_.exuType == ExuType.fdiv).reduce(_ || _)
   val hasLoad: Boolean = exuConfigs.map(_.exuType == ExuType.ldu).reduce(_ || _)
+  val hasSpecialLoad: Boolean = exuConfigs.map(_.exuType == ExuType.sldu).reduce(_ || _)
   val hasSta: Boolean = exuConfigs.map(_.exuType == ExuType.sta).reduce(_ || _)
   val hasStd: Boolean = exuConfigs.map(_.exuType == ExuType.std).reduce(_ || _)
   val hasVred:Boolean = exuConfigs.map(_.exuType == ExuType.vred).reduce(_ || _)
@@ -48,6 +49,7 @@ case class ExuComplexParam
   val isFpType:Boolean = exuConfigs.head.isFpType
   val isMemType:Boolean = exuConfigs.head.isMemType
   val isVecType:Boolean = exuConfigs.head.isVecType
+  val isSpecialLoad:Boolean = exuConfigs.head.isMemType && exuConfigs.head.exuType == ExuType.sldu
   val intSrcNum:Int = exuConfigs.map(_.intSrcNum).max
   val fpSrcNum:Int = exuConfigs.map(_.fpSrcNum).max
 
@@ -63,9 +65,9 @@ case class ExuComplexParam
 
   val needToken:Boolean = exuConfigs.map(_.needToken).reduce(_||_)
 
-  val readIntegerRegfile:Boolean = isAluDiv || isAluJmp || isAluMul || hasSta || hasStd || hasLoad || hasVmisc || hasVint
-  val readFloatingRegfile:Boolean = isFmac || isFmaDiv || isFmaMisc || hasStd || hasVfp
-  val readVectorRegfile:Boolean = isVecType || hasLoad || hasStd || hasSta
+  val readIntegerRegfile:Boolean = exuConfigs.flatMap(_.fuConfigs.map(_.numIntSrc != 0)).reduce(_ || _)
+  val readFloatingRegfile:Boolean = exuConfigs.flatMap(_.fuConfigs.map(_.numFpSrc != 0)).reduce(_ || _)
+  val readVectorRegfile:Boolean = exuConfigs.flatMap(_.fuConfigs.map(_.numVecSrc != 0)).reduce(_ || _)
 
   override def toString:String = s"${name} #${id} intSrcNum:${intSrcNum} fpSrcNum:${fpSrcNum} " + exuConfigs.map(_.toString).reduce(_++_)
 }

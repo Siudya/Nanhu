@@ -85,6 +85,7 @@ class IntegerReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, load
       port.addr := iAddr.bits
       iData.bits := port.data
       iData.valid := iAddr.valid
+      when(iAddr.valid){assert(PopCount(iAddr.bits) === 1.U)}
     }
   })
 }

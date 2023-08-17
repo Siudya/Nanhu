@@ -49,7 +49,7 @@ object FuConfigs{
     writeFpRf = false,
     writeVecRf = false,
     writeFflags = false,
-    latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
+    latency = 2,
     trigger = false,
     hasRedirect = false
   )
@@ -63,7 +63,7 @@ object FuConfigs{
     writeFpRf = false,
     writeVecRf = false,
     writeFflags = false,
-    latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
+    latency = 2,
     trigger = false,
     hasRedirect = false
   )
@@ -135,7 +135,7 @@ object FuConfigs{
     writeFpRf = true,
     writeVecRf = false,
     writeFflags = true,
-    latency = 1, //Actual latency is 2. It is reduced to 1 because of bypass network
+    latency = 2,
     trigger = false,
     hasRedirect = false
   )
@@ -208,6 +208,22 @@ object FuConfigs{
     writeIntRf = true,
     writeFpRf = true,
     writeVecRf = true,
+    writeFflags = false,
+    latency = Int.MaxValue,
+    hasRedirect = true,
+    trigger = true,
+    exceptionOut = Seq(loadAddrMisaligned, loadAccessFault, loadPageFault),
+  )
+
+  val specialLduCfg = FuConfig(
+    name = "sldu",
+    fuType = FuType.ldu,
+    numIntSrc = 1,
+    numFpSrc = 0,
+    numVecSrc = 0,
+    writeIntRf = true,
+    writeFpRf = true,
+    writeVecRf = false,
     writeFflags = false,
     latency = Int.MaxValue,
     hasRedirect = true,

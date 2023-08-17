@@ -177,6 +177,8 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   ibuffer.io.flush := needFlush
   io.backend.cfVec <> ibuffer.io.out
 
+  ibuffer.io.fromFtq := Pipe(ftq.io.toIbuffer, 2).bits
+
   instrUncache.io.req   <> ifu.io.uncacheInter.toUncache
   ifu.io.uncacheInter.fromUncache <> instrUncache.io.resp
   instrUncache.io.flush := false.B

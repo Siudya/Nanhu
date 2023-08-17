@@ -30,9 +30,9 @@ import xiangshan.backend.execute.fu.csr.CSRFileIO
 
 class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
   require(jmpNum == 1)
-  private val aluMuls = Seq.tabulate(mulNum)(idx => LazyModule(new AluMulComplex(idx, mulNum - 1)))
-  private val aluDivs = Seq.tabulate(divNum)(idx => LazyModule(new AluDivComplex(idx, mulNum)))
-  private val aluJmps = Seq.tabulate(jmpNum)(idx => LazyModule(new AluJmpComplex(idx, mulNum)))
+  private val aluMuls = Seq.tabulate(mulNum)(idx => LazyModule(new AluMulComplex(idx, 0)))
+  private val aluDivs = Seq.tabulate(divNum)(idx => LazyModule(new AluDivComplex(idx, 0)))
+  private val aluJmps = Seq.tabulate(jmpNum)(idx => LazyModule(new AluJmpComplex(idx, 0)))
   private val intComplexes = aluMuls ++ aluDivs ++ aluJmps
   intComplexes.foreach(exucx => {
     exucx.issueNode :*= issueNode
@@ -49,12 +49,7 @@ class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
     })
     intComplexes.foreach(_.module.redirectIn := Pipe(redirectIn))
 
-    (aluJmps ++ aluDivs).foreach(cplx => cplx.module.bypassIn.zip(aluMuls.map(_.module.io.bypassOut)).foreach({ case (a, b) => a := b }))
-
-    aluMuls.map(_.module.bypassIn).zipWithIndex.foreach({ case (bin, idx) =>
-      val sources = aluMuls.zipWithIndex.filterNot(_._2 == idx).map(_._1.module.io.bypassOut)
-      bin.zip(sources).foreach({ case (a, b) => a := b })
-    })
+    (aluJmps ++ aluDivs ++ aluMuls).foreach(cplx => cplx.module.bypassIn.zip(aluMuls.map(_.module.io.bypassOut)).foreach({ case (a, b) => a := b }))
 
     aluJmps.head.module.io.fenceio <> io.fenceio
     aluJmps.head.module.io.fenceio.sbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty

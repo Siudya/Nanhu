@@ -136,9 +136,9 @@ object huancun extends XSModule with SbtModule {
   )
 }
 
-object coupledL2 extends XSModule with SbtModule {
+object CoupledL2 extends XSModule with SbtModule {
 
-  override def millSourcePath = os.pwd / "coupledL2"
+  override def millSourcePath = os.pwd / "CoupledL2"
 
   override def moduleDeps = super.moduleDeps ++ Seq(
     rocketchip,
@@ -200,6 +200,6 @@ object XiangShan extends CommonXiangShan {
   override def huancunModule = huancun
   override def fudianModule = fudian
   override def xsutilsModule = xsutils
-  override def coupledL2Module = coupledL2
+  override def coupledL2Module = CoupledL2
   override def utilityModule = utility
 }

@@ -40,42 +40,46 @@ class SelectResp(val bankIdxWidth:Int, entryIdxWidth:Int)(implicit p: Parameters
   val entryIdxOH = UInt(entryIdxWidth.W)
   val bankIdxOH = UInt(bankIdxWidth.W)
 }
-class SelectMux(bankIdxWidth:Int, entryIdxWidth:Int)(implicit p: Parameters) extends Module{
+
+class SelectPolicy(width:Int, oldest:Boolean, haveEqual:Boolean)(implicit p: Parameters) extends Module{
   val io = IO(new Bundle{
-    val in0 = Input(Valid(new SelectResp(bankIdxWidth, entryIdxWidth)))
-    val in1 = Input(Valid(new SelectResp(bankIdxWidth, entryIdxWidth)))
-    val out = Output(Valid(new SelectResp(bankIdxWidth, entryIdxWidth)))
+    val in = Input(Vec(width, Valid(new RobPtr)))
+    val out = Output(Valid(UInt(width.W)))
   })
-  private val valid0 = io.in0.valid
-  private val valid1 = io.in1.valid
-  private val ptr0 = io.in0.bits.info.robPtr
-  private val ptr1 = io.in1.bits.info.robPtr
-  private val validVec = Cat(valid1, valid0)
-  private val sel = Mux(validVec === "b01".U, true.B, Mux(validVec === "b10".U, false.B, Mux(validVec === "b11".U, ptr0 < ptr1, true.B)))
-  private val res = Mux(sel, io.in0, io.in1)
-  io.out := res
-}
-object SelectMux{
-  def apply(in0: Valid[SelectResp], in1: Valid[SelectResp], bankIdxWidth:Int, entryIdxWidth:Int, p: Parameters):Valid[SelectResp] = {
-    val smux = Module(new SelectMux(bankIdxWidth, entryIdxWidth)(p))
-    smux.io.in0 := in0
-    smux.io.in1 := in1
-    smux.io.out
+  private val ostr = if(oldest)"o" else "p"
+  private val esrt = if(haveEqual) "e" else ""
+  override val desiredName:String = s"SelectPolicy_w${width}" + ostr + esrt
+  if(oldest) {
+    val onlyOne = PopCount(io.in.map(_.valid)) === 1.U
+    val oldestOHMatrix = io.in.zipWithIndex.map({ case (self, idx) =>
+      io.in.zipWithIndex.filterNot(_._2 == idx).map(i => (i._1.valid && self.valid && (self.bits <= i._1.bits)) ^ i._1.valid)
+    })
+    val oldestOHSeq = oldestOHMatrix.map(_.reduce(_|_)).map(!_)
+    val oldestOH = if(haveEqual) PriorityEncoderOH(Cat(oldestOHSeq.reverse)) else Cat(oldestOHSeq.reverse)
+    val defaultValue = Cat(io.in.map(_.valid).reverse)
+    io.out.valid := io.in.map(_.valid).reduce(_ | _)
+    io.out.bits := Mux(onlyOne, defaultValue, oldestOH)
+  } else {
+    io.out.valid := io.in.map(_.valid).reduce(_ | _)
+    io.out.bits := PriorityEncoderOH(Cat(io.in.map(_.valid).reverse))
+  }
+  when(io.out.valid) {
+    assert(PopCount(io.out.bits) === 1.U)
   }
 }
-
-class Selector(bankNum:Int, entryNum:Int, inputWidth:Int)(implicit p: Parameters) extends Module{
-  private val bankIdxWidth = bankNum
-  private val entryIdxWidth = entryNum
-  val io = IO(new Bundle{
-    val in = Input(Vec(inputWidth, Valid(new SelectResp(bankIdxWidth, entryIdxWidth))))
-    val out = Output(Valid(new SelectResp(bankIdxWidth, entryIdxWidth)))
-  })
-  private val operationFunction = SelectMux(_, _, bankIdxWidth, entryIdxWidth, p)
-  private val res  = ParallelOperation(io.in, operationFunction)
-  io.out := res
+object SelectPolicy {
+  def apply(in:Seq[Valid[SelectResp]], oldest:Boolean, haveEqual:Boolean, bankNum:Int, entryNum:Int, p:Parameters) :Valid[SelectResp] = {
+    val selector = Module(new SelectPolicy(in.length, oldest, haveEqual)(p))
+    selector.io.in.zip(in).foreach({case(a, b) =>
+      a.valid := b.valid
+      a.bits := b.bits.info.robPtr
+    })
+    val res = Wire(Valid(new SelectResp(bankNum, entryNum)(p)))
+    res.valid := selector.io.out.valid
+    res.bits := Mux1H(selector.io.out.bits, in.map(_.bits))
+    res
+  }
 }
-
 /** {{{
   * Module Name: SelectedNetwork
   *
@@ -116,7 +120,7 @@ class Selector(bankNum:Int, entryNum:Int, inputWidth:Int)(implicit p: Parameters
   * }}}
 */
 
-class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, name:Option[String] = None)(implicit p: Parameters) extends XSModule {
+class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, oldest:Boolean, haveEqual:Boolean, name:Option[String] = None)(implicit p: Parameters) extends XSModule {
   require(issueNum <= bankNum && 0 < issueNum && bankNum % issueNum == 0, "Illegal number of issue ports are supported now!")
   private val fuTypeList = cfg.fuConfigs.map(_.fuType)
   val io = IO(new Bundle{
@@ -128,57 +132,51 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
   })
   override val desiredName:String = name.getOrElse("SelectNetwork")
 
-  private val issueValidBitVecList = io.selectInfo.map(_.map(info => info.valid & (Cat(fuTypeList.map(_ === info.bits.fuType)).orR)))
-  private val issueDataVecList = io.selectInfo.map(_.map(_.bits))
-  private val issueBankIdxVecList = io.selectInfo.indices.map(idx => Seq.fill(entryNum)((1<<idx).U(bankNum.W)))
-  private val issueEntryIdxVecList = io.selectInfo.indices.map(idx => Seq.tabulate(entryNum)(idx0 => (1<<idx0).U(entryNum.W)))
-  private val issueAllDataList = issueValidBitVecList.zip(issueDataVecList).zip(issueBankIdxVecList).zip(issueEntryIdxVecList).map({
-    case(((v, d),bi),ei) => v.zip(d).zip(bi).zip(ei)
-  })
-
-  private val bankNumPerSelector = bankNum / issueNum
-  private val selectorSeq = Seq.fill(issueNum)(Module(new Selector(bankNum, entryNum, bankNumPerSelector * entryNum)))
-
-  private val selectorInput = Seq.tabulate(issueNum)({idx =>
-    issueAllDataList.slice(idx*bankNumPerSelector, idx*bankNumPerSelector + bankNumPerSelector).reduce(_++_)
-  })
-
-  for((s, si) <- selectorSeq zip selectorInput){
-    s.io.in.zip(si).foreach({case(inPort, driver) =>
-      inPort.valid := driver._1._1._1
-      inPort.bits.info := driver._1._1._2
-      inPort.bits.bankIdxOH := driver._1._2
-      inPort.bits.entryIdxOH := driver._2
+  private val selectInputPerBank = io.selectInfo.zipWithIndex.map({case(si, bidx) =>
+    si.zipWithIndex.map({ case (in, eidx) =>
+      val selInfo = Wire(Valid(new SelectResp(bankNum, entryNum)))
+      selInfo.valid := in.valid && cfg.fuConfigs.map(_.fuType === in.bits.fuType).reduce(_ | _)
+      selInfo.bits.info := in.bits
+      selInfo.bits.bankIdxOH := (1 << bidx).U(bankNum.W)
+      selInfo.bits.entryIdxOH := (1 << eidx).U(entryNum.W)
+      selInfo
     })
-  }
+  })
+
+  private val finalSelectResult = Wire(Vec(issueNum, Valid(new SelectResp(bankNum, entryNum))))
+  private val bankNumPerIss = bankNum / issueNum
+  finalSelectResult.zipWithIndex.foreach({case(res, i) =>
+    val selBanks = selectInputPerBank.slice(i * bankNumPerIss, i * bankNumPerIss + bankNumPerIss).reduce(_ ++ _)
+    res := SelectPolicy(selBanks, oldest, haveEqual, bankNum, entryNum, p)
+  })
 
   if(cfg.needToken){
     val tokenAllocators = Seq.fill(issueNum)(Module(new TokenAllocator(PhyRegIdxWidth, cfg.fuConfigs.length)))
-    for ((((outPort, driver), ta), tr) <- io.issueInfo.zip(selectorSeq).zip(tokenAllocators).zip(io.tokenRelease.get)) {
+    for ((((outPort, driver), ta), tr) <- io.issueInfo.zip(finalSelectResult).zip(tokenAllocators).zip(io.tokenRelease.get)) {
       ta.io.redirect := io.redirect
       ta.io.alloc.valid := outPort.fire
-      ta.io.alloc.bits.pdest := driver.io.out.bits.info.pdest
-      ta.io.alloc.bits.robPtr := driver.io.out.bits.info.robPtr
+      ta.io.alloc.bits.pdest := driver.bits.info.pdest
+      ta.io.alloc.bits.robPtr := driver.bits.info.robPtr
       ta.io.alloc.bits.lpv := outPort.bits.info.lpv
       ta.io.earlyWakeUpCancel := io.earlyWakeUpCancel
       ta.io.release := tr
-      val shouldBeFlushed = driver.io.out.bits.info.robPtr.needFlush(io.redirect)
-      val shouldBeCancelled = driver.io.out.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
-      outPort.valid := driver.io.out.valid && ta.io.allow && !shouldBeCancelled && !shouldBeFlushed
-      outPort.bits.bankIdxOH := driver.io.out.bits.bankIdxOH
-      outPort.bits.entryIdxOH := driver.io.out.bits.entryIdxOH
-      outPort.bits.info := driver.io.out.bits.info
-      outPort.bits.info.lpv.zip(driver.io.out.bits.info.lpv).foreach({case(o, i) => o := LogicShiftRight(i, 1)})
+      val shouldBeFlushed = driver.bits.info.robPtr.needFlush(io.redirect)
+      val shouldBeCancelled = driver.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
+      outPort.valid := driver.valid && ta.io.allow && !shouldBeCancelled && !shouldBeFlushed
+      outPort.bits.bankIdxOH := driver.bits.bankIdxOH
+      outPort.bits.entryIdxOH := driver.bits.entryIdxOH
+      outPort.bits.info := driver.bits.info
+      outPort.bits.info.lpv.zip(driver.bits.info.lpv).foreach({case(o, i) => o := LogicShiftRight(i, 1)})
     }
   } else {
-    for ((outPort, driver) <- io.issueInfo.zip(selectorSeq)) {
-      val shouldBeFlushed = driver.io.out.bits.info.robPtr.needFlush(io.redirect)
-      val shouldBeCancelled = driver.io.out.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
-      outPort.valid := driver.io.out.valid && !shouldBeCancelled && !shouldBeFlushed
-      outPort.bits.bankIdxOH := driver.io.out.bits.bankIdxOH
-      outPort.bits.entryIdxOH := driver.io.out.bits.entryIdxOH
-      outPort.bits.info := driver.io.out.bits.info
-      outPort.bits.info.lpv.zip(driver.io.out.bits.info.lpv).foreach({case(o, i) => o := LogicShiftRight(i, 1)})
+    for ((outPort, driver) <- io.issueInfo.zip(finalSelectResult)) {
+      val shouldBeFlushed = driver.bits.info.robPtr.needFlush(io.redirect)
+      val shouldBeCancelled = driver.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
+      outPort.valid := driver.valid && !shouldBeCancelled && !shouldBeFlushed
+      outPort.bits.bankIdxOH := driver.bits.bankIdxOH
+      outPort.bits.entryIdxOH := driver.bits.entryIdxOH
+      outPort.bits.info := driver.bits.info
+      outPort.bits.info.lpv.zip(driver.bits.info.lpv).foreach({case(o, i) => o := LogicShiftRight(i, 1)})
     }
   }
 }

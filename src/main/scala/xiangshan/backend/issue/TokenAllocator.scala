@@ -56,11 +56,9 @@ class TokenAllocator(pdestWidth:Int, tokenNum:Int)(implicit p: Parameters) exten
         v := true.B
       }
 
-      d.lpv.foreach(l => {
-        when(l.orR){
-          l := LogicShiftRight(l, 1)
-        }
-      })
+      when(d.lpv.map(_.orR).reduce(_|_)){
+        d.lpv.foreach(l => l := LogicShiftRight(l, 1))
+      }
 
       when(io.alloc.valid && en){
         d := io.alloc.bits

@@ -106,9 +106,9 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
   private val fdivExuCfg = fdivIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.fdiv).head
   private val fmiscExuCfg = fmiscIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.fmisc).head
 
-  private val fmacSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmaIssuePortNum, fmaExuCfg, Some(s"FloatingFmacSelectNetwork")))
-  private val fdivSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fdivIssuePortNum, fdivExuCfg, Some(s"FloatingFdivSelectNetwork")))
-  private val fmiscSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmiscIssuePortNum, fmiscExuCfg, Some(s"FloatingFmiscSelectNetwork")))
+  private val fmacSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmaIssuePortNum, fmaExuCfg, true, false, Some(s"FloatingFmacSelectNetwork")))
+  private val fdivSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fdivIssuePortNum, fdivExuCfg, false, false, Some(s"FloatingFdivSelectNetwork")))
+  private val fmiscSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmiscIssuePortNum, fmiscExuCfg, false, false, Some(s"FloatingFmiscSelectNetwork")))
   fdivSelectNetwork.io.tokenRelease.get.zip(wakeup.filter(_._2.exuType == ExuType.fdiv).map(_._1)).foreach({
     case(sink, source) =>
       sink.valid := source.valid
@@ -169,14 +169,14 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
       } else if (iss._2.isFmaDiv) {
         fmaPortIdx = fmaPortIdx + 1
         fdivPortIdx = fdivPortIdx + 1
-        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2))
+        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2, false))
         selectRespArbiter.io.in(0) <> fmacSelectNetwork.io.issueInfo(fmaPortIdx - 1)
         selectRespArbiter.io.in(1) <> fdivSelectNetwork.io.issueInfo(fdivPortIdx - 1)
         selectRespArbiter.io.out
       } else {
         fmaPortIdx = fmaPortIdx + 1
         fmiscPortIdx = fmiscPortIdx + 1
-        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2))
+        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2, false))
         selectRespArbiter.io.in(0) <> fmacSelectNetwork.io.issueInfo(fmaPortIdx - 1)
         selectRespArbiter.io.in(1) <> fmiscSelectNetwork.io.issueInfo(fmiscPortIdx - 1)
         selectRespArbiter.io.out

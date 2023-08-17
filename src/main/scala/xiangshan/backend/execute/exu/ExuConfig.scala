@@ -36,6 +36,7 @@ object ExuType{
   def vmisc = 11
   def vfp = 12
   def vint = 13
+  def sldu = 17
 
   private val mapping = Map(
     jmp -> "jmp",
@@ -51,11 +52,12 @@ object ExuType{
     vred -> "vred",
     vmisc -> "vmisc",
     vfp -> "vfp",
-    vint -> "vint"
+    vint -> "vint",
+    sldu -> "sldu"
   )
 
   def intTypes: Seq[Int] = Seq(jmp, alu, mul, div)
-  def memTypes: Seq[Int] = Seq(ldu, sta, std)
+  def memTypes: Seq[Int] = Seq(ldu, sta, std, sldu)
   def fpTypes: Seq[Int] = Seq(fmisc, fmac, fdiv)
   def vecTypes: Seq[Int] = Seq(vred, vmisc, vfp, vint)
   def typeToString(in:Int):String = mapping(in)
@@ -81,6 +83,7 @@ case class ExuConfig
   val writeIntRf = fuConfigs.map(_.writeIntRf).reduce(_||_)
   val writeFpRf = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val writeVecRf = fuConfigs.map(_.writeVecRf).reduce(_||_)
+  val writeFFlags = fuConfigs.map(_.writeFflags).reduce(_||_)
   val wakeUpIntRs = fuConfigs.map(_.writeIntRf).reduce(_||_) && !hasFastWakeup
   val wakeUpFpRs = fuConfigs.map(_.writeFpRf).reduce(_||_)
   val wakeUpMemRs =  fuConfigs.map(e => e.writeIntRf || e.writeFpRf).reduce(_||_) && !hasFastWakeup

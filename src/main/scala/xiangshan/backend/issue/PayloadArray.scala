@@ -58,12 +58,7 @@ class PayloadArray[T <: Data](gen:T, entryNum:Int, deqNum:Int, name:String)(impl
     }
   }
 
-  io.read.foreach(r => assert(PopCount(r.addr) === 1.U))
   when(io.write.en){
     assert(PopCount(io.write.addr) === 1.U)
   }
-  private val mySelf = this
-  chisel3.experimental.annotate(new ChiselAnnotation {
-    override def toFirrtl: Annotation = NoDedupAnnotation(mySelf.toTarget)
-  })
 }

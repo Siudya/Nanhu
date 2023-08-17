@@ -121,6 +121,7 @@ class FetchToIBuffer(implicit p: Parameters) extends XSBundle {
   val acf          = Vec(PredictWidth, Bool())
   val crossPageIPFFix = Vec(PredictWidth, Bool())
   val triggered    = Vec(PredictWidth, new TriggerCf)
+  val mmioFetch = Bool()
 }
 
 // class BitWiseUInt(val width: Int, val init: UInt) extends Module {

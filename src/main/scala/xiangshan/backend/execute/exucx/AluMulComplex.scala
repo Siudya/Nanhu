@@ -27,7 +27,7 @@ import xiangshan.backend.execute.exu.{AluExu, ExuType, MulExu}
 import xiangshan.{ExuOutput, FuType}
 
 class AluMulComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
-  val alu = LazyModule(new AluExu(id, "AluMulComplex", bypassNum + 1))
+  val alu = LazyModule(new AluExu(id, "AluMulComplex", bypassNum))
   val mul = LazyModule(new MulExu(id, "AluMulComplex", bypassNum))
   alu.issueNode :*= issueNode
   mul.issueNode :*= issueNode
@@ -45,14 +45,13 @@ class AluMulComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends Basic
     private val issueMul = issueNode.out.filter(_._2._2.exuType == ExuType.mul).head._1
 
     issueAlu <> issueIn
-    alu.module.io.bypassIn.take(bypassNum).zip(bypassIn).foreach({case(a, b) => a := b})
+    alu.module.io.bypassIn := bypassIn
     alu.module.redirectIn := redirectIn
 
     issueMul <> issueIn
     mul.module.io.bypassIn := bypassIn
     mul.module.redirectIn := redirectIn
 
-    alu.module.io.bypassIn.last := mul.module.io.bypassOut
     io.bypassOut := mul.module.io.bypassOut
 
     issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueMul.issue.ready)

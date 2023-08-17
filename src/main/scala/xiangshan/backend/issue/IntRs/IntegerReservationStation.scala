@@ -70,7 +70,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   val io = IO(new Bundle{
     val redirect = Input(Valid(new Redirect))
     val mulSpecWakeup = Output(Vec(mulIssuePortNum, Valid(new WakeUpInfo)))
-    val aluSpecWakeup = Output(Vec(2 * aluIssuePortNum, Valid(new WakeUpInfo)))
+    val aluSpecWakeup = Output(Vec(aluIssuePortNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
     val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
@@ -78,11 +78,12 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   require(outer.dispatchNode.in.length == 1)
   private val enq = outer.dispatchNode.in.map(_._1).head
 
-  private val internalAluWakeupSignals = Wire(Vec(2 * aluIssuePortNum, Valid(new WakeUpInfo)))
+  private val internalAluWakeupSignals = Wire(Vec(aluIssuePortNum, Valid(new WakeUpInfo)))
+  private val extraAluWakeupSignals = Wire(Vec(aluIssuePortNum, Valid(new WakeUpInfo)))
   private val internalMulWakeupSignals = Wire(Vec(mulIssuePortNum, Valid(new WakeUpInfo)))
   io.mulSpecWakeup.zip(internalMulWakeupSignals).foreach({case(a, b) =>
     //Add an pipe here for there is no bypass from mul to load/store units.
-    val mulWakeupDelayQueue = Module(new WakeupQueue(2))
+    val mulWakeupDelayQueue = Module(new WakeupQueue(1))
     mulWakeupDelayQueue.io.in := b
     a := mulWakeupDelayQueue.io.out
     mulWakeupDelayQueue.io.redirect := io.redirect
@@ -98,17 +99,18 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     wkp.bits.destType := Mux(elm.bits.uop.ctrl.rfWen, SrcType.reg, SrcType.default)
     wkp
   }))
-  private val wakeupWidth = (wakeupSignals ++ internalAluWakeupSignals ++ internalMulWakeupSignals).length
+  private val rsWakeupWidth = (wakeupSignals ++ internalAluWakeupSignals ++ internalMulWakeupSignals ++ extraAluWakeupSignals).length
   private val rsBankSeq = Seq.tabulate(param.bankNum)( _ => {
-    val mod = Module(new IntegerReservationBank(entriesNumPerBank, issueWidth, wakeupWidth, loadUnitNum))
+    val mod = Module(new IntegerReservationBank(entriesNumPerBank, issueWidth, rsWakeupWidth, loadUnitNum))
     mod.io.redirect := io.redirect
-    mod.io.wakeup.zip(wakeupSignals ++ internalAluWakeupSignals ++ internalMulWakeupSignals).foreach({case(a, b) => a := b})
+    mod.io.wakeup.zip(wakeupSignals ++ internalAluWakeupSignals ++ internalMulWakeupSignals ++ extraAluWakeupSignals).foreach({case(a, b) => a := b})
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod
   })
+  private val btWakeupWidth = (wakeupSignals ++ internalAluWakeupSignals ++ internalMulWakeupSignals).length
   private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("IntegerAllocateNetwork")))
-  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupWidth))
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, btWakeupWidth))
   integerBusyTable.io.allocPregs := io.integerAllocPregs
   integerBusyTable.io.wbPregs.take((wakeupSignals ++ internalMulWakeupSignals).length).zip(wakeupSignals ++ internalMulWakeupSignals).foreach({case(bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.reg
@@ -116,31 +118,27 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   })
   private val busyTableAluWbPorts = integerBusyTable.io.wbPregs.drop((wakeupSignals ++ internalMulWakeupSignals).length)
   private var aluWbPortIdx = 0
-  private var aluWkpPortAuxIdx = 0
-  private var ioAluWkpPortIdx = 0
-  internalAluWakeupSignals.take(aluIssuePortNum).foreach(wb=> {
-    val shouldHold = Cat(wb.bits.lpv).orR
-    busyTableAluWbPorts(aluWbPortIdx).valid := wb.valid && wb.bits.destType === SrcType.reg && !shouldHold
-    busyTableAluWbPorts(aluWbPortIdx).bits := wb.bits.pdest
-    io.aluSpecWakeup(ioAluWkpPortIdx).valid := wb.valid && !shouldHold
-    io.aluSpecWakeup(ioAluWkpPortIdx).bits := wb.bits
-
-    val delayValidReg = RegNext(shouldHold && wb.valid, false.B)
-    val delayBitsReg = RegEnable(wb.bits, shouldHold && wb.valid)
+  internalAluWakeupSignals.foreach(wb=> {
+    val delayValidReg = RegNext(wb.valid, false.B)
+    val delayBitsReg = RegEnable(wb.bits, wb.valid)
     val shouldBeCancelled = delayBitsReg.lpv.zip(io.earlyWakeUpCancel).map({case(l,c) => l(0) && c}).reduce(_||_)
     val shouldBeFlushed = delayBitsReg.robPtr.needFlush(io.redirect)
-    busyTableAluWbPorts(aluWbPortIdx + 1).valid := delayValidReg && delayBitsReg.destType === SrcType.reg && !shouldBeCancelled && !shouldBeFlushed
-    busyTableAluWbPorts(aluWbPortIdx + 1).bits := delayBitsReg.pdest
+    busyTableAluWbPorts(aluWbPortIdx).valid := delayValidReg && delayBitsReg.destType === SrcType.reg && !shouldBeCancelled && !shouldBeFlushed
+    busyTableAluWbPorts(aluWbPortIdx).bits := delayBitsReg.pdest
+    extraAluWakeupSignals(aluWbPortIdx).valid := busyTableAluWbPorts(aluWbPortIdx).valid
+    extraAluWakeupSignals(aluWbPortIdx).bits := delayBitsReg
+    extraAluWakeupSignals(aluWbPortIdx).bits.lpv.foreach(_ := 0.U)
+    aluWbPortIdx = aluWbPortIdx + 1
+  })
 
-    internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).valid := delayValidReg && !shouldBeCancelled && !shouldBeFlushed
-    internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits := delayBitsReg
-    internalAluWakeupSignals(aluWkpPortAuxIdx + aluIssuePortNum).bits.lpv.foreach(_ := 0.U)
-    io.aluSpecWakeup(ioAluWkpPortIdx + 1).valid := delayValidReg && !shouldBeCancelled && !shouldBeFlushed
-    io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits := delayBitsReg
-    io.aluSpecWakeup(ioAluWkpPortIdx + 1).bits.lpv.foreach(_ := 0.U)
-    aluWbPortIdx = aluWbPortIdx + 2
-    aluWkpPortAuxIdx = aluWkpPortAuxIdx + 1
-    ioAluWkpPortIdx = ioAluWkpPortIdx + 2
+  internalAluWakeupSignals.zip(io.aluSpecWakeup).foreach({case(iwkp, owkp) =>
+    val swkpValidReg = RegNext(iwkp.valid, false.B)
+    val swkpBitsReg = RegEnable(iwkp.bits, iwkp.valid)
+    val swkpCancelled = swkpBitsReg.lpv.zip(io.earlyWakeUpCancel).map({ case (l, c) => l(0) && c }).reduce(_ || _)
+    val swkpFlushed = swkpBitsReg.robPtr.needFlush(io.redirect)
+    owkp.valid := swkpValidReg && !swkpCancelled && !swkpFlushed
+    owkp.bits := swkpBitsReg
+    owkp.bits.lpv.foreach(_ := 0.U)
   })
 
   private val aluExuCfg = aluIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.alu).head
@@ -148,10 +146,10 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   private val divExuCfg = divIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.div).head
   private val jmpExuCfg = jmpIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.jmp).head
 
-  private val aluSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, aluIssuePortNum, aluExuCfg, Some(s"IntegerAluSelectNetwork")))
-  private val mulSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, mulIssuePortNum, mulExuCfg, Some(s"IntegerMulSelectNetwork")))
-  private val divSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, divIssuePortNum, divExuCfg, Some(s"IntegerDivSelectNetwork")))
-  private val jmpSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, jmpIssuePortNum, jmpExuCfg, Some(s"IntegerJmpSelectNetwork")))
+  private val aluSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, aluIssuePortNum, aluExuCfg, false, false, Some(s"IntegerAluSelectNetwork")))
+  private val mulSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, mulIssuePortNum, mulExuCfg, false, false, Some(s"IntegerMulSelectNetwork")))
+  private val divSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, divIssuePortNum, divExuCfg, false, false, Some(s"IntegerDivSelectNetwork")))
+  private val jmpSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, jmpIssuePortNum, jmpExuCfg, false, false, Some(s"IntegerJmpSelectNetwork")))
   divSelectNetwork.io.tokenRelease.get.zip(wakeup.filter(_._2.exuType == ExuType.div).map(_._1)).foreach({
     case(sink, source) =>
       sink.valid := source.valid && source.bits.uop.ctrl.rfWen
@@ -203,7 +201,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
       val issueDriver = Module(new DecoupledPipeline(false, param.bankNum, entriesNumPerBank))
       issueDriver.io.redirect := io.redirect
       issueDriver.io.earlyWakeUpCancel := io.earlyWakeUpCancel
-      val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2))
+      val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2, false))
       selectRespArbiter.io.in(0) <> aluSelectNetwork.io.issueInfo(aluPortIdx)
       internalAluWakeupSignals(aluWkpPortIdx) := WakeupQueue(aluSelectNetwork.io.issueInfo(aluPortIdx), aluSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
       aluPortIdx = aluPortIdx + 1
