@@ -82,6 +82,7 @@ abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheMod
   val io = IO(new DCacheBundle {
     // load pipeline read word req
     val read = Vec(LoadPipelineWidth, Flipped(DecoupledIO(new L1BankedDataReadLsuReq)))
+    val readSel = Input(UInt(1.W))
     // main pipeline read / write line req
     val readline_intend = Input(Bool())
     val readline = Flipped(DecoupledIO(new L1BankedDataReadLineReq))
@@ -365,9 +366,10 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   io.readline.ready := !(rwhazard)
 
   // read conflict
-  val rr_bank_conflict = Seq.tabulate(LoadPipelineWidth)(x => Seq.tabulate(LoadPipelineWidth)(y =>
-    bank_addrs(x) === bank_addrs(y) && io.read(x).valid && io.read(y).valid && io.read(x).bits.way_en === io.read(y).bits.way_en && set_addrs(x) =/= set_addrs(y)
-  ))
+//  val rr_bank_conflict = Seq.tabulate(LoadPipelineWidth)(x => Seq.tabulate(LoadPipelineWidth)(y =>
+//    bank_addrs(x) === bank_addrs(y) && io.read(x).valid && io.read(y).valid && io.read(x).bits.way_en === io.read(y).bits.way_en && set_addrs(x) =/= set_addrs(y)
+//  ))
+  val rr_bank_conflict = bank_addrs(0) === bank_addrs(1) && io.read(0).valid && io.read(1).valid && io.read(0).bits.way_en === io.read(1).bits.way_en && set_addrs(0) =/= set_addrs(1)
 
   val rrl_bank_conflict = Wire(Vec(LoadPipelineWidth, Bool()))
   if (ReduceReadlineConflict) {
@@ -428,15 +430,18 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   val rw_bank_conflict = VecInit(Seq.tabulate(LoadPipelineWidth)(io.read(_).valid && rwhazard))
   val perf_multi_read = PopCount(io.read.map(_.valid)) >= 2.U
   (0 until LoadPipelineWidth).foreach(i => {
+//    io.bank_conflict_fast(i) := rw_bank_conflict(i) || rrl_bank_conflict(i) ||
+//      (if (i == 0) 0.B else (0 until i).map(rr_bank_conflict(_)(i)).reduce(_ || _))
     io.bank_conflict_fast(i) := rw_bank_conflict(i) || rrl_bank_conflict(i) ||
-      (if (i == 0) 0.B else (0 until i).map(rr_bank_conflict(_)(i)).reduce(_ || _))
+      (rr_bank_conflict && (readSel =/= i.U))
     io.bank_conflict_slow(i) := RegNext(io.bank_conflict_fast(i))
     io.disable_ld_fast_wakeup(i) := rw_bank_conflict(i) || rrl_bank_conflict_intend(i) ||
-      (if (i == 0) 0.B else (0 until i).map(rr_bank_conflict(_)(i)).reduce(_ || _))
+      (rr_bank_conflict && (readSel =/= i.U))
+//      (if (i == 0) 0.B else (0 until i).map(rr_bank_conflict(_)(i)).reduce(_ || _))
   })
   XSPerfAccumulate("data_array_multi_read", perf_multi_read)
   (1 until LoadPipelineWidth).foreach(y => (0 until y).foreach(x =>
-    XSPerfAccumulate(s"data_array_rr_bank_conflict_${x}_${y}", rr_bank_conflict(x)(y))
+    XSPerfAccumulate(s"data_array_rr_bank_conflict", rr_bank_conflict)
   ))
   (0 until LoadPipelineWidth).foreach(i => {
     XSPerfAccumulate(s"data_array_rrl_bank_conflict_${i}", rrl_bank_conflict(i))
@@ -519,6 +524,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
       val loadpipe_en = WireInit(VecInit(List.tabulate(LoadPipelineWidth)(i => {
         bank_addrs(i) === bank_index.U && io.read(i).valid && way_en(i)(way_index)
       })))
+
+      val loadReadEn = Wire(Vec(2,Bool()))
+      loadReadEn.zipWithIndex.foreach({case(d,i) => d := loadpipe_en(i) && Mux(rr_bank_conflict,readSel === i.U,true.B)})
+
+
       val readline_en = Wire(Bool())
       if (ReduceReadlineConflict) {
         readline_en := io.readline.valid && io.readline.bits.rmask(bank_index) && io.readline.bits.way_en(way_index)
@@ -527,9 +537,9 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
       }
       val sram_set_addr = Mux(readline_en,
         addr_to_dcache_set(io.readline.bits.addr),
-        PriorityMux(Seq.tabulate(LoadPipelineWidth)(i => loadpipe_en(i) -> set_addrs(i)))
+        PriorityMux(Seq.tabulate(LoadPipelineWidth)(i => loadReadEn(i) -> set_addrs(i)))
       )
-      val read_en = loadpipe_en.asUInt.orR || readline_en
+      val read_en = loadReadEn.asUInt.orR || readline_en
       // read raw data
       val data_bank = data_banks(bank_index)(way_index)
       data_bank.io.r.en := read_en
