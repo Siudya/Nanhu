@@ -413,11 +413,8 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
 
   /** s2 data */
  // val mmio = fromPMP.map(port => port.mmio) // TODO: handle it
- // val mmio = RegInit(VecInit(Seq.fill(2)(false.B)))
-    val mmio = Wire(Vec(PortNumber, Bool()))
-  for(i <- 0 until PortNumber) { 
-  mmio  := ResultHoldBypass(fromPMP(i).mmio, valid = RegNext(s1_fire))
-  }
+
+    val mmio = VecInit((0 until PortNumber).map(i => ResultHoldBypass(fromPMP(i).mmio, valid = RegNext(s1_fire))))
 
   val (s2_req_paddr , s2_req_vaddr)   = (RegEnable(next = s1_req_paddr, enable = s1_fire), RegEnable(next = s1_req_vaddr, enable = s1_fire))
   val s2_req_vsetIdx  = RegEnable(next = s1_req_vsetIdx, enable = s1_fire)
@@ -488,8 +485,6 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
   /** exception and pmp logic **/
   //PMP Result
   val pmpExcpAF = Wire(Vec(PortNumber, Bool()))
-  // pmpExcpAF(0)  := fromPMP(0).instr
-  // pmpExcpAF(1)  := fromPMP(1).instr && s2_double_line
   pmpExcpAF(0)  := ResultHoldBypass(fromPMP(0).instr, valid = RegNext(s1_fire))
   pmpExcpAF(1)  := ResultHoldBypass(fromPMP(1).instr && s2_double_line, valid = RegNext(s1_fire))
   //exception information
@@ -505,13 +500,6 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
   //MMIO
   val s2_mmio      = DataHoldBypass(io.pmp(0).resp.mmio && !s2_except_tlb_af(0) && !s2_except_pmp_af(0) && !s2_except_pf(0), RegNext(s1_fire)).asBool() && s2_valid
  
-  // //send physical address to PMP
-  // io.pmp.zipWithIndex.map { case (p, i) =>
-  //   p.req.valid := s2_valid && !missSwitchBit
-  //   p.req.bits.addr := s2_req_paddr(i)
-  //   p.req.bits.size := 3.U // TODO
-  //   p.req.bits.cmd := TlbCmd.exec
-  // }
 
   /*** cacheline miss logic ***/
   val wait_idle :: wait_queue_ready :: wait_send_req  :: wait_two_resp :: wait_0_resp :: wait_1_resp :: wait_one_resp ::wait_finish :: wait_pmp_except :: Nil = Enum(9)
