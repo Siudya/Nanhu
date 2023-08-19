@@ -155,10 +155,8 @@ class TLBFA(
     entries(io.w.bits.wayIdx).apply(io.w.bits.data, io.csr.satp.asid, io.w.bits.data_replenish)
   }
 
-//  val refill_vpn_reg = RegNext(io.w.bits.data.entry.tag)
-//  val refill_wayIdx_reg = RegNext(io.w.bits.wayIdx)
-  val refill_vpn_reg = RegEnable(io.w.bits.data.entry.tag,io.w.valid)
-  val refill_wayIdx_reg = RegEnable(io.w.bits.wayIdx,io.w.valid)
+  val refill_vpn_reg = RegNext(io.w.bits.data.entry.tag)
+  val refill_wayIdx_reg = RegEnable(RegNext(io.w.bits.wayIdx),io.w.valid)
   when (RegNext(io.w.valid)) {
     io.access.map { access =>
       access.sets := get_set_idx(refill_vpn_reg, nSets)
