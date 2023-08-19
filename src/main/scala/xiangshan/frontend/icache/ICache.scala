@@ -51,13 +51,13 @@ case class ICacheParameters(
     blockBytes: Int = 64
 )extends L1CacheParameters {
 
-  val setBytes = nSets * blockBytes  //* 2
+  val setBytes = nSets * blockBytes //* 2
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
   val reqFields: Seq[BundleFieldBase] = Seq(
     PrefetchField(),
     PreferCacheField()
   ) ++ aliasBitsOpt.map(AliasField)
-  val echoFields: Seq[BundleFieldBase] = Nil //Seq(DirtyField())
+  val echoFields: Seq[BundleFieldBase] = Seq(DirtyField())
   def tagCode: Code = Code.fromString(tagECC)
   def dataCode: Code = Code.fromString(dataECC)
   def replacement = ReplacementPolicy.fromString(replacer,nWays,nSets)
@@ -173,16 +173,14 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
   val write_bank_0 = io.write.valid && !io.write.bits.bankIdx
   val write_bank_1 = io.write.valid && io.write.bits.bankIdx
 
-  //xy
-  //io.fencei.done := true.B
   val v = RegInit(VecInit(Seq.fill(2)(VecInit(Seq.fill(nSets/2)(VecInit(Seq.fill(nWays)(false.B)))))))
   val write1 = io.write.bits
 
   when(write_bank_0) {
-    v(0)(write1.virIdx(highestIdxBit,1))(UIntToOH(write1.waymask)) := true.B
+    v(0)(write1.virIdx(highestIdxBit,1))(OHToUInt(write1.waymask)) := true.B
   }.otherwise {
     when (write_bank_1) {
-      v(1)(write1.virIdx(highestIdxBit,1))(UIntToOH(write1.waymask)) := true.B
+      v(1)(write1.virIdx(highestIdxBit,1))(OHToUInt(write1.waymask)) := true.B
     }
   }
 
@@ -536,10 +534,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   val dataArray      = Module(new ICacheDataArray(parentName = s"${outer.parentName}dataArray_"))
   val mainPipe       = Module(new ICacheMainPipe)
   val missUnit      = Module(new ICacheMissUnit(edge))
- //xy
- // val releaseUnit    = Module(new ReleaseUnit(edge))
-  //val replacePipe     = Module(new ICacheReplacePipe)
- // val probeQueue     = Module(new ICacheProbeQueue(edge))
+
   val prefetchPipe    = Module(new IPrefetchPipe)
   val mbistTagPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(3,s"${outer.parentName}_mbistPipe")))
@@ -548,54 +543,28 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   }
 
   val meta_read_arb   = Module(new Arbiter(new ICacheReadBundle,  2))
- // val meta_write_arb  = Module(new Arbiter(new ICacheMetaWriteBundle(),  2 ))
- // val replace_req_arb = Module(new Arbiter(new ReplacePipeReq, 2))
-  // val tlb_req_arb     = Module(new Arbiter(new TlbReq, 2))
 
- // meta_read_arb.io.in(ReplacePipeKey)   <> replacePipe.io.meta_read
- // meta_read_arb.io.in(ReplacePipeKey).valid   := false.B
   meta_read_arb.io.in(MainPipeKey)      <> mainPipe.io.metaArray.toIMeta
   meta_read_arb.io.in(0)                <> prefetchPipe.io.toIMeta
   metaArray.io.read                     <> meta_read_arb.io.out
 
 
- // replacePipe.io.meta_response          <> metaArray.io.readResp
   mainPipe.io.metaArray.fromIMeta       <> metaArray.io.readResp
   prefetchPipe.io.fromIMeta             <> metaArray.io.readResp
 
- // val data_read_arb_vec = Seq.fill(partWayNum)(Module(new Arbiter(new ICacheReadBundle,  2)))
   for(i <- 0 until partWayNum) {
-  //  data_read_arb_vec(i).io.in(ReplacePipeKey).valid := replacePipe.io.data_read.bits(i).readValid
-  //  data_read_arb_vec(i).io.in(ReplacePipeKey).valid := false.B
-   // data_read_arb_vec(i).io.in(ReplacePipeKey).bits  := replacePipe.io.data_read.bits(i)
-   // replacePipe.io.data_read.ready := data_read_arb_vec(i).io.in(ReplacePipeKey).ready
-
-//    data_read_arb_vec(i).io.in(MainPipeKey).valid    := mainPipe.io.dataArray.toIData.bits(i).readValid
-//    data_read_arb_vec(i).io.in(MainPipeKey).bits     := mainPipe.io.dataArray.toIData.bits(i)
-//    mainPipe.io.dataArray.toIData.ready   := data_read_arb_vec(i).io.in(MainPipeKey).ready
-//    dataArray.io.read.bits(i) <> data_read_arb_vec(i).io.out.bits
-
-
     dataArray.io.read.bits(i) <> mainPipe.io.dataArray.toIData.bits(i)
   }
 
 
-//  dataArray.io.read.valid := data_read_arb_vec.head.io.out.valid
-//  data_read_arb_vec.map(arb => arb.io.out.ready := dataArray.io.read.ready)
   dataArray.io.read.valid := Cat(mainPipe.io.dataArray.toIData.bits(0).readValid,mainPipe.io.dataArray.toIData.bits(1).readValid)
   mainPipe.io.dataArray.toIData.ready := dataArray.io.read.ready
 
- // replacePipe.io.data_response        <> dataArray.io.readResp
   mainPipe.io.dataArray.fromIData     <> dataArray.io.readResp
 
   mainPipe.io.respStall := io.stop
   io.perfInfo := mainPipe.io.perfInfo
 
- // meta_write_arb.io.in(ReplacePipeKey)  <> replacePipe.io.meta_write
- // meta_write_arb.io.in(ReplacePipeKey).valid  := false.B
- // meta_write_arb.io.in(MainPipeKey)     <> missUnit.io.meta_write
-
- // metaArray.io.write <> meta_write_arb.io.out
   metaArray.io.write <> missUnit.io.meta_write
 
   metaArray.io.fencei <> io.fencei
@@ -604,7 +573,6 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
 
   mainPipe.io.csr_parity_enable := io.csr_parity_enable
- // replacePipe.io.csr_parity_enable := io.csr_parity_enable
 
   if(cacheParams.hasPrefetch){
     prefetchPipe.io.fromFtq <> io.prefetch
@@ -626,18 +594,6 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   //notify IFU that Icache pipeline is available
   io.toIFU := mainPipe.io.fetch.req.ready
 
-  // tlb_req_arb.io.in(0) <> mainPipe.io.itlb(0).req
-  // tlb_req_arb.io.in(1) <> prefetchPipe.io.iTLBInter.req
-  // io.itlb(0).req       <>    tlb_req_arb.io.out
-
-  // mainPipe.io.itlb(0).resp  <>  io.itlb(0).resp
-  // prefetchPipe.io.iTLBInter.resp  <>  io.itlb(0).resp
-
-  // when(mainPipe.io.itlb(0).req.fire() && prefetchPipe.io.iTLBInter.req.fire())
-  // {
-  //   assert(false.B, "Both mainPipe ITLB and prefetchPipe ITLB fire!")
-  // }
-
   io.itlb(0)        <>    mainPipe.io.itlb(0)
   io.itlb(1)        <>    mainPipe.io.itlb(1)
   io.itlb(2)        <>    mainPipe.io.itlb(2)
@@ -657,45 +613,24 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
   prefetchPipe.io.fromMSHR <> missUnit.io.prefetch_check
 
 
-//  bus.b.ready := false.B
-//  bus.c.valid := false.B
- // bus.c.bits  := DontCare
- // bus.e.valid := false.B
- // bus.e.bits  := DontCare
-
   bus.a <> missUnit.io.mem_acquire
+
   // connect bus d
   missUnit.io.mem_grant.valid := false.B
   missUnit.io.mem_grant.bits  := DontCare
 
-  // releaseUnit.io.mem_grant.valid := false.B
-  // releaseUnit.io.mem_grant.bits  := DontCare
-
-  //Probe through bus b
-  //probeQueue.io.mem_probe    <> bus.b
-
-  //Parity error port
- // val errors = mainPipe.io.errors ++ Seq(replacePipe.io.error)
- // io.error <> RegNext(Mux1H(errors.map(e => e.valid -> e)))
-
-
-  /** Block set-conflict request */
- //val probeReqValid = probeQueue.io.pipe_req.valid
- //val probeReqVidx  = probeQueue.io.pipe_req.bits.vidx
-
   val hasVictim = VecInit(missUnit.io.victimInfor.map(_.valid))
   val victimSetSeq = VecInit(missUnit.io.victimInfor.map(_.vidx))
-
+  
   mainPipe.io.fetch.req <> io.fetch.req //&& !fetchShouldBlock(i)
   // in L1ICache, we only expect GrantData and ReleaseAck
   bus.d.ready := false.B
   when ( bus.d.bits.opcode === TLMessages.AccessAckData) {
     missUnit.io.mem_grant <> bus.d
   } .elsewhen (bus.d.bits.opcode === TLMessages.ReleaseAck) {
-    //xy
     // releaseUnit.io.mem_grant <> bus.d
   } .otherwise {
-    assert (!bus.d.fire())
+  //  assert (!bus.d.fire())
   }
 
   val perfEvents = Seq(
@@ -722,7 +657,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
     metaArray.io.cacheOp.resp.valid -> metaArray.io.cacheOp.resp.bits,
   ))
   cacheOpDecoder.io.error := io.error
-  assert(!((dataArray.io.cacheOp.resp.valid +& metaArray.io.cacheOp.resp.valid) > 1.U))
+ // assert(!((dataArray.io.cacheOp.resp.valid +& metaArray.io.cacheOp.resp.valid) > 1.U))
 
 }
 
