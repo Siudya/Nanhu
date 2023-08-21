@@ -124,6 +124,7 @@ package object issue {
     val issue = DecoupledIO(new ExuInput)
     val rsIdx: RsIdx = Output(new RsIdx)
     val rsFeedback: RSFeedbackIO = Flipped(new RSFeedbackIO)
+    val auxValid = Output(Bool())
   }
 
   class RsIdx(implicit p: Parameters) extends XSBundle {

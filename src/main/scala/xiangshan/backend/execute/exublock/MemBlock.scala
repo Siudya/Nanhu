@@ -60,6 +60,7 @@ class MemIssueRouter(implicit p: Parameters) extends LazyModule{
       ib.issue.ready := true.B
       assert(ob.issue.ready === true.B)
       ob.rsIdx := ib.rsIdx
+      ob.auxValid := ib.auxValid
       if (oe._2.fuConfigs.head.name == "ldu") {
         ib.rsFeedback.feedbackFastLoad := ob.rsFeedback.feedbackFastLoad
         ib.rsFeedback.feedbackSlowLoad := ob.rsFeedback.feedbackSlowLoad
@@ -452,6 +453,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     // get input form dispatch
     loadUnits(i).io.ldin.valid := Mux(selSldu, sludIssue.issue.valid, lduIssues(i).issue.valid)
     loadUnits(i).io.ldin.bits := Mux(selSldu,sludIssue.issue.bits, lduIssues(i).issue.bits)
+    loadUnits(i).io.auxValid := Mux(selSldu, sludIssue.auxValid, lduIssues(i).auxValid)
     sludIssue.issue.ready := loadUnits(i).io.ldin.ready
     lduIssues(i).issue.ready := loadUnits(i).io.ldin.ready
     when(selSldu){assert(lduIssues(i).issue.valid === false.B)}

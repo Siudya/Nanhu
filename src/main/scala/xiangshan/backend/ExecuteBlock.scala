@@ -109,6 +109,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
     rf.io.debug_int_rat := io.debug_int_rat
     rf.io.debug_fp_rat := io.debug_fp_rat
     rf.io.redirect := Pipe(localRedirect)
+    rf.io.mmuEnable := intBlk.io.csrio.tlb.satp.mode =/= 0.U
     exuBlocks.foreach(_.module.redirectIn := Pipe(localRedirect))
     
     intRs.io.redirect := Pipe(localRedirect)

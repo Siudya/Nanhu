@@ -179,7 +179,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
     val redirect = Input(Valid(new Redirect))
     val enq = new RobEnqIO
     val exception = ValidIO(new ExceptionInfo)
-
+    val mmuEnable = Input(Bool())
     val commits = new RobCommitIO
     val lsq = new RobLsqIO
     val robDeqPtr = Output(new RobPtr)
@@ -881,7 +881,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
       val exuOut = debug_exuDebug(ptr)
       val exuData = debug_exuData(ptr)
       difftest.io.valid    := RegNext(RegNext(RegNext(io.commits.commitValid(i) && io.commits.isCommit)))
-      difftest.io.pc       := RegNext(RegNext(RegNext(SignExt(uop.cf.pc, XLEN))))
+      difftest.io.pc       := RegNext(RegNext(RegNext(Mux(io.mmuEnable, SignExt(uop.cf.pc, XLEN), ZeroExt(uop.cf.pc, XLEN)))))
       difftest.io.instr    := RegNext(RegNext(RegNext(uop.cf.instr)))
       difftest.io.special  := RegNext(RegNext(RegNext(CommitType.isFused(io.commits.info(i).commitType))))
       // when committing an eliminated move instruction,

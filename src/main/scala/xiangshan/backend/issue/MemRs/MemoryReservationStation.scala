@@ -213,6 +213,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   specialLoadIssue.head._1.rsIdx.bankIdxOH := specialLoadIssueDriver.io.deq.bits.bankIdxOH
   specialLoadIssue.head._1.rsIdx.entryIdxOH := specialLoadIssueDriver.io.deq.bits.entryIdxOH
   specialLoadIssue.head._1.rsFeedback.isFirstIssue := false.B
+  specialLoadIssue.head._1.auxValid := specialLoadIssueDriver.io.deq.valid
   specialLoadIssueDriver.io.deq.ready := specialLoadIssue.head._1.issue.ready
 
   private val issBankNum = param.bankNum / issue.length
@@ -315,6 +316,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
       iss._1.rsFeedback.isFirstIssue := false.B
+      iss._1.auxValid := issueDriver.io.deq.valid
       issueDriver.io.deq.ready := iss._1.issue.ready
     }
   }

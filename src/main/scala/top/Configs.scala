@@ -245,8 +245,8 @@ class WithNKBL2
         // )),
         clientCaches = Seq(L1Param(
           "dcache",
-          sets = 2 * p.dcacheParametersOpt.get.nSets / banks,
-          ways = p.dcacheParametersOpt.get.nWays + 2,
+          sets = p.dcacheParametersOpt.get.nSets / banks,
+          ways = p.dcacheParametersOpt.get.nWays,
           aliasBitsOpt = p.dcacheParametersOpt.get.aliasBitsOpt
         )),
         reqField = Seq(utility.ReqSourceField()),
@@ -350,7 +350,7 @@ class MediumConfig(n: Int = 1) extends Config(
 
 class DefaultConfig(n: Int = 1) extends Config(
   new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 16, core_num = n)
-    ++ new WithNKBL2(256, inclusive = false, banks = 2, alwaysReleaseData = true)
+    ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 4, alwaysReleaseData = true)
     ++ new WithNKBL1D(64)
     ++ new BaseConfig(n)
 )
