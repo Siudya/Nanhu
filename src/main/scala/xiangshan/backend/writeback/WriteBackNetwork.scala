@@ -98,6 +98,20 @@ class WriteBackNetwork(implicit p:Parameters) extends LazyModule{
         }
         if(s._2._1.isRob){
           dst := PipeWithRedirect(realSrc, 2, p)
+        } else if(s._2._1.isIntRs){
+          if(cfg.exuType == ExuType.jmp){
+            dst := PipeWithRedirect(realSrc, 1, p)
+          } else {
+            dst := realSrc
+          }
+        } else if(s._2._1.isFpRs){
+          dst := realSrc
+        } else if(s._2._1.isMemRs){
+          if (cfg.exuType == ExuType.jmp || cfg.writeFpRf) {
+            dst := PipeWithRedirect(realSrc, 1, p)
+          } else {
+            dst := realSrc
+          }
         } else {
           dst := realSrc
         }

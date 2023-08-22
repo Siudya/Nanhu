@@ -97,13 +97,21 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     wkp.bits.destType := Mux(elm.bits.uop.ctrl.rfWen, SrcType.reg, Mux(elm.bits.uop.ctrl.fpWen, SrcType.fp, SrcType.default))
     wkp
   }))
+  private val aluSpecWakeup = Wire(Vec(p(XSCoreParamsKey).exuParameters.aluNum, Valid(new WakeUpInfo)))
+  aluSpecWakeup.zip(io.aluSpecWakeup).foreach({case(a, b) =>
+    val flush = b.bits.robPtr.needFlush(io.redirect)
+    val canceled = b.bits.lpv.zip(io.earlyWakeUpCancel).map({case(l,c) => l(0) && c}).reduce(_||_)
+    a.valid := b.valid && !flush && !canceled
+    a.bits := b.bits
+    a.bits.lpv.foreach(_ := 0.U)
+  })
 
   private val stIssuedWires = Wire(Vec(staIssuePortNum, Valid(new RobPtr)))
 
   private val rsBankSeq = Seq.tabulate(param.bankNum)( _ => {
-    val mod = Module(new MemoryReservationBank(entriesNumPerBank, staIssuePortNum, lduIssuePortNum, (wakeupSignals ++ io.mulSpecWakeup ++ io.aluSpecWakeup).length))
+    val mod = Module(new MemoryReservationBank(entriesNumPerBank, staIssuePortNum, lduIssuePortNum, (wakeupSignals ++ io.mulSpecWakeup ++ aluSpecWakeup).length))
     mod.io.redirect := io.redirect
-    mod.io.wakeup := wakeupSignals ++ io.mulSpecWakeup ++ io.aluSpecWakeup
+    mod.io.wakeup := wakeupSignals ++ io.mulSpecWakeup ++ aluSpecWakeup
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     mod.io.stIssued := stIssuedWires
@@ -120,9 +128,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     bt.valid := wb.valid && wb.bits.destType === SrcType.fp
     bt.bits := wb.bits.pdest
   })
-  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.mulSpecWakeup.length + io.aluSpecWakeup.length))
+  private val integerBusyTable = Module(new BusyTable(param.bankNum * 2, wakeupInt.length + io.mulSpecWakeup.length + aluSpecWakeup.length))
   integerBusyTable.io.allocPregs := io.integerAllocPregs
-  integerBusyTable.io.wbPregs.zip(wakeupInt ++ io.aluSpecWakeup ++ io.mulSpecWakeup).foreach({ case (bt, wb) =>
+  integerBusyTable.io.wbPregs.zip(wakeupInt ++ aluSpecWakeup ++ io.mulSpecWakeup).foreach({ case (bt, wb) =>
     bt.valid := wb.valid && wb.bits.destType === SrcType.reg
     bt.bits := wb.bits.pdest
   })
