@@ -174,7 +174,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
 
     val r_way_en_reg = RegNext(io.r.way_en)
 
-    val w_reg = RegNext(io.w)
+//    val w_reg = RegNext(io.w)
+    val w_reg_en = RegNext(io.w.en)
+    val w_reg_addr = RegEnable(io.w.addr,io.w.en)
+    val w_reg_way_en = RegEnable(io.w.way_en,io.w.en)
+    val w_reg_data = RegEnable(io.w.data,io.w.en)
     // val rw_bypass = RegNext(io.w.addr === io.r.addr && io.w.way_en === io.r.way_en && io.w.en)
 
     // multiway data bank
@@ -198,11 +202,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     }
 
     for (w <- 0 until DCacheWays) {
-      val wen = w_reg.en && w_reg.way_en(w)
+      val wen = w_reg_en && w_reg_way_en(w)
       data_bank(w).io.w.req.valid := wen
       data_bank(w).io.w.req.bits.apply(
-        setIdx = w_reg.addr,
-        data = w_reg.data,
+        setIdx = w_reg_addr,
+        data = w_reg_data,
         waymask = 1.U
       )
       data_bank(w).io.r.req.valid := io.r.en
@@ -275,8 +279,9 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     ))
 
     val wenReg = RegNext(io.w.en)
-    val waddrReg = RegNext(io.w.addr)
-    val wdataReg = RegNext(io.w.data)
+    val waddrReg = RegEnable(io.w.addr,io.w.en)
+    val wdataReg = RegEnable(io.w.data,io.w.en)
+
     data_sram.io.w.req.valid := wenReg
     data_sram.io.w.req.bits.apply(
       setIdx = waddrReg,

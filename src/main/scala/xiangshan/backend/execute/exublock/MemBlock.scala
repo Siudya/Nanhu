@@ -36,7 +36,7 @@ import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbIO, TlbReplace}
 import xiangshan.mem._
 import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
-import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, ValidIODelay}
+import xs.utils.{DelayN, DelayNWithCG, ParallelPriorityMux, RegNextN, RegNextNWithCG, RegNextWithCG, ValidIODelay}
 
 class Std(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle{
@@ -219,9 +219,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   val dcache = outer.dcache.module
   val uncache = outer.uncache.module
 
-  val csrCtrl = DelayN(io.csrCtrl, 2)
+  val csrCtrl = DelayNWithCG(io.csrCtrl, 2)
   dcache.io.csr.distribute_csr <> csrCtrl.distribute_csr
-  dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only, false.B)
+  dcache.io.l2_pf_store_only := RegNext(io.csrCtrl.l2_pf_store_only)
   io.csrUpdate := RegNext(dcache.io.csr.update)
   io.error <> RegNext(RegNext(dcache.io.error))
   when(!csrCtrl.cache_error_enable){
@@ -426,8 +426,9 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   dtlb.foreach(_.ptw_replenish := pmp_check_ptw.io.resp)
 
   val tdata = RegInit(VecInit(Seq.fill(TriggerNum)(0.U.asTypeOf(new MatchTriggerIO))))
-  val tEnable = RegInit(VecInit(Seq.fill(TriggerNum)(false.B)))
-  tEnable := csrCtrl.mem_trigger.tEnableVec
+//  val tEnable = RegInit(VecInit(Seq.fill(TriggerNum)(false.B)))
+//  tEnable := csrCtrl.mem_trigger.tEnableVec
+  val tEnable = RegNext(csrCtrl.mem_trigger.tEnableVec)
   when(csrCtrl.mem_trigger.tUpdate.valid) {
     tdata(csrCtrl.mem_trigger.tUpdate.bits.addr) := csrCtrl.mem_trigger.tUpdate.bits.tdata
   }
@@ -713,7 +714,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // Exception address is used several cycles after flush.
   // We delay it by 10 cycles to ensure its flush safety.
   val atomicsException = RegInit(false.B)
-  when (DelayN(redirectIn.valid, 10) && atomicsException) {
+  when (DelayNWithCG(redirectIn.valid, 10) && atomicsException) {
     atomicsException := false.B
   }.elsewhen (atomicsUnit.io.exceptionAddr.valid) {
     atomicsException := true.B

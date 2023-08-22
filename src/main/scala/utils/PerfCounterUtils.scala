@@ -21,6 +21,7 @@ import chisel3._
 import chisel3.util._
 import xiangshan.DebugOptionsKey
 import xiangshan._
+import xs.utils.RegNextWithCG
 
 object XSPerfAccumulate {
   def apply(perfName: String, perfCnt: UInt)(implicit p: Parameters) = {
