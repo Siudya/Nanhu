@@ -465,13 +465,13 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   val loadEvenSel = Mux(
     io.ldout(0).fire(),
-    getFirstOne(toVec(loadEvenSelVecFire), evenDeqMask),
-    getFirstOne(toVec(loadEvenSelVecNotFire), evenDeqMask)
+    PriorityEncoder(toVec(loadEvenSelVecFire)),
+    PriorityEncoder(toVec(loadEvenSelVecNotFire))
   )
   val loadOddSel = Mux(
     io.ldout(1).fire(),
-    getFirstOne(toVec(loadOddSelVecFire), oddDeqMask),
-    getFirstOne(toVec(loadOddSelVecNotFire), oddDeqMask)
+    PriorityEncoder(toVec(loadOddSelVecFire)),
+    PriorityEncoder(toVec(loadOddSelVecNotFire))
   )
 
 
