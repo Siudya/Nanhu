@@ -30,7 +30,7 @@ class L1BankedDataReadReq(implicit p: Parameters) extends DCacheBundle
   val addr = Bits(PAddrBits.W)
 }
 class L1BankedDataReadLsuReq(implicit p: Parameters) extends L1BankedDataReadReq{
-  val robIdx = new RobPtr
+//  val robIdx = new RobPtr
   val kill = Bool()
 }
 
@@ -343,10 +343,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   private val readValids = Cat(io.read.map(_.valid).reverse)
   //readSel is a selector between read #0 and #1, used when bank conflict happen.
   //True: select #1 False:select #0
-  private val readSel = Mux(readValids === 1.U, false.B,
-    Mux(readValids === 2.U, true.B,
-      Mux(readValids === 3.U, io.read(0).bits.robIdx > io.read(1).bits.robIdx,
-        false.B)))
+//  private val readSel = Mux(readValids === 1.U, false.B,
+//    Mux(readValids === 2.U, true.B,
+//      Mux(readValids === 3.U, io.read(0).bits.robIdx > io.read(1).bits.robIdx,
+//        false.B)))
+  val readSel = io.readSel
   val way_en = Wire(Vec(LoadPipelineWidth, io.read(0).bits.way_en.cloneType))
   val way_en_reg = RegNext(way_en)
   val set_addrs = Wire(Vec(LoadPipelineWidth, UInt()))
