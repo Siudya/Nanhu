@@ -68,11 +68,12 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
     Mem(bankEntries, gen)
   })
 
+  val fanOutDupNum = numBanks
   // delay one cycle for write, so there will be one inflight entry.
   // The inflight entry is transparent('already writen') for outside
   val last_wen = RegNext(io.wen, false.B)
   val last_waddr = RegEnable(io.waddr, io.wen)
-  val last_wdata_dup = RegEnable(io.wdata, io.wen)
+  val last_wdata_dup = VecInit(Seq.fill(fanOutDupNum)(RegEnable(io.wdata, io.wen)))  //for fanout
 
   // async read, but regnext
   for (i <- 0 until numRead) {
@@ -80,8 +81,8 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
     val bank_index_dup = Reg(Vec(numDup, UInt(numBanks.W)))
     val w_bypassed_dup = Seq.fill(numDup)(RegNext(io.waddr === io.raddr(i) && io.wen))
     val w_bypassed2_dup = Seq.fill(numDup)(RegNext(last_waddr === io.raddr(i) && last_wen))
-    val last_wdata_dup = Seq.fill(numDup)(RegEnable(io.wdata, io.wen))
-    val last_wdata2_dup = Seq.fill(numDup)(RegEnable(last_wdata_dup.head, last_wen))
+    val last_Wdata_dup = Seq.fill(numDup)(RegEnable(io.wdata, io.wen))
+    val last_Wdata2_dup = Seq.fill(numDup)(RegEnable(last_Wdata_dup.head, last_wen))
     for (j <- 0 until numDup) {
       bank_index_dup(j) := UIntToOH(bankIndex(io.raddr(i)))
       for (k <- 0 until numBanks) {
@@ -92,15 +93,16 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
     }
     // next cycle
     for (j <- 0 until numDup) {
-      io.rdata(i)(j) := MuxWithOP(w_bypassed_dup(j) || w_bypassed2_dup(j), MuxWithOP(w_bypassed2_dup(j), last_wdata2_dup(j), last_wdata_dup(j)),
+      io.rdata(i)(j) := MuxWithOP(w_bypassed_dup(j) || w_bypassed2_dup(j), MuxWithOP(w_bypassed2_dup(j), last_Wdata2_dup(j), last_wdata_dup(j)),
         Mux1H(bank_index_dup(j), data_read_dup(j)))
     }
   }
 
   // write
+  require(numBanks == fanOutDupNum)  //for fanOutDupNum
   for (i <- 0 until numBanks) {
     when (last_wen && (bankIndex(last_waddr) === i.U)) {
-      dataBanks(i)(bankOffset(last_waddr)) := last_wdata_dup
+      dataBanks(i)(bankOffset(last_waddr)) := last_wdata_dup(i)
     }
   }
 }
@@ -141,6 +143,8 @@ class TLBFA(
     hitVec.suggestName("hitVec")
 
     val hitVecReg = if (sameCycle) hitVec else RegEnable(hitVec, req.fire())
+//    val hitVecReg_dup = Vec(5, if (sameCycle) hitVec else RegEnable(hitVec, req.fire()))
+    val hitVecReg_dup = if (sameCycle) VecInit(Seq.fill(5)(WireInit(hitVec))) else VecInit(Seq.fill(5)(RegEnable(hitVec,req.fire)))
 
     resp.valid := { if (sameCycle) req.valid else RegNext(req.valid) }
     resp.bits.hit := Cat(hitVecReg).orR
@@ -149,15 +153,15 @@ class TLBFA(
       resp.bits.perm(0) := entries(0).perm
       isSuperPage(i) := entries(0).isSuperPage()
     } else {
-      resp.bits.ppn(0) := ParallelMux(hitVecReg zip entries.map(_.genPPN(saveLevel, req.valid)(vpn_gen_ppn)))
-      resp.bits.perm(0) := ParallelMux(hitVecReg zip entries.map(_.perm))
-      isSuperPage(i) := ParallelMux(hitVecReg zip entries.map(_.isSuperPage()))
+      resp.bits.ppn(0) := ParallelMux(hitVecReg_dup(0).zip(entries.map(_.genPPN(saveLevel, req.valid)(vpn_gen_ppn))))
+      resp.bits.perm(0) := ParallelMux(hitVecReg_dup(1).zip(entries.map(_.perm)))
+      isSuperPage(i) := ParallelMux(hitVecReg_dup(2).zip(entries.map(_.isSuperPage())))
     }
     io.r.resp_hit_sameCycle(i) := Cat(hitVec).orR
 
     access.sets := get_set_idx(vpn_reg, nSets) // no use
-    access.touch_ways.valid := resp.valid && Cat(hitVecReg).orR
-    access.touch_ways.bits := OHToUInt(hitVecReg)
+    access.touch_ways.valid := resp.valid && Cat(hitVecReg_dup(3).asUInt).orR
+    access.touch_ways.bits := OHToUInt(hitVecReg_dup(4).asUInt)
 
     resp.bits.hit.suggestName("hit")
     resp.bits.ppn.suggestName("ppn")

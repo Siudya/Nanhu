@@ -564,6 +564,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     stdUnits(i).io.redirect := Pipe(redirectIn)
 
     stu.io.redirect     <> Pipe(redirectIn)
+    stu.io.redirect_dup.foreach({ case d => {d <> Pipe(redirectIn)}})
     staIssues(i).rsFeedback.feedbackSlowStore := stu.io.feedbackSlow
     stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt

@@ -75,6 +75,7 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
 //    d.satp.ppn := csr_dup_satp_ppn(i)
 //  }})
   val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+  val csr_dup_2 = Seq.fill(2)(RegNext(io.csr))
 
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
@@ -134,8 +135,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   normalPage.victim.out <> superPage.victim.in
   normalPage.sfence <> sfence_dup(0)
   superPage.sfence <> sfence_dup(1)
-  normalPage.csr <> csr_dup(0)
-  superPage.csr <> csr_dup(1)
+  normalPage.csr <> csr_dup_2(0)
+  superPage.csr <> csr_dup_2(1)
 
   val refill_now = ptw_resp_v
   def TLBNormalRead(i: Int) = {
