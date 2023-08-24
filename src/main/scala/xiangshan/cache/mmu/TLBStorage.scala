@@ -25,6 +25,17 @@ import xs.utils._
 
 import scala.math.min
 
+object MuxWithOP {
+  def apply[T <:Data](sel: Bool, in1: T, in2: T): T = {
+    val length = if(in1.getWidth > in2.getWidth) in1.getWidth else in2.getWidth
+    val nSel = Fill(length,sel)
+    val out = (nSel & in1.asUInt) | (nSel & in2.asUInt)
+    out.asTypeOf(in1)
+  }
+}
+
+
+
 class BankedAsyncDataModuleTemplateWithDup[T <: Data](
   gen: T,
   numEntries: Int,
@@ -81,7 +92,7 @@ class BankedAsyncDataModuleTemplateWithDup[T <: Data](
     }
     // next cycle
     for (j <- 0 until numDup) {
-      io.rdata(i)(j) := Mux(w_bypassed_dup(j) || w_bypassed2_dup(j), Mux(w_bypassed2_dup(j), last_wdata2_dup(j), last_wdata_dup(j)),
+      io.rdata(i)(j) := MuxWithOP(w_bypassed_dup(j) || w_bypassed2_dup(j), MuxWithOP(w_bypassed2_dup(j), last_wdata2_dup(j), last_wdata_dup(j)),
         Mux1H(bank_index_dup(j), data_read_dup(j)))
     }
   }
