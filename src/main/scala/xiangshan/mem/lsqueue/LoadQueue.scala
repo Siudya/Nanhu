@@ -986,7 +986,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     * update pointers
     */
   val lastEnqCancel = PopCount(RegNext(VecInit(canEnqueue.zip(enqCancel).map(x => x._1 && x._2))))
-  val lastCycleCancelCount = RegNext(PopCount(needCancel))
+  val lastCycleCancelCount = PopCount(RegNext(needCancel))
   val enqNumber = Mux(io.enq.canAccept && io.enq.sqCanAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
   val enqNumber_enq = Mux(io.enq.canAccept && io.enq.sqCanAccept, io.enq.reqNum, 0.U)
 
