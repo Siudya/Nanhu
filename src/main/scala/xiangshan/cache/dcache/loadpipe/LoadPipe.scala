@@ -107,6 +107,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
 
   val s1_valid = RegInit(false.B)
   val s1_req = RegEnable(s0_req, s0_fire)
+  val s1_req_valid = RegNext(s0_valid)
   // in stage 1, load unit gets the physical address
   val s1_paddr_dup_lsu = io.lsu.s1_paddr_dup_lsu
   val s1_paddr_dup_dcache = io.lsu.s1_paddr_dup_dcache
@@ -166,7 +167,7 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   io.banked_data_read.valid := s1_fire && !s1_nack
   io.banked_data_read.bits.addr := s1_vaddr
   io.banked_data_read.bits.way_en := s1_tag_match_way_dup_dc
-  io.banked_data_read.bits.robIdx := s1_req.robIdx
+//  io.banked_data_read.bits.robIdx := s1_req.robIdx
   io.banked_data_read.bits.kill := io.lsu.s1_kill
 
   // get s1_will_send_miss_req in lpad_s1
@@ -328,9 +329,22 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
 
   // update plru, report error in s3
 
-  io.replace_access.valid := RegNext(RegNext(RegNext(io.meta_read.fire()) && s1_valid && !io.lsu.s1_kill) && !s2_nack_no_mshr)
-  io.replace_access.bits.set := RegNext(RegNext(get_idx(s1_req.addr)))
-  io.replace_access.bits.way := RegNext(RegNext(Mux(s1_tag_match_dup_dc, OHToUInt(s1_tag_match_way_dup_dc), io.replace_way.way)))
+  val replace_access_valid_s0 = RegNext(io.meta_read.fire())
+  val replace_access_valid_s1 = RegNext(replace_access_valid_s0 && s1_valid && !io.lsu.s1_kill)
+  val replace_access_valid_s2 = RegNext(replace_access_valid_s1 && !s2_nack_no_mshr)
+
+  val s2_req_valid = RegNext(s1_req_valid)
+  val replace_access_set_s1 = RegEnable(get_idx(s1_req.addr),s1_req_valid)
+  val replace_access_set_s2 = RegEnable(replace_access_set_s1,s2_req_valid)
+
+  val replace_access_way_s1 = RegEnable(Mux(s1_tag_match_dup_dc, OHToUInt(s1_tag_match_way_dup_dc), io.replace_way.way),s1_req_valid)
+  val replace_access_way_s2 = RegEnable(replace_access_way_s1,s2_req_valid)
+//  val replace_access_way_s1 = RegNext(Mux(s1_tag_match_dup_dc, OHToUInt(s1_tag_match_way_dup_dc), io.replace_way.way))
+//  val replace_access_way_s2 = RegNext(replace_access_way_s1)
+
+  io.replace_access.valid := replace_access_valid_s2
+  io.replace_access.bits.set := replace_access_set_s2
+  io.replace_access.bits.way := replace_access_way_s2
 
   // --------------------------------------------------------------------------------
   // Debug logging functions

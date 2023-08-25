@@ -498,7 +498,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule
   io.uncache.req.bits.robIdx := DontCare
   io.uncache.req.bits.cmd  := MemoryOpConstants.M_XWR
 //  io.uncache.req.bits.addr := paddrModule.io.rdata(0) // data(deqPtr) -> rdata(0)
-  io.uncache.req.bits.addr := v_pAddrModule.io.rdata_v(0) // data(deqPtr) -> rdata(0)
+  io.uncache.req.bits.addr := v_pAddrModule.io.rdata_p(0) // data(deqPtr) -> rdata(0)
   io.uncache.req.bits.data := dataModule.io.rdata(0).data
   io.uncache.req.bits.mask := dataModule.io.rdata(0).mask
 

@@ -30,7 +30,7 @@ class L1BankedDataReadReq(implicit p: Parameters) extends DCacheBundle
   val addr = Bits(PAddrBits.W)
 }
 class L1BankedDataReadLsuReq(implicit p: Parameters) extends L1BankedDataReadReq{
-  val robIdx = new RobPtr
+//  val robIdx = new RobPtr
   val kill = Bool()
 }
 
@@ -174,7 +174,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
 
     val r_way_en_reg = RegNext(io.r.way_en)
 
-    val w_reg = RegNext(io.w)
+//    val w_reg = RegNext(io.w)
+    val w_reg_en = RegNext(io.w.en)
+    val w_reg_addr = RegEnable(io.w.addr,io.w.en)
+    val w_reg_way_en = RegEnable(io.w.way_en,io.w.en)
+    val w_reg_data = RegEnable(io.w.data,io.w.en)
     // val rw_bypass = RegNext(io.w.addr === io.r.addr && io.w.way_en === io.r.way_en && io.w.en)
 
     // multiway data bank
@@ -198,11 +202,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     }
 
     for (w <- 0 until DCacheWays) {
-      val wen = w_reg.en && w_reg.way_en(w)
+      val wen = w_reg_en && w_reg_way_en(w)
       data_bank(w).io.w.req.valid := wen
       data_bank(w).io.w.req.bits.apply(
-        setIdx = w_reg.addr,
-        data = w_reg.data,
+        setIdx = w_reg_addr,
+        data = w_reg_data,
         waymask = 1.U
       )
       data_bank(w).io.r.req.valid := io.r.en
@@ -275,8 +279,9 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
     ))
 
     val wenReg = RegNext(io.w.en)
-    val waddrReg = RegNext(io.w.addr)
-    val wdataReg = RegNext(io.w.data)
+    val waddrReg = RegEnable(io.w.addr,io.w.en)
+    val wdataReg = RegEnable(io.w.data,io.w.en)
+
     data_sram.io.w.req.valid := wenReg
     data_sram.io.w.req.bits.apply(
       setIdx = waddrReg,
@@ -338,10 +343,11 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   private val readValids = Cat(io.read.map(_.valid).reverse)
   //readSel is a selector between read #0 and #1, used when bank conflict happen.
   //True: select #1 False:select #0
-  private val readSel = Mux(readValids === 1.U, false.B,
-    Mux(readValids === 2.U, true.B,
-      Mux(readValids === 3.U, io.read(0).bits.robIdx > io.read(1).bits.robIdx,
-        false.B)))
+//  private val readSel = Mux(readValids === 1.U, false.B,
+//    Mux(readValids === 2.U, true.B,
+//      Mux(readValids === 3.U, io.read(0).bits.robIdx > io.read(1).bits.robIdx,
+//        false.B)))
+  val readSel = io.readSel
   val way_en = Wire(Vec(LoadPipelineWidth, io.read(0).bits.way_en.cloneType))
   val way_en_reg = RegNext(way_en)
   val set_addrs = Wire(Vec(LoadPipelineWidth, UInt()))
