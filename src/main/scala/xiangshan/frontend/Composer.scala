@@ -58,7 +58,10 @@ class Composer(parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     c.io.s3_redirect := io.s3_redirect
 
     c.io.redirect := io.redirect
-    c.io.ctrl := DelayN(io.ctrl, 1)
+    //gated
+    //c.io.ctrl := DelayN(io.ctrl, 1)
+    val (_,ctrl_gated) = DelayNWithValid(io.ctrl, io.ctrl.ubtb_enable, 1)//ok
+    c.io.ctrl := ctrl_gated//gated
 
     if (c.meta_size > 0) {
       metas = (metas << c.meta_size) | c.io.out.last_stage_meta(c.meta_size-1,0)

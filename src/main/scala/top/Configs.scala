@@ -42,7 +42,7 @@ class BaseConfig(n: Int) extends Config((site, here, up) => {
   case SoCParamsKey => SoCParameters()
   case PMParameKey => PMParameters()
   case XSTileKey => Seq.tabulate(n){
-    i => XSCoreParameters(HartId = i, hasMbist = false, hasShareBus = false,
+    i => XSCoreParameters(HartId = i, hasMbist = true, hasShareBus = true,
     prefetcher = Some(SMSParams()))
   }
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))

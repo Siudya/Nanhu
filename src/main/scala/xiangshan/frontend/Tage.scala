@@ -265,8 +265,8 @@ class TageTable
   val bankSize = nRowsPerBr / nBanks
   val bankFoldWidth = if (bankSize >= SRAM_SIZE) bankSize / SRAM_SIZE else 1
   val uFoldedWidth = nRowsPerBr / SRAM_SIZE
-  val uWays = uFoldedWidth * numBr
-  val uRows = SRAM_SIZE
+  // val uWays = uFoldedWidth * numBr
+  // val uRows = SRAM_SIZE
   if (bankSize < SRAM_SIZE) {
     println(f"warning: tage table $tableIdx has small sram depth of $bankSize")
   }
@@ -566,7 +566,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     case ((nRows, histLen, tagLen), i) => {
       val t = Module(new TageTable(nRows, histLen, tagLen, i, parentName = parentName + s"tagtable${i}_"))
       t.io.req.valid := io.s0_fire(1)
-      t.io.req.bits.pc := s0_pc_dup(1)
+      t.io.req.bits.pc := s0_pc_dup(4)
+      // t.io.req.bits.pc := s0_pc_dup(1)
       t.io.req.bits.folded_hist := io.in.bits.folded_hist(1)
       t.io.req.bits.ghist := io.in.bits.ghist
       t
@@ -574,7 +575,7 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   }
   val bt = Module (new TageBTable(parentName = parentName + "bttable_"))
   bt.io.s0_fire := io.s0_fire(1)
-  bt.io.s0_pc   := s0_pc_dup(1)
+  bt.io.s0_pc   := s0_pc_dup(4)
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(2,s"${parentName}_mbistPipe")))
@@ -598,8 +599,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   //val s1_bim = io.in.bits.resp_in(0).s1.full_pred
   // val s2_bim = RegEnable(s1_bim, enable=io.s1_fire)
 
-  val debug_pc_s0 = s0_pc_dup(1)
-  val debug_pc_s1 = RegEnable(s0_pc_dup(1), enable=io.s0_fire(1))
+  val debug_pc_s0 = s0_pc_dup(4)
+  val debug_pc_s1 = RegEnable(s0_pc_dup(4), enable=io.s0_fire(1))
   val debug_pc_s2 = RegEnable(debug_pc_s1, enable=io.s1_fire(1))
 
   val s1_provideds        = Wire(Vec(numBr, Bool()))
@@ -668,7 +669,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   // access tag tables and output meta info
 
   for (i <- 0 until numBr) {
-    val useAltCtr = Mux1H(UIntToOH(use_alt_idx(s1_pc_dup(1)), NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
+   // val useAltCtr = Mux1H(UIntToOH(use_alt_idx(s1_pc_dup(1)), NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
+    val useAltCtr = Mux1H(UIntToOH(use_alt_idx(s1_pc_dup(4)), NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
     val useAltOnNa = useAltCtr(USE_ALT_ON_NA_WIDTH-1) // highest bit
 
     val s1_per_br_resp = VecInit(s1_resps.map(_(i)))
@@ -860,6 +862,9 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
       XSPerfAccumulate(f"tage_bank_${i}_tick_dec_${t}", needToAllocate && tickDec && tickDecVal === t.U)
     }
   }
+  
+  //gated
+  val tage_btable_gated = RegNext(updateValids(0)) 
 
   for (w <- 0 until TageBanks) {
     for (i <- 0 until TageNTables) {
@@ -877,10 +882,15 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
       tables(i).io.update.ghist := RegNext(io.update(dupForTageSC).bits.ghist)
     }
   }
-  bt.io.update_mask := RegNext(baseupdate)
-  bt.io.update_cnt := RegNext(updatebcnt)
-  bt.io.update_pc := RegNext(update.pc)
-  bt.io.update_takens := RegNext(bUpdateTakens)
+  // bt.io.update_mask := RegNext(baseupdate)
+  // bt.io.update_cnt := RegNext(updatebcnt)
+  // bt.io.update_pc := RegNext(update.pc)
+  // bt.io.update_takens := RegNext(bUpdateTakens)
+
+  bt.io.update_mask := RegEnable(baseupdate, tage_btable_gated )//ok
+  bt.io.update_cnt := RegEnable(updatebcnt, tage_btable_gated )//ok
+  bt.io.update_pc := RegEnable(update.pc, tage_btable_gated )//ok
+  bt.io.update_takens := RegEnable(bUpdateTakens, tage_btable_gated )//ok
 
   // all should be ready for req
   io.s1_ready := tables.map(_.io.req.ready).reduce(_&&_)
@@ -937,7 +947,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     )
   }
   val s2_resps = RegEnable(s1_resps, io.s1_fire(1))
-  XSDebug("req: v=%d, pc=0x%x\n", io.s0_fire(1), s0_pc_dup(1))
+  XSDebug("req: v=%d, pc=0x%x\n", io.s0_fire(1), s0_pc_dup(4))
+  //XSDebug("req: v=%d, pc=0x%x\n", io.s0_fire(1), s0_pc_dup(1))
   XSDebug("s1_fire:%d, resp: pc=%x\n", io.s1_fire(1), debug_pc_s1)
   XSDebug("s2_fireOnLastCycle: resp: pc=%x, target=%x, hits=%b, takens=%b\n",
     debug_pc_s2, io.out.s2.target(1), s2_provideds.asUInt, s2_tageTakens_dup(0).asUInt)
@@ -954,3 +965,4 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
 
 
 class Tage_SC(parentName:String = "Unknown")(implicit p: Parameters) extends Tage(parentName) with HasSC {}
+
