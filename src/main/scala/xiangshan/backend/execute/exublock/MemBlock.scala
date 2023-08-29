@@ -42,12 +42,15 @@ class Std(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle{
     val in = Flipped(DecoupledIO(new ExuInput))
     val out = DecoupledIO(new ExuOutput)
+    val redirect = Input(Valid(new Redirect))
   })
+  private val validReg = RegNext(io.in.valid, false.B)
+  private val bitsReg = RegEnable(io.in.bits, io.in.valid)
   io.in.ready := true.B
-  io.out.valid := io.in.valid
+  io.out.valid := validReg && !bitsReg.uop.robIdx.needFlush(io.redirect)
   io.out.bits := DontCare
-  io.out.bits.uop := io.in.bits.uop
-  io.out.bits.data := io.in.bits.src(0)
+  io.out.bits.uop := bitsReg.uop
+  io.out.bits.data := bitsReg.src(0)
 }
 class MemIssueRouter(implicit p: Parameters) extends LazyModule{
   val node = new ExuComplexIssueNode
@@ -60,6 +63,7 @@ class MemIssueRouter(implicit p: Parameters) extends LazyModule{
       ib.issue.ready := true.B
       assert(ob.issue.ready === true.B)
       ob.rsIdx := ib.rsIdx
+      ob.auxValid := ib.auxValid
       if (oe._2.fuConfigs.head.name == "ldu") {
         ib.rsFeedback.feedbackFastLoad := ob.rsFeedback.feedbackFastLoad
         ib.rsFeedback.feedbackSlowLoad := ob.rsFeedback.feedbackSlowLoad
@@ -281,8 +285,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   })
   stdWritebacks.zip(stdExeWbReqs)
     .foreach({ case (wb, out) =>
-      wb.valid := RegNext(out.valid, false.B)
-      wb.bits := RegEnable(out.bits, out.valid)
+      wb.valid := out.valid
+      wb.bits := out.bits
       out.ready := true.B
     })
   lduWritebacks.zip(ldExeWbReqs).foreach({case(wb, out) =>
@@ -452,6 +456,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     // get input form dispatch
     loadUnits(i).io.ldin.valid := Mux(selSldu, sludIssue.issue.valid, lduIssues(i).issue.valid)
     loadUnits(i).io.ldin.bits := Mux(selSldu,sludIssue.issue.bits, lduIssues(i).issue.bits)
+    loadUnits(i).io.auxValid := Mux(selSldu, sludIssue.auxValid, lduIssues(i).auxValid)
     sludIssue.issue.ready := loadUnits(i).io.ldin.ready
     lduIssues(i).issue.ready := loadUnits(i).io.ldin.ready
     when(selSldu){assert(lduIssues(i).issue.valid === false.B)}
@@ -556,8 +561,10 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     val stu = storeUnits(i)
 
     stdUnits(i).io.in <> stdIssues(i).issue
+    stdUnits(i).io.redirect := Pipe(redirectIn)
 
     stu.io.redirect     <> Pipe(redirectIn)
+    stu.io.redirect_dup.foreach({ case d => {d <> Pipe(redirectIn)}})
     staIssues(i).rsFeedback.feedbackSlowStore := stu.io.feedbackSlow
     stu.io.rsIdx        :=  staIssues(i).rsIdx
     // NOTE: just for dtlb's perf cnt

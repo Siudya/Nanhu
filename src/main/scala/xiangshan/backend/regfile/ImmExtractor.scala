@@ -25,14 +25,14 @@ import xiangshan._
 import xiangshan.backend.decode.{ImmUnion, Imm_LUI_LOAD}
 import xiangshan.backend.execute.exucx.ExuComplexParam
 import xiangshan.backend.execute.fu.jmp.JumpOpType
-import xs.utils.SignExt
+import xs.utils.{SignExt, ZeroExt}
 
 object ImmExtractor {
-  def apply(cfg: ExuComplexParam, in: ExuInput, pc: Option[UInt] = None, target: Option[UInt] = None)
+  def apply(cfg: ExuComplexParam, in: ExuInput, pc: Option[UInt] = None, target: Option[UInt] = None, mmuEnable:Option[Bool] = None)
            (implicit p: Parameters): ExuInput = {
     if (cfg.hasJmp) {
       val res = Wire(new ExuInput)
-      res := Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get), AluImmExtractor(in))
+      res := Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get, mmuEnable.get), AluImmExtractor(in))
       res.uop.cf.pc := pc.get
       res
     } else if (cfg.hasMul) {
@@ -45,10 +45,10 @@ object ImmExtractor {
       in
     }
   }
-  private def JumpImmExtractor(in:ExuInput, jump_pc:UInt, jalr_target:UInt)(implicit p: Parameters):ExuInput = {
+  private def JumpImmExtractor(in:ExuInput, jump_pc:UInt, jalr_target:UInt, mmuEnable:Bool)(implicit p: Parameters):ExuInput = {
     val immExtractedRes = WireInit(in)
     when(SrcType.isPc(in.uop.ctrl.srcType(0))) {
-      immExtractedRes.src(0) := SignExt(jump_pc, p(XSCoreParamsKey).XLEN)
+      immExtractedRes.src(0) := Mux(mmuEnable, SignExt(jump_pc, p(XSCoreParamsKey).XLEN), ZeroExt(jump_pc, p(XSCoreParamsKey).XLEN))
     }
     // when src1 is reg (like sfence's asid) do not let data_out(1) be the jalr_target
     when(JumpOpType.jumpOpIsPrefetch_I(in.uop.ctrl.fuOpType)){

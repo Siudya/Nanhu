@@ -203,6 +203,7 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val stin = Flipped(Decoupled(new ExuInput))
     val redirect = Flipped(ValidIO(new Redirect))
+    val redirect_dup = Flipped(Vec(3,ValidIO(new Redirect)))
     val feedbackSlow = ValidIO(new RSFeedback)
     val tlb = new TlbRequestIO(if(UseOneDtlb) 2 else 1)
     val pmp = Flipped(new PMPRespBundle())
@@ -230,13 +231,13 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
   io.storeMaskOut.bits.mask := store_s0.io.out.bits.mask
   io.storeMaskOut.bits.sqIdx := store_s0.io.out.bits.uop.sqIdx
 
-  PipelineConnect(store_s0.io.out, store_s1.io.in, true.B, store_s0.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  PipelineConnect(store_s0.io.out, store_s1.io.in, true.B, store_s0.io.out.bits.uop.robIdx.needFlush(io.redirect_dup(0)))
 
 
   store_s1.io.dtlbResp <> io.tlb.resp
   io.lsq <> store_s1.io.lsq
 
-  PipelineConnect(store_s1.io.out, store_s2.io.in, true.B, store_s1.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  PipelineConnect(store_s1.io.out, store_s2.io.in, true.B, store_s1.io.out.bits.uop.robIdx.needFlush(io.redirect_dup(1)))
 
   // feedback tlb miss to RS in store_s2
   io.feedbackSlow.bits := RegEnable(store_s1.io.rsFeedback.bits, store_s1.io.rsFeedback.valid && !store_s1.io.out.bits.uop.robIdx.needFlush(io.redirect))
@@ -246,7 +247,7 @@ class StoreUnit(implicit p: Parameters) extends XSModule {
 //  store_s2.io.static_pm := RegNext(io.tlb.resp.bits.static_pm)
   store_s2.io.static_pm := RegEnable(io.tlb.resp.bits.static_pm,io.tlb.resp.valid)
   io.lsq_replenish := store_s2.io.out.bits // mmio and exception
-  PipelineConnect(store_s2.io.out, store_s3.io.in, true.B, store_s2.io.out.bits.uop.robIdx.needFlush(io.redirect))
+  PipelineConnect(store_s2.io.out, store_s3.io.in, true.B, store_s2.io.out.bits.uop.robIdx.needFlush(io.redirect_dup(2)))
 
   store_s3.io.stout <> io.stout
   store_s3.io.redirect := io.redirect

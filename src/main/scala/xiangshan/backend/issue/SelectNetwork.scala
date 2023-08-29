@@ -68,14 +68,16 @@ class SelectPolicy(width:Int, oldest:Boolean, haveEqual:Boolean)(implicit p: Par
   }
 }
 object SelectPolicy {
-  def apply(in:Seq[Valid[SelectResp]], oldest:Boolean, haveEqual:Boolean, bankNum:Int, entryNum:Int, p:Parameters) :Valid[SelectResp] = {
+  def apply(in:Seq[Valid[SelectResp]], oldest:Boolean, haveEqual:Boolean, bankNum:Int, entryNum:Int, redirect: Valid[Redirect], earlyWakeUpCancel:Vec[Bool], p:Parameters) :Valid[SelectResp] = {
     val selector = Module(new SelectPolicy(in.length, oldest, haveEqual)(p))
+    val redirectVec = Cat(in.map(_.bits.info.robPtr.needFlush(redirect)).map(!_).reverse)
+    val cancelVec = Cat(in.map(_.bits.info.lpv.zip(earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)).map(!_).reverse)
     selector.io.in.zip(in).foreach({case(a, b) =>
       a.valid := b.valid
       a.bits := b.bits.info.robPtr
     })
     val res = Wire(Valid(new SelectResp(bankNum, entryNum)(p)))
-    res.valid := selector.io.out.valid
+    res.valid := selector.io.out.valid && (selector.io.out.bits & redirectVec & cancelVec).orR
     res.bits := Mux1H(selector.io.out.bits, in.map(_.bits))
     res
   }
@@ -147,7 +149,7 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
   private val bankNumPerIss = bankNum / issueNum
   finalSelectResult.zipWithIndex.foreach({case(res, i) =>
     val selBanks = selectInputPerBank.slice(i * bankNumPerIss, i * bankNumPerIss + bankNumPerIss).reduce(_ ++ _)
-    res := SelectPolicy(selBanks, oldest, haveEqual, bankNum, entryNum, p)
+    res := SelectPolicy(selBanks, oldest, haveEqual, bankNum, entryNum, io.redirect, io.earlyWakeUpCancel, p)
   })
 
   if(cfg.needToken){
@@ -160,9 +162,7 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
       ta.io.alloc.bits.lpv := outPort.bits.info.lpv
       ta.io.earlyWakeUpCancel := io.earlyWakeUpCancel
       ta.io.release := tr
-      val shouldBeFlushed = driver.bits.info.robPtr.needFlush(io.redirect)
-      val shouldBeCancelled = driver.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
-      outPort.valid := driver.valid && ta.io.allow && !shouldBeCancelled && !shouldBeFlushed
+      outPort.valid := driver.valid && ta.io.allow
       outPort.bits.bankIdxOH := driver.bits.bankIdxOH
       outPort.bits.entryIdxOH := driver.bits.entryIdxOH
       outPort.bits.info := driver.bits.info
@@ -170,9 +170,7 @@ class SelectNetwork(bankNum:Int, entryNum:Int, issueNum:Int, val cfg:ExuConfig, 
     }
   } else {
     for ((outPort, driver) <- io.issueInfo.zip(finalSelectResult)) {
-      val shouldBeFlushed = driver.bits.info.robPtr.needFlush(io.redirect)
-      val shouldBeCancelled = driver.bits.info.lpv.zip(io.earlyWakeUpCancel).map({case(l, c)=>l(0) & c}).reduce(_|_)
-      outPort.valid := driver.valid && !shouldBeCancelled && !shouldBeFlushed
+      outPort.valid := driver.valid
       outPort.bits.bankIdxOH := driver.bits.bankIdxOH
       outPort.bits.entryIdxOH := driver.bits.entryIdxOH
       outPort.bits.info := driver.bits.info

@@ -44,6 +44,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
 
     val io = IO(new Bundle{
       val hartId = Input(UInt(64.W))
+      val mmuEnable = Input(Bool())
       val pcReadAddr = Output(Vec(pcReadNum, UInt(log2Ceil(FtqSize).W)))
       val pcReadData = Input(Vec(pcReadNum, new Ftq_RF_Components))
       val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
@@ -119,7 +120,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
             val instrPc = io.pcReadData(pcReadPortIdx).getPc(bi.issue.bits.uop.cf.ftqOffset)
             val jalrTarget = io.pcReadData(pcReadPortIdx + 1).startAddr
             pcReadPortIdx = pcReadPortIdx + 2
-            exuInBundle := ImmExtractor(exuComplexParam, issueBundle, Some(instrPc), Some(jalrTarget))
+            exuInBundle := ImmExtractor(exuComplexParam, issueBundle, Some(instrPc), Some(jalrTarget), Some(io.mmuEnable))
           } else {
             exuInBundle := ImmExtractor(exuComplexParam, issueBundle)
           }
@@ -163,6 +164,7 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         }
 
         val issueValidReg = RegInit(false.B)
+        val auxValidReg = RegInit(false.B)
         val issueExuInReg = Reg(new ExuInput)
         val rsIdxReg = Reg(new RsIdx)
 
@@ -170,8 +172,10 @@ class RegFileTop(implicit p:Parameters) extends LazyModule with HasXSParameter{
         bo.issue.valid := issueValidReg && !issueExuInReg.uop.robIdx.needFlush(io.redirect)
         bo.issue.bits := issueExuInReg
         bo.rsIdx := rsIdxReg
+        bo.auxValid := auxValidReg
         when(allowPipe) {
           issueValidReg := bi.issue.valid
+          auxValidReg := bi.auxValid
         }
         when(bi.issue.fire) {
           issueExuInReg := exuInBundle

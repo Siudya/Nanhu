@@ -51,6 +51,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
   val out_valid = RegInit(false.B)
   val data_valid = RegInit(false.B)
   val in = Reg(new ExuInput())
+  val in_dup = Reg(new ExuInput())
   val exceptionVec = RegInit(0.U.asTypeOf(ExceptionVec()))
   val atom_override_xtval = RegInit(false.B)
   val isLr = in.uop.ctrl.fuOpType === LSUOpType.lr_w || in.uop.ctrl.fuOpType === LSUOpType.lr_d
@@ -95,6 +96,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
     io.in.ready := true.B
     when (io.in.fire) {
       in := io.in.bits
+      in_dup := io.in.bits
       state := s_tlb
       data_valid := true.B
     }
@@ -288,7 +290,7 @@ class AtomicsUnit(implicit p: Parameters) extends XSModule with MemoryOpConstant
   io.out.valid := out_valid
   XSError((state === s_finish) =/= out_valid, "out_valid reg error\n")
   io.out.bits := DontCare
-  io.out.bits.uop := in.uop
+  io.out.bits.uop := in_dup.uop
   io.out.bits.uop.cf.exceptionVec := exceptionVec
   io.out.bits.data := resp_data
   io.out.bits.redirectValid := false.B

@@ -493,7 +493,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val bankedDataArray = Module(new BankedDataArray(parentName = outer.parentName + "bankedDataArray_"))
   val metaArray = Module(new AsynchronousMetaArray(readPorts = 3, writePorts = 2))
   val errorArray = Module(new ErrorArray(readPorts = 3, writePorts = 2)) // TODO: add it to meta array
-  val tagArray = Module(new DuplicatedTagArrayReg(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
+  val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(3,s"${outer.parentName}_mbistPipe")))
   } else {
@@ -510,6 +510,12 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val missQueue  = Module(new MissQueue(edge))
   val probeQueue = Module(new ProbeQueue(edge))
   val wb         = Module(new WritebackQueue(edge))
+
+  //load req s0
+  require(io.lsu.load.length == 2)
+  val ldAllValid = io.lsu.load(0).req.valid && io.lsu.load(1).req.valid
+  val ldRob = io.lsu.load.map(_.req.bits.robIdx)
+  val ldSelRead = Mux(ldAllValid,Mux(ldRob(0) < ldRob(1),0.U,1.U),0.U)
 
   missQueue.io.hartId := io.hartId
   missQueue.io.l2_pf_store_only := RegNext(io.l2_pf_store_only, false.B)
@@ -586,20 +592,21 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   bankedDataArray.io.readline <> mainPipe.io.data_read
   bankedDataArray.io.readline_intend := mainPipe.io.data_read_intend
   mainPipe.io.readline_error_delayed := bankedDataArray.io.readline_error_delayed
-  mainPipe.io.data_resp := bankedDataArray.io.readline_resp
+  mainPipe.io.data_resp := bankedDataArray.io.resp
 
+  //loadPipe read bankedDataArray in s1
+  bankedDataArray.io.readSel := RegNext(ldSelRead)
   (0 until LoadPipelineWidth).map(i => {
     bankedDataArray.io.read(i) <> ldu(i).io.banked_data_read
     bankedDataArray.io.read_error_delayed(i) <> ldu(i).io.read_error_delayed
 
-    ldu(i).io.banked_data_resp := bankedDataArray.io.resp(i)
     ldu(i).io.bank_conflict_fast := bankedDataArray.io.bank_conflict_fast(i)
     ldu(i).io.bank_conflict_slow := bankedDataArray.io.bank_conflict_slow(i)
   })
 
-//  (0 until LoadPipelineWidth).map(i => {
-//    ldu(i).io.banked_data_resp := bankedDataArray.io.resp
-//  })
+  (0 until LoadPipelineWidth).map(i => {
+    ldu(i).io.banked_data_resp := bankedDataArray.io.resp
+  })
 
   //----------------------------------------
   // load pipe
@@ -620,7 +627,8 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   // atomics
   // atomics not finished yet
   io.lsu.atomics <> atomicsReplayUnit.io.lsu
-  atomicsReplayUnit.io.pipe_resp := RegNext(mainPipe.io.atomic_resp)
+  atomicsReplayUnit.io.pipe_resp.valid := RegNext(mainPipe.io.atomic_resp.valid)
+  atomicsReplayUnit.io.pipe_resp.bits := RegEnable(mainPipe.io.atomic_resp.bits,mainPipe.io.atomic_resp.valid)
   atomicsReplayUnit.io.block_lr <> mainPipe.io.block_lr
 
   //----------------------------------------
@@ -752,7 +760,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   wb.io.probe_ttob_check_resp <> mainPipe.io.probe_ttob_check_resp
 
   io.lsu.release.valid := RegNext(wb.io.req.fire())
-  io.lsu.release.bits.paddr := RegNext(wb.io.req.bits.addr)
+  io.lsu.release.bits.paddr := RegEnable(wb.io.req.bits.addr,wb.io.req.fire)
   // Note: RegNext() is required by:
   // * load queue released flag update logic
   // * load / load violation check logic

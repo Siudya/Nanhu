@@ -245,8 +245,8 @@ class WithNKBL2
         // )),
         clientCaches = Seq(L1Param(
           "dcache",
-          sets = 2 * p.dcacheParametersOpt.get.nSets / banks,
-          ways = p.dcacheParametersOpt.get.nWays + 2,
+          sets = p.dcacheParametersOpt.get.nSets / banks,
+          ways = p.dcacheParametersOpt.get.nWays,
           aliasBitsOpt = p.dcacheParametersOpt.get.aliasBitsOpt
         )),
         reqField = Seq(utility.ReqSourceField()),
@@ -288,29 +288,6 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
     }.sum
     up(SoCParamsKey).copy(
       L3NBanks = banks,
-      // L3CacheParamsOpt = Some(HCCacheParameters(
-      //   name = "L3",
-      //   level = 3,
-      //   ways = ways,
-      //   sets = sets,
-      //   inclusive = inclusive,
-      //   clientCaches = tiles.map{ core =>
-      //     val l2params = core.L2CacheParamsOpt.get.toCacheParams
-      //     l2params.copy(
-      //       sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64,
-      //       blockGranularity = log2Ceil(clientDirBytes / core.L2NBanks / l2params.ways / 64 / tiles.size)
-      //     )
-      //   },
-      //   enablePerf = true,
-      //   ctrl = None,
-      //   sramClkDivBy2 = true,
-      //   sramDepthDiv = 4,
-      //   tagECC = None,
-      //   dataECC = None,
-      //   hasShareBus = false,
-      //   hasMbist = false,
-      //   simulation = !site(DebugOptionsKey).FPGAPlatform
-      // ))
       L3CacheParamsOpt = Some(L3Param(
         name = "L3",
         ways = ways,
@@ -319,8 +296,8 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
         clientCaches = tiles.map{ core =>
           val l2params = core.L2CacheParamsOpt.get.toCacheParams
           l2params.copy(
-            sets = sets,
-            ways = 2 * core_num,
+            sets = l2params.sets,
+            ways = (l2params.ways + 1) * core_num,
             blockGranularity = log2Ceil(clientDirBytes / core.L2NBanks / l2params.ways / 64 / tiles.size)
           )
         },
@@ -349,8 +326,8 @@ class MediumConfig(n: Int = 1) extends Config(
 )
 
 class DefaultConfig(n: Int = 1) extends Config(
-  new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 8, core_num = n)
-    ++ new WithNKBL2(256, inclusive = false, banks = 4, alwaysReleaseData = true)
+  new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 16, core_num = n)
+    ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 4, alwaysReleaseData = true)
     ++ new WithNKBL1D(64)
     ++ new BaseConfig(n)
 )

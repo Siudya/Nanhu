@@ -18,7 +18,14 @@ TOP = XSTop
 SIM_TOP   = SimTop
 FPGATOP = top.TopMain
 BUILD_DIR ?= ./build
-TOP_V = $(BUILD_DIR)/$(TOP).v
+TOP_V =
+
+ifeq ($(VCS),1)
+TOP_V += $(BUILD_DIR)/$(TOP).sv
+else
+TOP_V += $(BUILD_DIR)/$(TOP).v
+endif
+
 SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
 TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
 MEM_GEN = ./scripts/vlsi_mem_gen
@@ -60,7 +67,11 @@ override SIM_ARGS += --enable-topdown
 endif
 
 # emu for the release version
+<<<<<<< HEAD
 RELEASE_ARGS = --disable-all --fpga-platform --enable-difftest
+=======
+RELEASE_ARGS = --fpga-platform --enable-difftest
+>>>>>>> 739bfdb1f2a35cead163a3a61a551d79818a69f3
 DEBUG_ARGS   = --enable-difftest
 
 ifeq ($(VCS),1)

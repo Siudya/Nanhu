@@ -49,8 +49,34 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   val vmEnable_tmp = if (EnbaleTlbDebug) (io.csr.satp.mode === 8.U)
     else (io.csr.satp.mode === 8.U && (mode_tmp < ModeM))
   val vmEnable_dup = Seq.fill(Width)(RegNext(vmEnable_tmp))
-  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
+//  val sfence_dup = Seq.fill(2)(RegNext(io.sfence))
+  val sfence_dup_valid = Seq.fill(2)(RegNext(io.sfence.valid))
+  val sfence_dup_bits = Seq.fill(2)(RegEnable(io.sfence.bits,io.sfence.valid))
+  val sfence_dup = Seq.fill(2)(Wire(new SfenceBundle))
+  sfence_dup.zipWithIndex.foreach({ case (s, i) => {
+    s.valid := sfence_dup_valid(i)
+    s.bits := sfence_dup_bits(i)
+  }})
+
+
+
+//  val csr_dup_satp_change = Seq.fill(Width)(RegNext(io.csr.satp.changed))
+//  val csr_dup_satp_mode = Seq.fill(Width)(RegEnable(io.csr.satp.mode,io.csr.satp.changed))
+//  val csr_dup_satp_asid = Seq.fill(Width)(RegEnable(io.csr.satp.asid,io.csr.satp.changed))
+//  val csr_dup_satp_ppn = Seq.fill(Width)(RegEnable(io.csr.satp.ppn,io.csr.satp.changed))
+//  val csr_dup_priv = Seq.fill(Width)(RegNext(io.csr.priv))
+//
+//  val csr_dup = Seq.fill(Width)(Wire(new TlbCsrBundle))
+//  csr_dup.zipWithIndex.foreach({case(d,i) => {
+//    d.priv := csr_dup_priv(i)
+//    d.satp.mode := csr_dup_satp_mode(i)
+//    d.satp.changed := csr_dup_satp_change(i)
+//    d.satp.asid := csr_dup_satp_asid(i)
+//    d.satp.ppn := csr_dup_satp_ppn(i)
+//  }})
   val csr_dup = Seq.fill(Width)(RegNext(io.csr))
+  val csr_dup_2 = Seq.fill(2)(RegNext(io.csr))
+
   val satp = csr_dup.head.satp
   val priv = csr_dup.head.priv
   val ifecth = if (q.fetchi) true.B else false.B
@@ -109,8 +135,8 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
   normalPage.victim.out <> superPage.victim.in
   normalPage.sfence <> sfence_dup(0)
   superPage.sfence <> sfence_dup(1)
-  normalPage.csr <> csr_dup(0)
-  superPage.csr <> csr_dup(1)
+  normalPage.csr <> csr_dup_2(0)
+  superPage.csr <> csr_dup_2(1)
 
   val refill_now = ptw_resp_v
   def TLBNormalRead(i: Int) = {
@@ -260,8 +286,10 @@ class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Paramete
     when (RegEnable(io.requestor(i).req_kill, RegNext(io.requestor(i).req.fire))) {
       io.ptw.req(i).valid := false.B
     }
+    val reqValid_reg = RegNext(reqValid(i))
 //    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegNext(!q.sameCycle, reqAddr(i).vpn))
-    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)))
+//    io.ptw.req(i).bits.vpn := need_RegNext(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)))
+    io.ptw.req(i).bits.vpn := need_RegEnable(!q.sameCycle, need_RegEnable(!q.sameCycle, reqAddr(i).vpn, reqValid(i)),reqValid_reg)
   }
   io.ptw.resp.ready := true.B
 

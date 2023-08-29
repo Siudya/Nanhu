@@ -127,6 +127,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   ctrlBlock.io.sqCancelCnt := exuBlock.io.sqCancelCnt
   ctrlBlock.io.sqDeq := exuBlock.io.sqDeq
   ctrlBlock.io.stIn := exuBlock.io.stIn
+  ctrlBlock.io.mmuEnable := exuBlock.io.csrio.tlb.satp.mode =/= 0.U
   exuBlock.io.enqLsq <> ctrlBlock.io.enqLsq
   ctrlBlock.io.redirectIn := exuBlock.io.redirectOut
   exuBlock.io.floatingAllocPregs.zip(exuBlock.io.integerAllocPregs).zip(ctrlBlock.io.allocPregs).foreach({case((f, i), r) =>

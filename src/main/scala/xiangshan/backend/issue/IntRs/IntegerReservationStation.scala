@@ -132,13 +132,8 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   })
 
   internalAluWakeupSignals.zip(io.aluSpecWakeup).foreach({case(iwkp, owkp) =>
-    val swkpValidReg = RegNext(iwkp.valid, false.B)
-    val swkpBitsReg = RegEnable(iwkp.bits, iwkp.valid)
-    val swkpCancelled = swkpBitsReg.lpv.zip(io.earlyWakeUpCancel).map({ case (l, c) => l(0) && c }).reduce(_ || _)
-    val swkpFlushed = swkpBitsReg.robPtr.needFlush(io.redirect)
-    owkp.valid := swkpValidReg && !swkpCancelled && !swkpFlushed
-    owkp.bits := swkpBitsReg
-    owkp.bits.lpv.foreach(_ := 0.U)
+    owkp.valid := RegNext(iwkp.valid, false.B)
+    owkp.bits := RegEnable(iwkp.bits, iwkp.valid)
   })
 
   private val aluExuCfg = aluIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.alu).head
@@ -248,6 +243,7 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
       iss._1.issue.bits.src := DontCare
       iss._1.rsIdx.bankIdxOH := issueDriver.io.deq.bits.bankIdxOH
       iss._1.rsIdx.entryIdxOH := issueDriver.io.deq.bits.entryIdxOH
+      iss._1.auxValid := issueDriver.io.deq.valid
       issueDriver.io.deq.ready := iss._1.issue.ready
     }
   }

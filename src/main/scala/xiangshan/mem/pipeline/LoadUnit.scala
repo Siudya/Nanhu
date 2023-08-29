@@ -63,6 +63,7 @@ class LoadUnitTriggerIO(implicit p: Parameters) extends XSBundle {
 class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParameters{
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new ExuInput))
+    val auxValid = Input(Bool())
     val out = Decoupled(new LsPipelineBundle)
     val dtlbReq = DecoupledIO(new TlbReq)
     val dcacheReq = DecoupledIO(new DCacheWordReq)
@@ -96,7 +97,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
   val isSoftPrefetchWrite = s0_uop.ctrl.fuOpType === LSUOpType.prefetch_w
 
   // query DTLB
-  io.dtlbReq.valid := io.in.valid || tryFastpath
+  io.dtlbReq.valid := io.auxValid || tryFastpath
   io.dtlbReq.bits.vaddr := s0_vaddr
   io.dtlbReq.bits.cmd := TlbCmd.read
   io.dtlbReq.bits.size := LSUOpType.size(s0_uop.ctrl.fuOpType)
@@ -105,7 +106,7 @@ class LoadUnit_S0(implicit p: Parameters) extends XSModule with HasDCacheParamet
   io.dtlbReq.bits.debug.isFirstIssue := io.isFirstIssue
 
   // query DCache
-  io.dcacheReq.valid := io.in.valid || tryFastpath
+  io.dcacheReq.valid := io.auxValid || tryFastpath
   when (isSoftPrefetchRead) {
     io.dcacheReq.bits.cmd  := MemoryOpConstants.M_PFR
   }.elsewhen (isSoftPrefetchWrite) {
@@ -186,8 +187,8 @@ class LoadUnit_S1(implicit p: Parameters) extends XSModule {
   })
 
   val s1_uop = io.in.bits.uop
-  val s1_paddr_dup_lsu = Mux(io.dtlbResp.valid && !io.dtlbResp.bits.miss, io.dtlbResp.bits.paddr(0), 0.U)
-  val s1_paddr_dup_dcache = Mux(io.dtlbResp.valid && !io.dtlbResp.bits.miss, io.dtlbResp.bits.paddr(1), 0.U)
+  val s1_paddr_dup_lsu = io.dtlbResp.bits.paddr(0)
+  val s1_paddr_dup_dcache = io.dtlbResp.bits.paddr(1)
   // af & pf exception were modified below.
   val s1_exception = ExceptionNO.selectByFu(io.out.bits.uop.cf.exceptionVec, lduCfg).asUInt.orR
   val s1_tlb_miss = io.dtlbResp.bits.miss
@@ -500,6 +501,7 @@ class LoadUnit_S2(implicit p: Parameters) extends XSModule with HasLoadHelper {
 class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with HasPerfEvents with SdtrigExt {
   val io = IO(new Bundle() {
     val ldin = Flipped(Decoupled(new ExuInput))
+    val auxValid = Input(Bool())
     val ldout = Decoupled(new ExuOutput)
     val redirect = Flipped(ValidIO(new Redirect))
     val feedbackSlow = ValidIO(new RSFeedback)
@@ -538,6 +540,7 @@ class LoadUnit(implicit p: Parameters) extends XSModule with HasLoadHelper with 
 
   // load s0
   load_s0.io.in <> io.ldin
+  load_s0.io.auxValid := io.auxValid
   load_s0.io.dtlbReq <> io.tlb.req
   load_s0.io.dcacheReq <> io.dcache.req
   load_s0.io.rsIdx := io.rsIdx

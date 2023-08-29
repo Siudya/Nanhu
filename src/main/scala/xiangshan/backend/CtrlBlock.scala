@@ -60,6 +60,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val enqLsq = Flipped(new LsqEnqIO)
     val lqCancelCnt = Input(UInt(log2Up(LoadQueueSize + 1).W))
     val sqCancelCnt = Input(UInt(log2Up(StoreQueueSize + 1).W))
+    val mmuEnable = Input(Bool())
     val sqDeq = Input(UInt(2.W))
     // from int block
     val redirectIn = Input(Valid(new Redirect))
@@ -269,6 +270,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   lsDeq <> memDispatch2Rs.io.out
 
   rob.io.hartId := io.hartId
+  rob.io.mmuEnable := io.mmuEnable
   io.cpu_halt := DelayN(rob.io.cpu_halt, 5)
   rob.io.redirect := io.redirectIn
 
