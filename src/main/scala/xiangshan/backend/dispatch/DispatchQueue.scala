@@ -165,20 +165,10 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val actualEnqNum = Mux(io.enq.canAccept, PopCount(io.enq.req.map(_.valid)), 0.U)
   when(io.redirect.valid){
     enqPtr := enqPtr - flushNum
-    enqPtr_dup_0 := enqPtr - flushNum
-    enqPtr_dup_1 := enqPtr - flushNum
-    enqPtr_dup_2 := enqPtr - flushNum
     enqPtrAux := enqPtr - flushNum
-    enqPtrAux_dup_0 := enqPtr - flushNum
-    enqPtrAux_dup_1 := enqPtr - flushNum
   }.elsewhen(actualEnqNum =/= 0.U){
     enqPtr := enqPtr + actualEnqNum
-    enqPtr_dup_0 := enqPtr + actualEnqNum
-    enqPtr_dup_1 := enqPtr + actualEnqNum
-    enqPtr_dup_2 := enqPtr + actualEnqNum
     enqPtrAux := enqPtr + actualEnqNum
-    enqPtrAux_dup_0 := enqPtr + actualEnqNum
-    enqPtrAux_dup_1 := enqPtr + actualEnqNum
   }
 
 
@@ -204,10 +194,6 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
       d := dn
     }
   })
-  deqPtr_dup_0 := deqPtr
-  deqPtr_dup_1 := deqPtr
-  deqPtr_dup_2 := deqPtr
-  deqPtr_dup_3 := deqPtr
   io.deq.zip(deqDriver.io.deq).foreach({case(a,b) => a <> b})
 
   private val debug_r = payloadArray.io.r.slice(deqNum, 2 * deqNum)
