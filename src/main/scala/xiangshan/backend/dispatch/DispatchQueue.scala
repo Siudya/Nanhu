@@ -137,7 +137,7 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val redirectMask = validsMask & payloadArray.io.flushVec
   private val flushNum = PopCount(redirectMask)
 
-  io.enq.canAccept := (enqNum.U <= emptyEntriesNum) && !io.redirect.valid
+  io.enq.canAccept := ((size - enqNum).U >= validEntriesNum) && !io.redirect.valid
 
   private val enqAddrDelta = Wire(Vec(enqNum, UInt(log2Ceil(enqNum).W)))
   for((e,i) <- enqAddrDelta.zipWithIndex){
