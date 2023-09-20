@@ -23,4 +23,3 @@
 [submodule "CoupledL2"]
 	path = CoupledL2
 	url = https://github.com/cyril0124/CoupledL2
-	branch = integrate_cpl2_cpl3

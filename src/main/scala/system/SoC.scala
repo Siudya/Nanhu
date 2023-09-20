@@ -31,7 +31,7 @@ import top.BusPerfMonitor
 import huancun._
 import huancun.debug.TLLogger
 import xiangshan.backend.execute.fu.PMAConst
-import coupledL3._
+import axi2tl._
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -41,7 +41,7 @@ case class SoCParameters
   PAddrBits: Int = 37,
   extIntrs: Int = 256,
   L3NBanks: Int = 4,
-  L3CacheParamsOpt: Option[L3Param] = Some(L3Param(
+  L3CacheParamsOpt: Option[HCCacheParameters] = Some(HCCacheParameters(
     name = "l3",
     ways = 8,
     sets = 2048 // 1MB per bank
@@ -108,11 +108,13 @@ trait HaveSlaveAXI4Port {
   ))
   private val error_xbar = TLXbar()
 
+  val AXItoTL = LazyModule(new AXItoTL)
+
   l3_xbar :=
     TLFIFOFixer() :=
     TLWidthWidget(32) :=
     TLBuffer() :=
-    AXI4ToTL() :=
+    AXItoTL.node :=
     AXI4Buffer() :=
     AXI4UserYanker(Some(16)) :=
     AXI4Fragmenter() :=

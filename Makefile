@@ -156,6 +156,7 @@ clean:
 
 init:
 	git submodule update --init
+	cd CoupledL2 && git submodule update --init AXItoTL
 	cd rocket-chip && git submodule update --init api-config-chipsalliance hardfloat
 
 bump:
