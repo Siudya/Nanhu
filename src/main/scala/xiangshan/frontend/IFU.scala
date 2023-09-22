@@ -74,6 +74,7 @@ class NewIFUIO(implicit p: Parameters) extends XSBundle {
 // the middle of an RVI inst
 class LastHalfInfo(implicit p: Parameters) extends XSBundle {
   val valid = Bool()
+  val validDup = Bool()
   val middlePC = UInt(VAddrBits.W)
   def matchThisBlock(startAddr: UInt) = valid && middlePC === startAddr
 }
@@ -570,8 +571,10 @@ class NewIFU(implicit p: Parameters) extends XSModule
 
   when (f3_flush) {
     f3_lastHalf.valid := false.B
+    f3_lastHalf.validDup := false.B
   }.elsewhen (f3_fire) {
     f3_lastHalf.valid := f3_hasLastHalf && !f3_lastHalf_disable
+    f3_lastHalf.validDup := f3_hasLastHalf && !f3_lastHalf_disable
     f3_lastHalf.middlePC := f3_ftq_req.nextStartAddr
   }
 
@@ -603,7 +606,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
   io.toIbuffer.bits.triggered   := f3_triggered
   io.toIbuffer.bits.mmioFetch   := false.B
 
-  when(f3_lastHalf.valid){
+  when(f3_lastHalf.validDup){
     io.toIbuffer.bits.enqEnable := checkerOutStage1.fixedRange.asUInt & f3_instr_valid.asUInt & f3_lastHalf_mask
     io.toIbuffer.bits.valid     := f3_lastHalf_mask & f3_instr_valid.asUInt
   }
@@ -678,19 +681,19 @@ class NewIFU(implicit p: Parameters) extends XSModule
     */
 
   val wb_valid          = RegNext(RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
-  val wb_ftq_req        = RegNext(f3_ftq_req)
-
-  val wb_check_result_stage1   = RegNext(checkerOutStage1)
+    // TODO: Change RegNext to RegEnable
+  val wb_ftq_req        = RegEnable(f3_ftq_req, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_check_result_stage1   = RegEnable(checkerOutStage1, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
   val wb_check_result_stage2   = checkerOutStage2
-  val wb_instr_range    = RegNext(io.toIbuffer.bits.enqEnable)
-  val wb_pc             = RegNext(f3_pc)
-  val wb_pd             = RegNext(f3_pd)
-  val wb_instr_valid    = RegNext(f3_instr_valid)
+  val wb_instr_range    = RegEnable(io.toIbuffer.bits.enqEnable, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_pc             = RegEnable(f3_pc, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_pd             = RegEnable(f3_pd, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_instr_valid    = RegEnable(f3_instr_valid, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
 
   /* false hit lastHalf */
-  val wb_lastIdx        = RegNext(f3_last_validIdx)
+  val wb_lastIdx        = RegEnable(f3_last_validIdx, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
   val wb_false_lastHalf = RegNext(f3_false_lastHalf) && wb_lastIdx =/= (PredictWidth - 1).U
-  val wb_false_target   = RegNext(f3_false_snpc)
+  val wb_false_target   = RegEnable(f3_false_snpc, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
 
   val wb_half_flush = wb_false_lastHalf
   val wb_half_target = wb_false_target
@@ -717,6 +720,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
         && wb_check_result_stage2.fixedMissPred(PredictWidth - 1) && f3_fire
       ){
     f3_lastHalf.valid := false.B
+    f3_lastHalf.validDup := false.B
   }
 
   val checkFlushWb = Wire(Valid(new PredecodeWritebackBundle))

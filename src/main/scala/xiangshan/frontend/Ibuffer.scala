@@ -16,7 +16,7 @@
 
 package xiangshan.frontend
 
-import org.chipsalliance.cde.config.Parameters
+import chipsalliance.rocketchip.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan._
@@ -90,99 +90,137 @@ class IBufEntry(implicit p: Parameters) extends XSBundle {
   }
 }
 
+class IBufQueue(entryNum:Int, enqNum:Int, deqNum:Int)(implicit p: Parameters) extends Module{
+  val io = IO(new Bundle{
+    val w = Input(Vec(enqNum, new Bundle{
+      val en: Bool = Bool()
+      val addr: UInt = UInt(log2Ceil(entryNum).W)
+      val data: IBufEntry = new IBufEntry
+    }))
+    val r = Vec(deqNum, new Bundle{
+      val addr: UInt = Input(UInt(log2Ceil(entryNum).W))
+      val data: IBufEntry = Output(new IBufEntry)
+    })
+  })
+  private val array = Reg(Vec(entryNum, new IBufEntry))
+  for ((mem, i) <- array.zipWithIndex) {
+    val valids = io.w.map(wreq => wreq.en && wreq.addr === i.U)
+    val wdata = io.w.map(_.data)
+    val data = Mux1H(valids, wdata)
+    when(valids.reduce(_ | _)) {
+      mem := data
+    }
+  }
+  for(r <- io.r){
+    val rSel = array.indices.map(_.U === r.addr)
+    r.data := Mux1H(rSel, array)
+  }
+}
+
+class ibufDeqDriver(deqNum:Int)(implicit p: Parameters)extends XSModule {
+  val io = IO(new Bundle{
+    val in = Input(Vec(deqNum, Valid(new CtrlFlow)))
+    val deq = Vec(DecodeWidth, DecoupledIO(new CtrlFlow))
+    val flush = Input(Bool())
+  })
+  val validsReg = RegInit(VecInit(Seq.fill(deqNum)(false.B)))
+  val bitsRegs = Reg(Vec(deqNum, new CtrlFlow))
+  io.deq.zip(validsReg).zip(bitsRegs).foreach({case((d, v), b) =>
+    d.valid := v && !io.flush
+    d.bits := b
+  })
+  for(((in, v), b) <- io.in.zip(validsReg).zip(bitsRegs)){
+    when(io.flush){
+      v := false.B
+    }.otherwise{
+      v := in.valid
+    }
+    when(in.valid){
+      b := in.bits
+    }
+  }
+}
+
 class Ibuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper with HasPerfEvents {
   val io = IO(new IBufferIO)
 
-  val ibuf = Module(new DataModuleTemplate(new IBufEntry, IBufSize, DecodeWidth, PredictWidth, "IBuffer"))
-
+  val ibuf = Module(new IBufQueue(IBufSize, PredictWidth, DecodeWidth))
+  val deqDriver = Module(new ibufDeqDriver(DecodeWidth))
+  deqDriver.io.flush := io.flush
   val deqPtrVec = RegInit(VecInit.tabulate(DecodeWidth)(_.U.asTypeOf(new IbufPtr)))
-  val deqPtrVecNext = Wire(Vec(DecodeWidth, new IbufPtr))
-  deqPtrVec := deqPtrVecNext
-  val deqPtr = deqPtrVec(0)
-
-  val enqPtrVec = RegInit(VecInit.tabulate(PredictWidth)(_.U.asTypeOf(new IbufPtr)))
-  val enqPtr = enqPtrVec(0)
+  val deqPtrVecNext =  deqPtrVec.map(WireInit(_))
+  val deqPtr = deqPtrVec.head
+  val enqPtr = RegInit(0.U.asTypeOf(new IbufPtr))
+  val enqPtrDup = RegInit(0.U.asTypeOf(new IbufPtr))
 
   val validEntries = distanceBetween(enqPtr, deqPtr)
   val allowEnq = RegInit(true.B)
 
-  val numEnq = Mux(io.in.fire, PopCount(io.in.bits.valid), 0.U)
+  val numEnq = Mux(io.in.fire, PopCount(io.in.bits.enqEnable), 0.U)
   val numTryDeq = PopCount(io.out.map(_.valid))
   val numDeq = Mux(io.out.head.ready, numTryDeq, 0.U)
-  deqPtrVecNext := Mux(io.out.head.ready, VecInit(deqPtrVec.map(_ + numTryDeq)), deqPtrVec)
-
   val numAfterEnq = validEntries +& numEnq
-  val nextValidEntries = Mux(io.out(0).ready, numAfterEnq - numTryDeq, numAfterEnq)
-  allowEnq := (IBufSize - PredictWidth).U >= nextValidEntries
-
+  val nextValidEntries = Mux(io.out(0).ready && (numAfterEnq >= numTryDeq), numAfterEnq - numTryDeq, numAfterEnq)
+  val nowEmptyEntriesNum = IBufSize.U - nextValidEntries
+  allowEnq :=  (nowEmptyEntriesNum >= PredictWidth.U) && !io.flush
   // Enque
-  io.in.ready := allowEnq
+  io.in.ready := allowEnq 
 
   val enqOffset = Seq.tabulate(PredictWidth)(i => PopCount(io.in.bits.valid.asBools.take(i)))
   val enqData = Seq.tabulate(PredictWidth)(i => Wire(new IBufEntry).fromFetch(io.in.bits, i))
-  val ibuf_wen  = WireInit(0.U.asTypeOf(Vec(PredictWidth, Bool())))
-  val ibuf_wdata =  WireInit(0.U.asTypeOf(Vec(PredictWidth, new IBufEntry)))
-  val ibuf_waddr =  WireInit(0.U.asTypeOf(Vec(PredictWidth, UInt(log2Ceil(IBufSize).W))))
   for (i <- 0 until PredictWidth) {
-    ibuf_waddr(i) := enqPtrVec(enqOffset(i)).value
-    ibuf_wdata(i) := enqData(i)
-    ibuf_wen(i)  := io.in.bits.enqEnable(i) && io.in.fire && !io.flush
+    ibuf.io.w(i).addr := (enqPtrDup + enqOffset(i)).value
+    ibuf.io.w(i).data := enqData(i)
+    ibuf.io.w(i).en  := io.in.bits.enqEnable(i) && io.in.fire && !io.flush
   }
-  val wdata_dup = ibuf_wen.zip(ibuf_wdata).map(w => RegEnable(w._2, w._1))
-  val wen_dup = RegEnable(ibuf_wen, io.in.fire)
-  val waddr_dup = ibuf_wen.zip(ibuf_waddr).map(w => RegEnable(w._2, w._1))
-  ibuf.io.wen := wen_dup
-  ibuf.io.waddr := waddr_dup
-  ibuf.io.wdata := wdata_dup
-
-  when (io.in.fire && !io.flush) {
-    enqPtrVec := VecInit(enqPtrVec.map(_ + PopCount(io.in.bits.enqEnable)))
+  when (numEnq =/= 0.U && !io.flush) {
+    enqPtr := enqPtr + numEnq
+    enqPtrDup := enqPtrDup + numEnq
   }
-
+  ibuf.io.r.take(DecodeWidth).zip(deqPtrVecNext).foreach({case(a, b) =>
+    a.addr := b.value
+  })
   // Dequeue
-  val validVec = Mux(validEntries >= (DecodeWidth + 1).U,
+  val nextValidVec = Mux(nextValidEntries >= (DecodeWidth + 1).U,
     ((1 << (DecodeWidth + 1)) - 1).U,
-    UIntToMask(validEntries(log2Ceil(DecodeWidth + 1) - 1, 0), DecodeWidth + 1)
+    UIntToMask(nextValidEntries(log2Ceil(DecodeWidth + 1) - 1, 0), DecodeWidth + 1)
   )
-  val deqData = Reg(Vec(DecodeWidth, new IBufEntry))
+
   for (i <- 0 until DecodeWidth) {
-    // by default, all bits are from the data module (slow path)
-    io.out(i).bits := ibuf.io.rdata(i).toCtrlFlow
-    // some critical bits are from the fast path
-    val isJump = io.out(i).bits.pd.valid && (io.out(i).bits.pd.isJal || io.out(i).bits.pd.isJalr)
-    val isMMIO = ibuf.io.rdata(i).mmioFetch
-    when(isJump){
-      io.out(i).valid := Mux(isMMIO, validVec(i) && (io.out(i).bits.ftqPtr < (io.fromFtq - 1.U)), validVec(i) && validVec(i + 1))
-    }.otherwise{
-      io.out(i).valid := validVec(i)
+    deqDriver.io.in(i).bits := ibuf.io.r(i).data.toCtrlFlow
+    val isJump = deqDriver.io.in(i).bits.pd.valid && (deqDriver.io.in(i).bits.pd.isJal || deqDriver.io.in(i).bits.pd.isJalr)
+    val isMMIO = ibuf.io.r(i).data.mmioFetch
+    when(isJump) {
+      deqDriver.io.in(i).valid := Mux(isMMIO, nextValidVec(i) && (deqDriver.io.in(i).bits.ftqPtr < (io.fromFtq - 1.U)), nextValidVec(i) && nextValidVec(i + 1))
+    }.otherwise {
+      deqDriver.io.in(i).valid := nextValidVec(i)
     }
-    val fastData = Mux(!io.out(i).fire, deqData(i).toCtrlFlow, ibuf.io.rdata(i).toCtrlFlow)
-    io.out(i).bits.instr := fastData.instr
-    io.out(i).bits.exceptionVec := fastData.exceptionVec
-    io.out(i).bits.foldpc := fastData.foldpc
-    XSError(io.out(i).fire && fastData.instr =/= ibuf.io.rdata(i).toCtrlFlow.instr, "fast data error\n")
+    val enqAddrHitsVec = enqOffset.map(d => enqPtr + d).map(_.value === deqPtrVecNext(i).value)
+    val enqValidVec = io.in.bits.enqEnable.asBools.map(_ && allowEnq)
+    val enqHitsVec = enqAddrHitsVec.zip(enqValidVec).map({case(a, b) => a && b})
+    val enqUpdateEn = io.in.fire && Cat(enqHitsVec).orR
+    val enqBypassData =  Mux1H(enqHitsVec, enqData)
+    when(enqUpdateEn){
+      deqDriver.io.in(i).valid := true.B
+      deqDriver.io.in(i).bits := enqBypassData.toCtrlFlow
+    }
+    assert(PopCount(enqHitsVec) <= 1.U)
   }
-
-  val ptrMatch = new QPtrMatchMatrix(deqPtrVec, enqPtrVec)
-  for (i <- 0 until DecodeWidth) {
-    val enqMatchVec = VecInit(ptrMatch(i))
-    val enqBypassEnVec = io.in.bits.valid.asBools.zip(enqOffset).map{ case (v, o) => v && enqMatchVec(o) }
-    val enqBypassEn = io.in.fire && VecInit(enqBypassEnVec).asUInt.orR
-    val enqBypassData = Mux1H(enqBypassEnVec, enqData)
-    val readData = ibuf.io.rdata(i)
-    deqData(i) := Mux(enqBypassEn, enqBypassData, readData)
-  }
-
-  val raddr_dup = RegNext(VecInit(deqPtrVecNext.map(_.value)))
-  ibuf.io.raddr := raddr_dup
-
-  // Flush
-  when (io.flush) {
+  deqPtrVecNext.zip(deqPtrVec).foreach({case(dn, d) =>
+    dn := d + numDeq
+    when(io.out.head.fire) {
+      d := dn
+    }
+  })
+  io.out.zip(deqDriver.io.deq).foreach({case(a,b) => a <> b})
+  assert(deqPtr <= enqPtrDup)
+  io.full := deqPtr.value === enqPtrDup.value && deqPtr.flag =/= enqPtrDup.flag
+  when(io.flush){
     allowEnq := true.B
     deqPtrVec := deqPtrVec.indices.map(_.U.asTypeOf(new IbufPtr))
-    enqPtrVec := enqPtrVec.indices.map(_.U.asTypeOf(new IbufPtr))
+    enqPtr := 0.U.asTypeOf(new IbufPtr)
+    enqPtrDup := 0.U.asTypeOf(new IbufPtr)
   }
-  io.full := !allowEnq
 
   // Debug info
   XSDebug(io.flush, "IBuffer Flushed\n")
