@@ -678,19 +678,19 @@ class NewIFU(implicit p: Parameters) extends XSModule
     */
 
   val wb_valid          = RegNext(RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
-  val wb_ftq_req        = RegNext(f3_ftq_req)
-
-  val wb_check_result_stage1   = RegNext(checkerOutStage1)
+  // TODO: Change RegNext to RegEnable
+  val wb_ftq_req        = RegEnable(f3_ftq_req, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_check_result_stage1   = RegEnable(checkerOutStage1, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
   val wb_check_result_stage2   = checkerOutStage2
-  val wb_instr_range    = RegNext(io.toIbuffer.bits.enqEnable)
-  val wb_pc             = RegNext(f3_pc)
-  val wb_pd             = RegNext(f3_pd)
-  val wb_instr_valid    = RegNext(f3_instr_valid)
+  val wb_instr_range    = RegEnable(io.toIbuffer.bits.enqEnable, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_pc             = RegEnable(f3_pc, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_pd             = RegEnable(f3_pd, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
+  val wb_instr_valid    = RegEnable(f3_instr_valid, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
 
   /* false hit lastHalf */
-  val wb_lastIdx        = RegNext(f3_last_validIdx)
+  val wb_lastIdx        = RegEnable(f3_last_validIdx, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
   val wb_false_lastHalf = RegNext(f3_false_lastHalf) && wb_lastIdx =/= (PredictWidth - 1).U
-  val wb_false_target   = RegNext(f3_false_snpc)
+  val wb_false_target   = RegEnable(f3_false_snpc, RegNext(f2_fire && !f2_flush) && !f3_req_is_mmio && !f3_flush)
 
   val wb_half_flush = wb_false_lastHalf
   val wb_half_target = wb_false_target
