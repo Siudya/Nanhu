@@ -25,6 +25,7 @@ import utils._
 import xiangshan.backend.execute.fu.{PMPReqBundle, PMPRespBundle}
 import xs.utils._
 import xiangshan.frontend.{FtqICacheInfo, FtqToICacheRequestBundle}
+import xs.utils.perf.HasPerfLogging
 
 class ICacheMainPipeReq(implicit p: Parameters) extends ICacheBundle
 {
@@ -110,7 +111,7 @@ class ICacheMainPipeInterface(implicit p: Parameters) extends ICacheBundle {
 
 }
 
-class ICacheMainPipe(implicit p: Parameters) extends ICacheModule
+class ICacheMainPipe(implicit p: Parameters) extends ICacheModule with HasPerfLogging
 {
   val io = IO(new ICacheMainPipeInterface)
 

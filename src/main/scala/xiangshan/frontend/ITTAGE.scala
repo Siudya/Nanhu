@@ -23,9 +23,11 @@ import xiangshan._
 import utils._
 import xs.utils._
 import xs.utils.sram.FoldedSRAMTemplate
+
 import scala.math.min
 import scala.{Tuple2 => &}
 import xs.utils.mbist.MBISTPipeline
+import xs.utils.perf.HasPerfLogging
 
 trait ITTageParams extends HasXSParameter with HasBPUParameter {
 
@@ -142,7 +144,7 @@ class ITTageTable
   val nRows: Int, val histLen: Int, val tagLen: Int, val uBitPeriod: Int, val tableIdx: Int,
   parentName:String = "Unknown"
 )(implicit p: Parameters)
-  extends ITTageModule with HasFoldedHistory {
+  extends ITTageModule with HasFoldedHistory with HasPerfLogging {
   val io = IO(new Bundle() {
     val req = Flipped(DecoupledIO(new ITTageReq))
     val resp = Output(Valid(new ITTageResp))
@@ -224,7 +226,7 @@ class ITTageTable
       parentName = parentName + s"bank${idx}_"
     )))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe", true)
   } else {
     None
   }

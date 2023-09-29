@@ -8,6 +8,7 @@ import xiangshan.backend.rob.RobPtr
 import xiangshan.{MicroOp, Redirect, XSBundle, XSModule}
 import xiangshan.vector.HasVectorParameters
 import xiangshan.vector.writeback.WbMergeBufferPtr
+import xiangshan.backend.execute.fu.csr.vcsr._
 
 class VIWakeQueueEntry(implicit p: Parameters) extends XSBundle{
   val uop = new MicroOp
@@ -38,7 +39,7 @@ class VIWakeQueueEntryUpdateNetwork(implicit p: Parameters) extends XSModule wit
     val entry = Input(new VIWakeQueueEntry)
     val robEnq = Input(Vec(RenameWidth, Valid(new RobPtr)))
     val vmsResp = Input(Valid(new WbMergeBufferPtr(VectorMergeBufferDepth)))
-    val vtypeWb = Input(Valid(new FuOutput(XLEN)))
+    val vtypeWb = Flipped(ValidIO(new VtypeWbIO))
     val entryNext = Output(new VIWakeQueueEntry)
     val updateEnable = Output(Bool())
   })
@@ -62,7 +63,7 @@ class VIWakeQueueEntryUpdateNetwork(implicit p: Parameters) extends XSModule wit
     entryNext.uop.mergeIdx := io.vmsResp.bits
   }
 
-  private val vtypeWbHit = io.vtypeWb.valid && io.vtypeWb.bits.uop.vtypeRegIdx === io.entry.uop.vtypeRegIdx
+  private val vtypeWbHit = io.vtypeWb.valid && io.vtypeWb.bits.vtypeRegIdx === io.entry.uop.vtypeRegIdx
   when(io.enq.valid) {
     entryNext.vtypeRdy := io.enq.bits.vtypeRdy
     entryNext.uop.vCsrInfo := io.enq.bits.uop.vCsrInfo
@@ -70,11 +71,11 @@ class VIWakeQueueEntryUpdateNetwork(implicit p: Parameters) extends XSModule wit
     entryNext.vtypeRdy := true.B
     //TODO: fill this
     entryNext.uop.vCsrInfo := DontCare
-    entryNext.uop.vCsrInfo.vma := io.vtypeWb.bits.data(7)
-    entryNext.uop.vCsrInfo.vta := io.vtypeWb.bits.data(6)
-    entryNext.uop.vCsrInfo.vsew := io.vtypeWb.bits.data(5, 3)
-    entryNext.uop.vCsrInfo.vlmul := io.vtypeWb.bits.data(2, 0)
-    entryNext.uop.vCsrInfo.vl := io.vtypeWb.bits.data(15, 8)
+    entryNext.uop.vCsrInfo.vma := io.vtypeWb.bits.vtype(7)
+    entryNext.uop.vCsrInfo.vta := io.vtypeWb.bits.vtype(6)
+    entryNext.uop.vCsrInfo.vsew := io.vtypeWb.bits.vtype(5, 3)
+    entryNext.uop.vCsrInfo.vlmul := io.vtypeWb.bits.vtype(2, 0)
+    entryNext.uop.vCsrInfo.vl := io.vtypeWb.bits.vl
     entryNext.uop.vCsrInfo.vlmax := entryNext.uop.vCsrInfo.VLMAXGen()
   }
 
@@ -89,7 +90,7 @@ class VIWaitQueueArray(implicit p: Parameters) extends XSModule with HasVectorPa
     val deq = new ViwqReadPort
     val robEnq = Input(Vec(RenameWidth, Valid(new RobPtr)))
     val vmsIdAllocte = Vec(VIDecodeWidth, new VmsIdAlloc)
-    val vtypeWb = Input(Valid(new FuOutput(XLEN)))
+    val vtypeWb = Flipped(ValidIO(new VtypeWbIO))
     val redirect = Input(Valid(new Redirect))
     val flushMask = Output(UInt(size.W))
   })

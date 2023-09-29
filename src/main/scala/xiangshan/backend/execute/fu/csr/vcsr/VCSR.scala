@@ -7,9 +7,17 @@ import org.chipsalliance.cde.config.Parameters
 import xiangshan._
 import xiangshan.vector._
 import xiangshan.backend.execute.fu.FuOutput
+import xiangshan.backend.rob.RobPtr
 
+class VtypeWbIO(implicit p: Parameters) extends VectorBaseBundle {
+    val vtype = UInt(9.W)
+    val vl = UInt(8.W)
+    val robIdx = new RobPtr
+    val vtypeRegIdx = UInt(log2Ceil(VIVtypeRegsNum).W)
+    val pdest = UInt(PhyRegIdxWidth.W)
+}
 class VCSRWithVtypeRenameIO(implicit p: Parameters) extends VectorBaseBundle {
-  val vtypeWbToRename = ValidIO(new FuOutput(XLEN))
+  val vtypeWbToRename = ValidIO(new VtypeWbIO)
   val vtypeRead = new Bundle {
     val readEn = Output(Bool())
     val data = Flipped(ValidIO(UInt(XLEN.W)))
@@ -18,35 +26,21 @@ class VCSRWithVtypeRenameIO(implicit p: Parameters) extends VectorBaseBundle {
     val readEn = Output(Bool())
     val data = Flipped(ValidIO(UInt(XLEN.W)))
   }
+  val debug_vtype = Input(UInt(XLEN.W))
+  val debug_vl = Input(UInt(XLEN.W))
 }
 
 class VCSRWithRobIO(implicit p: Parameters) extends VectorBaseBundle {
-  val vstartW = Flipped(ValidIO(UInt(XLEN.W)))
-  val vxsatW  = Flipped(ValidIO(UInt(XLEN.W)))
+  val vstart = Flipped(ValidIO(UInt(XLEN.W)))
+  val vxsat  = Flipped(ValidIO(UInt(XLEN.W)))
 }
 
 class VCsrIO(implicit p: Parameters) extends VectorBaseBundle {
   val vtype = new VCSRWithVtypeRenameIO
   val robWb = new VCSRWithRobIO
   val vstart = Output(UInt(7.W))
-  
-  //val vlenb   = Output(UInt(XLEN.W)) //is read-only
-  //val vstart  = Output(UInt(XLEN.W))
-  //val vxrm    = Output(UInt(XLEN.W))
-  //val vxsat   = Output(UInt(XLEN.W))
   val vcsr    = Output(UInt(3.W))
 }
-
-/*
-  * vtype and vl stored in vtypeRenameModule, VCSR need read(CSRR) and write(vset wb) it
-  * vstart and vxsat, may writeback from ROB or CSRRW
-  * vlenb
-  * vxrm
-  * vcsr
-*/
-
-// for vsetvli, cf.imm = instr(30, 20)
-// for vsetivli, cf.imm = instr(29, 15)
 
 class VtypeStruct(implicit p: Parameters) extends XSBundle {
   val vill      = UInt(1.W)
@@ -118,9 +112,7 @@ class VSetFu(implicit p: Parameters) extends XSModule with HasXSParameter {
   val avl_hasRs1 = Wire(UInt((log2Up(VLEN) + 1).W))
   avl_hasRs1 := Mux(!io.rs1IsX0, src1, Mux(!io.rdIsX0, VLMAX, io.vlOld))
   avl := Mux((io.vsetType === "b001".asUInt), uimm, avl_hasRs1)
-
-
-
-  io.vtypeNew := vtype.asUInt
-  io.vlNew    := Mux(!io.rs1IsX0, avl, Mux(io.vlOld > VLMAX, VLMAX, io.vlOld))
+  io.vtypeNew := Cat(vtype.vill, vtype.vma, vtype.vta, vtype.vsew, vtype.vlmul)
+  val vlValue = Mux(!io.rs1IsX0, avl, Mux(io.vlOld > VLMAX, VLMAX, io.vlOld))
+  io.vlNew := vlValue(7, 0)
 }

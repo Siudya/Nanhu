@@ -26,6 +26,7 @@ import xiangshan._
 import xiangshan.frontend.icache._
 import xiangshan.backend.CtrlToFtqIO
 import xiangshan.backend.decode.ImmUnion
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 class FtqPtr(implicit p: Parameters) extends CircularQueuePtr[FtqPtr](
@@ -71,7 +72,7 @@ class FtqNRSRAM[T <: Data](gen: T, numRead: Int, parentName:String = "Unknown")(
     sram.io.w.req.bits.data := VecInit(io.wdata)
   }
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
   } else {
     None
   }
@@ -437,7 +438,7 @@ class FtqPcMemWrapper(numOtherReads: Int)(implicit p: Parameters) extends XSModu
 }
 
 class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper
-  with BPUUtils with HasBPUConst with HasPerfEvents
+  with BPUUtils with HasBPUConst with HasPerfEvents with HasPerfLogging
   with HasICacheParameters{
   val io = IO(new Bundle {
     val fromBpu = Flipped(new BpuToFtqIO)
@@ -544,7 +545,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   ftq_meta_1r_sram.io.wdata.meta := io.fromBpu.resp.bits.last_stage_meta
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistPipe")
   } else {
     None
   }

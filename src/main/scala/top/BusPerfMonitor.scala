@@ -5,7 +5,7 @@ import freechips.rocketchip.diplomacy.{AdapterNode, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tilelink._
 import chisel3._
 import chisel3.util._
-import utils.{XSPerfAccumulate, XSPerfPrint}
+import xs.utils.perf.HasPerfLogging
 
 class BusPerfMonitor()(implicit p: Parameters) extends LazyModule {
   val node = TLAdapterNode()
@@ -13,7 +13,7 @@ class BusPerfMonitor()(implicit p: Parameters) extends LazyModule {
 }
 
 class BusPerfMonitorImp(outer: BusPerfMonitor)
-  extends LazyModuleImp(outer)
+  extends LazyModuleImp(outer)  with HasPerfLogging
 {
 
   outer.node.in.zip(outer.node.out).foreach{

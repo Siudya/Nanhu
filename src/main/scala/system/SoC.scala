@@ -24,7 +24,7 @@ import freechips.rocketchip.devices.tilelink.{CLINT, CLINTParams, DevNullParams,
 import freechips.rocketchip.diplomacy.{AddressSet, IdRange, InModuleBody, LazyModule, LazyModuleImp, MemoryDevice, RegionType, SimpleDevice, TransferSizes}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
 import xs.utils.tl.TLEdgeBuffer
-import xiangshan.{DebugOptionsKey, HasXSParameter, XSBundle, XSCore, XSCoreParameters, XSTileKey}
+import xiangshan.{HasXSParameter, XSBundle, XSCore, XSCoreParameters, XSTileKey}
 import freechips.rocketchip.amba.axi4._
 import freechips.rocketchip.tilelink._
 import top.BusPerfMonitor
@@ -32,6 +32,7 @@ import huancun._
 import xs.utils.tl.TLLogger
 import xiangshan.backend.execute.fu.PMAConst
 import axi2tl._
+import xs.utils.perf.DebugOptionsKey
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -111,16 +112,9 @@ trait HaveSlaveAXI4Port {
   private val error_xbar = TLXbar()
 
   l3_xbar :=
-    TLFIFOFixer() :=
-    TLWidthWidget(32) :=
     TLBuffer() :=
-    AXI2TL() :=
+    AXI2TL(16,16) :=
     AXI4Buffer() :=
-    AXI4UserYanker(Some(16)) :=
-    AXI4Fragmenter() :=
-    AXI4Buffer() :=
-    AXI4Buffer() :=
-    AXI4IdIndexer(4) :=
     l3FrontendAXI4Node
   errorDevice.node := l3_xbar
 

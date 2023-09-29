@@ -18,14 +18,15 @@ package xiangshan.cache
 
 import chisel3._
 import chisel3.util._
-import utils.{HasTLDump, XSDebug}
+import utils.HasTLDump
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp, TransferSizes}
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleA, TLBundleD, TLClientNode, TLEdgeOut, TLMasterParameters, TLMasterPortParameters}
 import xs.utils.PriorityMuxWithFlag
+import xs.utils.perf.HasPerfLogging
 
 // One miss entry deals with one mmio request
-class MMIOEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule
+class MMIOEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasPerfLogging
 {
   val io = IO(new Bundle {
     // MSHR ID
@@ -159,7 +160,7 @@ class Uncache()(implicit p: Parameters) extends LazyModule {
 
 class UncacheImp(outer: Uncache)
   extends LazyModuleImp(outer)
-    with HasTLDump
+    with HasTLDump with HasPerfLogging
 {
   val io = IO(new UncacheIO)
 

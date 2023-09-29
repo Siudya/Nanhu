@@ -21,6 +21,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3.util.DecoupledIO
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.tilelink.{TLBundle, TLClientNode, TLIdentityNode, TLMasterParameters, TLMasterPortParameters}
+import xs.utils.perf.HasPerfLogging
 
 class DataDontCareNode(a: Boolean = false, b: Boolean = false, c: Boolean = false, d: Boolean = false)(implicit p: Parameters) extends LazyModule  {
 
@@ -32,7 +33,7 @@ class DataDontCareNode(a: Boolean = false, b: Boolean = false, c: Boolean = fals
     )
   )))
 
-  lazy val module = new LazyModuleImp(this) with HasTLDump{
+  lazy val module = new LazyModuleImp(this) with HasTLDump with HasPerfLogging{
     val (out, _) = node.out(0)
     val (in, _) = node.in(0)
 

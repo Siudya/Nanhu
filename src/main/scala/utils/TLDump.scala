@@ -22,11 +22,11 @@ import chisel3.util._
 import freechips.rocketchip.tilelink.TLMessages._
 import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink.{TLBundle, TLBundleA, TLBundleB, TLBundleC, TLBundleD, TLBundleE, TLChannel}
+import xs.utils.perf.HasPerfLogging
 
 trait HasTLDump {
-
+  this:Module with HasPerfLogging =>
   implicit val p: Parameters
-
   implicit class TLDump(channel: TLChannel) {
     def dump = channel match {
       case a: TLBundleA =>

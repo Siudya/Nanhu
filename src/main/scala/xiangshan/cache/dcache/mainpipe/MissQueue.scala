@@ -29,7 +29,8 @@ import freechips.rocketchip.tilelink.TLPermissions._
 import difftest._
 import coupledL2.{AliasKey, DirtyKey, PrefetchKey}
 import xs.utils.FastArbiter
-import mem.{AddPipelineReg}
+import mem.AddPipelineReg
+import xs.utils.perf.HasPerfLogging
 
 class MissReqWoStoreData(implicit p: Parameters) extends DCacheBundle {
   val source = UInt(sourceTypeWidth.W)
@@ -107,7 +108,7 @@ class MissReq(implicit p: Parameters) extends MissReqWoStoreData {
   }
 }
 
-class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule {
+class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasPerfLogging {
   val io = IO(new Bundle() {
     // MSHR ID
     val id = Input(UInt(log2Up(cfg.nMissEntries).W))
@@ -420,10 +421,8 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule {
     growPermissions = grow_param
   )._2
   io.mem_acquire.bits := Mux(full_overwrite, acquirePerm, acquireBlock)
-  // resolve cache alias by L2
-  io.mem_acquire.bits.user.lift(AliasKey).foreach( _ := req.vaddr(13, 12))
-  // trigger prefetch
-  io.mem_acquire.bits.user.lift(PrefetchKey).foreach(_ := Mux(io.l2_pf_store_only, req.isStore, true.B))
+  private val prefecthBit = Mux(io.l2_pf_store_only, req.isStore, true.B)
+  io.mem_acquire.bits.data := Cat(req.vaddr(13, 12), prefecthBit)
   require(nSets <= 256)
 
   io.mem_grant.ready := !w_grantlast && s_acquire
@@ -534,7 +533,7 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule {
   XSPerfHistogram("a_to_d_penalty", a_to_d_penalty, a_to_d_penalty_sample, 20, 100, 10, true, false)
 }
 
-class MissQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasPerfEvents {
+class MissQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasPerfEvents with HasPerfLogging {
   val io = IO(new Bundle {
     val hartId = Input(UInt(8.W))
     val req = Flipped(DecoupledIO(new MissReq))

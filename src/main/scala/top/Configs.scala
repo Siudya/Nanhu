@@ -32,10 +32,10 @@ import xiangshan.backend.execute.exublock.ExuParameters
 import device.{EnableJtag, XSDebugModuleParams}
 import huancun._
 import coupledL2._
-import coupledL3._
+import xs.utils.perf.DebugOptions
 import xiangshan.mem.prefetch.SMSParams
-
 import darecreek.exu.fu2._
+import xs.utils.perf.DebugOptionsKey
 case object PrefixKey extends Field[String]
 class BaseConfig(n: Int, mbist:Boolean = false) extends Config((site, here, up) => {
   case XLen => 64
@@ -300,7 +300,7 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
           val l2params = core.L2CacheParamsOpt.get.toCacheParams
           l2params.copy(sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64, ways = l2params.ways + 2)
         },
-        enablePerf = true,
+        enablePerf = false,
         prefetch = None,
         prefetchRecv = Some(huancun.prefetch.PrefetchReceiverParams()),
         ctrl = None,
@@ -336,8 +336,8 @@ class MediumConfig(n: Int = 1) extends Config(
 )
 
 class DefaultConfig(n: Int = 1) extends Config(
-  new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 16, core_num = n)
-    ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 4, alwaysReleaseData = true)
+  new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 8, core_num = n)
+    ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 8, alwaysReleaseData = true)
     ++ new WithNKBL1D(64)
     ++ new BaseConfig(n)
 )

@@ -126,17 +126,17 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
 
   table.io.w.last.en := io.vcsr.vtypeWbToRename.valid
   table.io.w.last.data.info := DontCare
-  table.io.w.last.data.info.vma := io.vcsr.vtypeWbToRename.bits.data(7)
-  table.io.w.last.data.info.vta := io.vcsr.vtypeWbToRename.bits.data(6)
-  table.io.w.last.data.info.vsew := io.vcsr.vtypeWbToRename.bits.data(5, 3)
-  table.io.w.last.data.info.vlmul := io.vcsr.vtypeWbToRename.bits.data(2, 0)
-  table.io.w.last.data.info.vl := io.vcsr.vtypeWbToRename.bits.data(15, 8)
-  table.io.w.last.data.vill := io.vcsr.vtypeWbToRename.bits.data(XLEN - 1)
+  table.io.w.last.data.info.vma := io.vcsr.vtypeWbToRename.bits.vtype(7)
+  table.io.w.last.data.info.vta := io.vcsr.vtypeWbToRename.bits.vtype(6)
+  table.io.w.last.data.info.vsew := io.vcsr.vtypeWbToRename.bits.vtype(5, 3)
+  table.io.w.last.data.info.vlmul := io.vcsr.vtypeWbToRename.bits.vtype(2, 0)
+  table.io.w.last.data.info.vl := io.vcsr.vtypeWbToRename.bits.vl
+  table.io.w.last.data.vill := io.vcsr.vtypeWbToRename.bits.vtype(8)
   table.io.w.last.data.info.vlmax := table.io.w.last.data.info.VLMAXGen()
   table.io.w.last.data.writebacked := true.B
-  table.io.w.last.data.robIdx := io.vcsr.vtypeWbToRename.bits.uop.robIdx
-  table.io.w.last.addr := io.vcsr.vtypeWbToRename.bits.uop.vtypeRegIdx
-  table.io.w.last.data.pdest := io.vcsr.vtypeWbToRename.bits.uop.pdest
+  table.io.w.last.data.robIdx := io.vcsr.vtypeWbToRename.bits.robIdx
+  table.io.w.last.addr := io.vcsr.vtypeWbToRename.bits.vtypeRegIdx
+  table.io.w.last.data.pdest := io.vcsr.vtypeWbToRename.bits.pdest
 
   private val enqAddrEnqSeq = Wire(Vec(RenameWidth, new VtypePtr))
   private val vtypeEnqSeq = Wire(Vec(RenameWidth, new VTypeEntry))
@@ -169,6 +169,10 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   io.vcsr.vlRead.data.bits := actualVl
   io.vcsr.vtypeRead.data.valid := io.vcsr.vtypeRead.readEn
   io.vcsr.vtypeRead.data.bits := actualVtype
+  io.vcsr.vtypeRead.data.valid := io.vcsr.vtypeRead.readEn
+
+  io.vcsr.debug_vl := actualVl
+  io.vcsr.debug_vtype := actualVtype
 
   private def GenVType(in:MicroOp, oldvtype:VICsrInfo):VTypeEntry = {
     val res = Wire(new VTypeEntry())
@@ -236,11 +240,13 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   private val setVlCommSeq = io.robCommits.commitValid.zip(io.robCommits.info).map({case(a, b) => a && b.vtypeWb})
   private val setVlCommitted = io.robCommits.isCommit && setVlCommSeq.reduce(_|_)
   private val commmitNum = PopCount(setVlCommSeq)
-  private val comValidReg = RegNext(setVlCommitted, false.B)
-  private val comNumReg = RegEnable(commmitNum, setVlCommitted)
-  when(comValidReg){
-    deqPtr := deqPtr + comNumReg
-    flushHeadPtr := flushHeadPtr + comNumReg
+  private val comValidRegDelay1 = RegNext(setVlCommitted, false.B)
+  private val comNumRegDelay1 = RegEnable(commmitNum, setVlCommitted)
+  private val comValidRegDelay2 = RegNext(comValidRegDelay1, false.B)
+  private val comNumRegDelay2 = RegEnable(comNumRegDelay1, comValidRegDelay1)
+  when(comValidRegDelay2){
+    deqPtr := deqPtr + comNumRegDelay2
+    flushHeadPtr := flushHeadPtr + comNumRegDelay2
   }
 
 
@@ -251,7 +257,7 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
     io.toVCtl(i).robIdx := DontCare
     io.toVCtl(i).vcsrInfo := vtypeEnqSeq(i).info
     io.toVCtl(i).vtypeRdy := vtypeEnqSeq(i).writebacked
-    io.toVCtl(i).vtypeIdx := enqAddrEnqSeq(i).value
+    io.toVCtl(i).vtypeIdx := (enqAddrEnqSeq(i) - 1.U).value
 
     io.out(i) := uop(i)
     io.out(i).bits.vtypeRegIdx := enqAddrEnqSeq(i).value

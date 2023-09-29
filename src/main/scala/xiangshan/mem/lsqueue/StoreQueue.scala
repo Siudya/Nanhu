@@ -30,6 +30,7 @@ import device.RAMHelper
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.issue.SelectPolicy
+import xs.utils.perf.HasPerfLogging
 
 class SqPtr(implicit p: Parameters) extends CircularQueuePtr[SqPtr](
   p => p(XSCoreParamsKey).StoreQueueSize
@@ -71,7 +72,7 @@ class LSQExceptionInfo (implicit p: Parameters)  extends DCacheBundle{
 }
 
 // Store Queue
-class StoreQueue(implicit p: Parameters) extends XSModule
+class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   with HasDCacheParameters with HasCircularQueuePtrHelper with HasPerfEvents {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))

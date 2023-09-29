@@ -22,6 +22,8 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
+
 import scala.math.min
 import scala.{Tuple2 => &}
 
@@ -170,7 +172,7 @@ class BasePredictorIO (implicit p: Parameters) extends XSBundle with HasBPUConst
 }
 
 abstract class BasePredictor(implicit p: Parameters) extends XSModule
-  with HasBPUConst with BPUUtils with HasPerfEvents {
+  with HasBPUConst with BPUUtils with HasPerfEvents with HasPerfLogging {
   val meta_size = 0
   val spec_meta_size = 0
   val is_fast_pred = false
@@ -219,7 +221,8 @@ class PredictorIO(implicit p: Parameters) extends XSBundle {
 }
 
 
-class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasBPUConst with HasPerfEvents with HasCircularQueuePtrHelper {
+class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule
+  with HasBPUConst with HasPerfEvents with HasCircularQueuePtrHelper with HasPerfLogging {
   val io = IO(new PredictorIO)
 
   val ctrl = DelayN(io.ctrl, 1)

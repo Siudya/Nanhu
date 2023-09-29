@@ -26,6 +26,7 @@ import xiangshan._
 import xiangshan.frontend.icache._
 import xiangshan.backend.decode.isa.predecode.PreDecodeInst
 import xiangshan.backend.execute.fu.csr.SdtrigExt
+import xs.utils.perf.HasPerfLogging
 
 trait HasPdConst extends HasXSParameter with HasICacheParameters with HasIFUConst{
   def isRVC(inst: UInt) = (inst(1,0) =/= 3.U)
@@ -90,7 +91,7 @@ class PreDecodeResp(implicit p: Parameters) extends XSBundle with HasPdConst {
   val triggered    = Vec(PredictWidth, new TriggerCf)
 }
 
-class PreDecode(implicit p: Parameters) extends XSModule with HasPdConst{
+class PreDecode(implicit p: Parameters) extends XSModule with HasPdConst with HasPerfLogging{
   val io = IO(new Bundle() {
     val in = Input(new IfuToPreDecode)
     val out = Output(new PreDecodeResp)
@@ -271,7 +272,7 @@ class PredChecker(implicit p: Parameters) extends XSModule with HasPdConst {
 
 }
 
-class FrontendTrigger(implicit p: Parameters) extends XSModule with SdtrigExt {
+class FrontendTrigger(implicit p: Parameters) extends XSModule with SdtrigExt with HasPerfLogging {
   val io = IO(new Bundle(){
     val frontendTrigger = Input(new FrontendTdataDistributeIO)
     val triggered     = Output(Vec(PredictWidth, new TriggerCf))
@@ -298,6 +299,12 @@ class FrontendTrigger(implicit p: Parameters) extends XSModule with SdtrigExt {
 
   val triggerTimingVec = VecInit(tdata.map(_.timing))
   val triggerChainVec = VecInit(tdata.map(_.chain))
+
+  def PrintTriggerInfo(enable: Bool, trigger: MatchTriggerIO)(implicit p: Parameters) = {
+    XSDebug(enable, p"Debug Mode: Match Type is ${trigger.matchType}; select is ${trigger.select};" +
+      p"timing is ${trigger.timing}; action is ${trigger.action}; chain is ${trigger.chain};" +
+      p"tdata2 is ${Hexadecimal(trigger.tdata2)}")
+  }
 
   for (i <- 0 until TriggerNum) { PrintTriggerInfo(triggerEnableVec(i), tdata(i)) }
 

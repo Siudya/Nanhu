@@ -217,7 +217,7 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
           //Mask read
           io.vectorReads(vecReadPortIdx + 1).addr := bi.issue.bits.uop.vm
           val vmVal = io.vectorReads(vecReadPortIdx + 1).data
-          val isMaskDisabled = bi.issue.bits.uop.ctrl.vm && vmVal(uopIdx) === 0.U
+          val isMaskDisabled = !(bi.issue.bits.uop.ctrl.vm === 0.U && vmVal(uopIdx) =/= 0.U)
           val isTailDisabled = bi.issue.bits.uop.isTail
           val isPrestartDisabled = bi.issue.bits.uop.isPrestart
 
@@ -313,6 +313,7 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
         val allowPipe = !issueValidReg || bo.issue.ready || (issueValidReg && issueExuInReg.uop.robIdx.needFlush(io.redirect))
         bo.issue.valid := issueValidReg
         bo.issue.bits := issueExuInReg
+        bo.issue.bits.uop.loadStoreEnable := issueExuInReg.uop.loadStoreEnable && issueValidReg
         bo.rsIdx := rsIdxReg
         bo.auxValid := auxValidReg
         when(allowPipe) {

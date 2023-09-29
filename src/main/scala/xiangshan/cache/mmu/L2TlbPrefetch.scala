@@ -21,6 +21,7 @@ import org.chipsalliance.cde.config.Parameters
 import xiangshan.XSModule
 import utils._
 import xs.utils.ValidHold
+import xs.utils.perf.HasPerfLogging
 
 class L2TlbPrefetchIO(implicit p: Parameters) extends MMUIOBaseBundle with HasPtwConst {
   val in = Flipped(ValidIO(new Bundle {
@@ -32,7 +33,7 @@ class L2TlbPrefetchIO(implicit p: Parameters) extends MMUIOBaseBundle with HasPt
   })
 }
 
-class L2TlbPrefetch(implicit p: Parameters) extends XSModule with HasPtwConst {
+class L2TlbPrefetch(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfLogging {
   val io = IO(new L2TlbPrefetchIO())
 
   val OldRecordSize = 4

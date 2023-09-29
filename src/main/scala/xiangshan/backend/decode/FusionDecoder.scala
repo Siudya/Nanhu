@@ -24,6 +24,7 @@ import utils._
 import xiangshan._
 import xiangshan.backend.execute.fu.alu.ALUOpType
 import xiangshan.backend.execute.fu.mdu.MDUOpType
+import xs.utils.perf.HasPerfLogging
 
 abstract class BaseFusionCase(pair: Seq[Valid[UInt]])(implicit p: Parameters)
   extends DecodeUnitConstants {
@@ -488,7 +489,7 @@ class FusionDecodeReplace extends Bundle {
   }
 }
 
-class FusionDecoder(implicit p: Parameters) extends XSModule {
+class FusionDecoder(implicit p: Parameters) extends XSModule with HasPerfLogging {
   val io = IO(new Bundle {
     // T0: detect instruction fusions in these instructions
     val in = Vec(DecodeWidth, Flipped(ValidIO(UInt(32.W))))

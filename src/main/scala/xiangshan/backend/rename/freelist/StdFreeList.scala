@@ -22,9 +22,10 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils.CircularShift
+import xs.utils.perf.HasPerfLogging
 
 
-class StdFreeList(size: Int)(implicit p: Parameters) extends BaseFreeList(size) with HasPerfEvents {
+class StdFreeList(size: Int)(implicit p: Parameters) extends BaseFreeList(size) with HasPerfEvents with HasPerfLogging{
 
   val freeList = RegInit(VecInit(Seq.tabulate(size)( i => (i + 32).U(PhyRegIdxWidth.W) )))
   val headPtr  = RegInit(FreeListPtr(false, 0))

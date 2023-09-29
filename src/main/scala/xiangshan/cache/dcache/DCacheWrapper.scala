@@ -31,7 +31,7 @@ import coupledL2.{AliasField, AliasKey, DirtyField, PrefetchField}
 import xs.utils.FastArbiter
 import mem.AddPipelineReg
 import xiangshan.backend.rob.RobPtr
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.perf.HasPerfLogging
 
 import scala.math.max
 
@@ -57,10 +57,8 @@ case class DCacheParameters
   // we need to avoid this by recoding additional bits in L2 cache
   val setBytes = nSets * blockBytes
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
-  val reqFields: Seq[BundleFieldBase] = Seq(
-    PrefetchField()
-  ) ++ aliasBitsOpt.map(AliasField)
-  val echoFields: Seq[BundleFieldBase] = Nil // Seq(DirtyField())
+  val reqFields: Seq[BundleFieldBase] = Nil
+  val echoFields: Seq[BundleFieldBase] = Nil
 
   def tagCode: Code = Code.fromString(tagECC)
 
@@ -281,10 +279,6 @@ class DCacheWordReq(implicit p: Parameters)  extends DCacheBundle
   val id     = UInt(reqIdWidth.W)
   val instrtype   = UInt(sourceTypeWidth.W)
   val robIdx = new RobPtr
-  def dump() = {
-    XSDebug("DCacheWordReq: cmd: %x addr: %x data: %x mask: %x id: %d\n",
-      cmd, addr, data, mask, id)
-  }
 }
 
 // memory request in word granularity(store)
@@ -296,10 +290,6 @@ class DCacheLineReq(implicit p: Parameters)  extends DCacheBundle
   val data   = UInt((cfg.blockBytes * 8).W)
   val mask   = UInt(cfg.blockBytes.W)
   val id     = UInt(reqIdWidth.W)
-  def dump() = {
-    XSDebug("DCacheLineReq: cmd: %x addr: %x data: %x mask: %x id: %d\n",
-      cmd, addr, data, mask, id)
-  }
   def idx: UInt = get_idx(vaddr)
 }
 
@@ -319,10 +309,6 @@ class BaseDCacheWordResp(implicit p: Parameters) extends DCacheBundle
   val replay = Bool()
   // data has been corrupted
   val tag_error = Bool() // tag error
-  def dump() = {
-    XSDebug("DCacheWordResp: data: %x id: %d miss: %b replay: %b\n",
-      data, id, miss, replay)
-  }
 }
 
 class DCacheWordResp(implicit p: Parameters) extends BaseDCacheWordResp
@@ -351,10 +337,6 @@ class DCacheLineResp(implicit p: Parameters) extends DCacheBundle
   // cache req nacked, replay it later
   val replay = Bool()
   val id     = UInt(reqIdWidth.W)
-  def dump() = {
-    XSDebug("DCacheLineResp: data: %x id: %d miss: %b replay: %b\n",
-      data, id, miss, replay)
-  }
 }
 
 class Refill(implicit p: Parameters) extends DCacheBundle
@@ -366,17 +348,11 @@ class Refill(implicit p: Parameters) extends DCacheBundle
   val data_raw = UInt((cfg.blockBytes * 8).W)
   val hasdata = Bool()
   val refill_done = Bool()
-  def dump() = {
-    XSDebug("Refill: addr: %x data: %x\n", addr, data)
-  }
 }
 
 class Release(implicit p: Parameters) extends DCacheBundle
 {
   val paddr  = UInt(PAddrBits.W)
-  def dump() = {
-    XSDebug("Release: paddr: %x\n", paddr(PAddrBits-1, DCacheTagOffset))
-  }
 }
 
 class DCacheWordIO(implicit p: Parameters) extends DCacheBundle
@@ -470,7 +446,7 @@ class DCache(val parentName:String = "Unknown")(implicit p: Parameters) extends 
 }
 
 
-class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParameters with HasPerfEvents {
+class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParameters with HasPerfEvents with HasPerfLogging {
 
   val io = IO(new DCacheIO)
 

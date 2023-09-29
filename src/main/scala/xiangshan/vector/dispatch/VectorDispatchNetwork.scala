@@ -59,6 +59,6 @@ class VectorDispatchNetwork(implicit p: Parameters) extends VectorBaseModule {
     validVec := io.fromRename.map(_.valid)
     
     io.commonMask       := selNet.io.toDqMask(0).asUInt & validVec.asUInt
-    io.permutationMask  := selNet.io.toDqMask(1).asUInt & validVec.asUInt
-    io.memMask          := selNet.io.toDqMask(2).asUInt & validVec.asUInt
+    io.memMask          := selNet.io.toDqMask(1).asUInt & validVec.asUInt
+    io.permutationMask  := selNet.io.toDqMask(2).asUInt & validVec.asUInt
 }

@@ -23,6 +23,7 @@ import xiangshan._
 import utils._
 import xs.utils._
 import xs.utils.mbist.MBISTPipeline
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 import scala.math.min
@@ -72,7 +73,7 @@ class SCTableIO(val ctrBits: Int = 6)(implicit p: Parameters) extends SCBundle {
 
 
 class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:String = "Unknown")(implicit p: Parameters)
-  extends SCModule with HasFoldedHistory {
+  extends SCModule with HasFoldedHistory with HasPerfLogging {
   val io = IO(new SCTableIO(ctrBits))
 
   // val table = Module(new SRAMTemplate(SInt(ctrBits.W), set=nRows, way=2*TageBanks, shouldReset=true, holdRead=true, singlePort=false))
@@ -84,7 +85,7 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:Str
     parentName = parentName + "table_"
   ))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe", true)
   } else {
     None
   }

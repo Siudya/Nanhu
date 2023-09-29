@@ -22,7 +22,7 @@ import chisel3.util._
 import xiangshan.backend.execute.exublock.ExuParameters
 import xiangshan.cache.DCacheParameters
 import xiangshan.cache.prefetch._
-import xiangshan.frontend.{BasePredictor, BranchPredictionResp, FTB, FakePredictor, RAS, Tage, ITTage, Tage_SC, FauFTB}
+import xiangshan.frontend.{BasePredictor, BranchPredictionResp, FTB, FakePredictor, FauFTB, ITTage, RAS, Tage, Tage_SC}
 import xiangshan.frontend.icache.ICacheParameters
 import xiangshan.cache.mmu.{L2TLBParameters, TLBParameters}
 import freechips.rocketchip.diplomacy.AddressSet
@@ -32,8 +32,9 @@ import coupledL2._
 import huancun.debug._
 import xiangshan.mem.prefetch.{PrefetcherParams, SMSParams}
 
-import scala.math.{min, max}
+import scala.math.{max, min}
 import xiangshan.vector.VectorParameters
+import xs.utils.perf.DebugOptionsKey
 
 case object XSTileKey extends Field[Seq[XSCoreParameters]]
 
@@ -260,19 +261,6 @@ case class XSCoreParameters
   val HistoryLength: Int = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now
   val maxRsEntryNum: Int = Seq(fpRsDepth, intRsDepth, memRsDepth).max
 }
-
-case object DebugOptionsKey extends Field[DebugOptions]
-
-case class DebugOptions
-(
-  FPGAPlatform: Boolean = false,
-  EnableDifftest: Boolean = false,
-  AlwaysBasicDiff: Boolean = false,
-  EnableDebug: Boolean = false,
-  EnablePerfDebug: Boolean = true,
-  UseDRAMSim: Boolean = false,
-  EnableTopDown: Boolean = false
-)
 
 trait HasXSParameter {
 

@@ -22,13 +22,15 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils.ParallelOR
+import xs.utils.perf.HasPerfLogging
 
 class BusyTableReadIO(implicit p: Parameters) extends XSBundle {
   val req = Input(UInt(PhyRegIdxWidth.W))
   val resp = Output(Bool())
 }
 
-class BusyTable(size:Int, numReadPorts: Int, numWritePorts: Int, renameWidth:Int)(implicit p: Parameters) extends XSModule with HasPerfEvents {
+class BusyTable(size:Int, numReadPorts: Int, numWritePorts: Int, renameWidth:Int)(implicit p: Parameters) extends XSModule
+  with HasPerfEvents with HasPerfLogging{
   val io = IO(new Bundle() {
     // set preg state to busy
     val allocPregs = Vec(renameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))

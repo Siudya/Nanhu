@@ -127,14 +127,17 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   ctrlBlock.io.vstart := csrioIn.vcsr.vstart
 
   //TODO:
-  csrioIn.vcsr.robWb.vstartW.valid := ctrlBlock.io.robio.toCSR.vstart.valid
-  csrioIn.vcsr.robWb.vstartW.bits := ctrlBlock.io.robio.toCSR.vstart.bits
+  csrioIn.vcsr.robWb.vstart.valid := ctrlBlock.io.robio.toCSR.vstart.valid
+  csrioIn.vcsr.robWb.vstart.bits := ctrlBlock.io.robio.toCSR.vstart.bits
 
-  csrioIn.vcsr.robWb.vxsatW.valid := ctrlBlock.io.robio.toCSR.vxsat.valid
-  csrioIn.vcsr.robWb.vxsatW.bits := ctrlBlock.io.robio.toCSR.vxsat.bits
+  csrioIn.vcsr.robWb.vxsat.valid := ctrlBlock.io.robio.toCSR.vxsat.valid
+  csrioIn.vcsr.robWb.vxsat.bits := ctrlBlock.io.robio.toCSR.vxsat.bits
 
   csrioIn.vcsr.vtype <> ctrlBlock.io.vcsrToRename
-  
+  ctrlBlock.io.vcsrToRename.vtypeRead.readEn := RegNext(csrioIn.vcsr.vtype.vtypeRead.readEn, false.B)
+  ctrlBlock.io.vcsrToRename.vlRead.readEn := RegNext(csrioIn.vcsr.vtype.vlRead.readEn, false.B)
+  csrioIn.vcsr.vtype.vtypeRead.data := Pipe(ctrlBlock.io.vcsrToRename.vtypeRead.data, 2)
+  csrioIn.vcsr.vtype.vlRead.data := Pipe(ctrlBlock.io.vcsrToRename.vlRead.data, 2)
   
   ctrlBlock.io.lqCancelCnt := exuBlock.io.lqCancelCnt
   ctrlBlock.io.sqCancelCnt := exuBlock.io.sqCancelCnt
@@ -160,7 +163,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   ctrlBlock.io.memPredUpdate := exuBlock.io.memPredUpdate
   exuBlock.io.debug_int_rat := ctrlBlock.io.debug_int_rat
   exuBlock.io.debug_fp_rat := ctrlBlock.io.debug_fp_rat
-  exuBlock.io.debug_vec_rat := DontCare
+  exuBlock.io.debug_vec_rat := ctrlBlock.io.debug_vec_rat
 
   exuBlock.io.perfEventsPTW  := ptw.getPerf
 
@@ -208,7 +211,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   io.l2_pf_enable := csrioIn.customCtrl.l2_pf_enable
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(Int.MaxValue,s"MBIST_Core")))
+    MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_Core", true)
   } else {
     None
   }
@@ -220,16 +223,15 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   }
 
   val coreMbistIntf = if (outer.coreParams.hasMbist && outer.coreParams.hasShareBus) {
-    val params = mbistPipeline.get.bd.params
-    val node = mbistPipeline.get.node
+    val params = mbistPipeline.get.nodeParams
     val intf = Some(Module(new MBISTInterface(
       params = Seq(params),
-      ids = Seq(node.children.flatMap(_.array_id)),
+      ids = Seq(mbistPipeline.get.childrenIds),
       name = s"MBIST_intf_core",
       pipelineNum = 1
     )))
-    intf.get.toPipeline.head <> mbistPipeline.get.io.mbist.get
-    mbistPipeline.get.genCSV(intf.get.info, "MBIST_Core")
+    intf.get.toPipeline.head <> mbistPipeline.get.mbist
+    if(coreParams.HartId == 0) mbistPipeline.get.genCSV(intf.get.info, "MBIST_Core")
     intf.get.mbist := DontCare
     dontTouch(intf.get.mbist)
     //TODO: add mbist controller connections here

@@ -22,9 +22,10 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils.CircularShift
+import xs.utils.perf.HasPerfLogging
 
 
-class MEFreeList(size: Int)(implicit p: Parameters) extends BaseFreeList(size) with HasPerfEvents {
+class MEFreeList(size: Int)(implicit p: Parameters) extends BaseFreeList(size) with HasPerfEvents  with HasPerfLogging{
   val freeList = RegInit(VecInit(
     // originally {1, 2, ..., size - 1} are free. Register 0-31 are mapped to x0.
     Seq.tabulate(size - 1)(i => (i + 1).U(PhyRegIdxWidth.W)) :+ 0.U(PhyRegIdxWidth.W)))

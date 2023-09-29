@@ -374,7 +374,6 @@ class AllFoldedHistories(val gen: Seq[Tuple2[Int, Int]])(implicit p: Parameters)
 
   def display(cond: Bool) = {
     for (h <- hist) {
-      XSDebug(cond, p"hist len ${h.len}, folded len ${h.compLen}, value ${Binary(h.folded_hist)}\n")
     }
   }
 }
@@ -522,7 +521,6 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
   }
 
   def display(cond: Bool): Unit = {
-    XSDebug(cond, p"[taken_mask] ${Binary(br_taken_mask.asUInt)} [hit] $hit\n")
   }
 }
 
@@ -563,8 +561,6 @@ class BranchPredictionBundle(implicit p: Parameters) extends XSBundle
   def taken = VecInit(cfiIndex.map(_.valid))
 
   def display(cond: Bool): Unit = {
-    XSDebug(cond, p"[pc] ${Hexadecimal(pc(0))}\n")
-    full_pred(0).display(cond)
   }
 }
 
@@ -623,10 +619,6 @@ class BranchPredictionUpdate(implicit p: Parameters) extends XSBundle with HasBP
   def is_ret = ftb_entry.tailSlot.valid && ftb_entry.isRet
 
   def display(cond: Bool) = {
-    XSDebug(cond, p"-----------BranchPredictionUpdate-----------\n")
-    XSDebug(cond, p"[mispred_mask] ${Binary(mispred_mask.asUInt)} [false_hit] $false_hit\n")
-    XSDebug(cond, p"[new_br_insert_pos] ${Binary(new_br_insert_pos.asUInt)}\n")
-    XSDebug(cond, p"--------------------------------------------\n")
   }
 }
 
@@ -649,20 +641,5 @@ class BranchPredictionRedirect(implicit p: Parameters) extends Redirect with Has
   // }
 
   def display(cond: Bool): Unit = {
-    XSDebug(cond, p"-----------BranchPredictionRedirect----------- \n")
-    XSDebug(cond, p"-----------cfiUpdate----------- \n")
-    XSDebug(cond, p"[pc] ${Hexadecimal(cfiUpdate.pc)}\n")
-    // XSDebug(cond, p"[hist] ${Binary(cfiUpdate.hist.predHist)}\n")
-    XSDebug(cond, p"[br_hit] ${cfiUpdate.br_hit} [isMisPred] ${cfiUpdate.isMisPred}\n")
-    XSDebug(cond, p"[pred_taken] ${cfiUpdate.predTaken} [taken] ${cfiUpdate.taken} [isMisPred] ${cfiUpdate.isMisPred}\n")
-    XSDebug(cond, p"[target] ${Hexadecimal(cfiUpdate.target)} \n")
-    XSDebug(cond, p"[shift] ${cfiUpdate.shift}\n")
-    XSDebug(cond, p"------------------------------- \n")
-    XSDebug(cond, p"[robPtr] f=${robIdx.flag} v=${robIdx.value}\n")
-    XSDebug(cond, p"[ftqPtr] f=${ftqIdx.flag} v=${ftqIdx.value} \n")
-    XSDebug(cond, p"[ftqOffset] ${ftqOffset} \n")
-    XSDebug(cond, p"[stFtqIdx] f=${stFtqIdx.flag} v=${stFtqIdx.value}\n")
-    XSDebug(cond, p"[stFtqOffset] ${stFtqOffset}\n")
-    XSDebug(cond, p"---------------------------------------------- \n")
   }
 }

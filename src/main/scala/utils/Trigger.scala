@@ -25,11 +25,3 @@ object ChainCheck {
   def TimingCheck(prevTiming: Bool, thisTiming: Bool, chain: Bool) = !((prevTiming ^ thisTiming) && chain)
   def HitCheck(prevHit: Bool, chain: Bool) = prevHit || !chain
 }
-
-object PrintTriggerInfo {
-  def apply(enable: Bool, trigger: MatchTriggerIO)(implicit p: Parameters) = {
-    XSDebug(enable, p"Debug Mode: Match Type is ${trigger.matchType}; select is ${trigger.select};" +
-      p"timing is ${trigger.timing}; action is ${trigger.action}; chain is ${trigger.chain};" +
-      p"tdata2 is ${Hexadecimal(trigger.tdata2)}")
-  }
-}

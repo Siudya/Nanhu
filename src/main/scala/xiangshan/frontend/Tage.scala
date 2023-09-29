@@ -29,6 +29,7 @@ import scala.math.min
 import scala.util.matching.Regex
 import scala.{Tuple2 => &}
 import os.followLink
+import xs.utils.perf.HasPerfLogging
 
 trait TageParams extends HasBPUConst with HasXSParameter {
   // println(BankTageTableInfos)
@@ -160,7 +161,7 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
     parentName = parentName
   ))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe", true)
   } else {
     None
   }
@@ -242,7 +243,7 @@ class TageTable
 (
   val nRows: Int, val histLen: Int, val tagLen: Int, val tableIdx: Int, parentName:String = "Unknown"
 )(implicit p: Parameters)
-  extends TageModule with HasFoldedHistory {
+  extends TageModule with HasFoldedHistory with HasPerfLogging {
   val io = IO(new Bundle() {
     val req = Flipped(DecoupledIO(new TageReq))
     val resps = Output(Vec(numBr, Valid(new TageResp)))
@@ -328,7 +329,7 @@ class TageTable
     )))
 
   val mbistTablePipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}mbistTablePipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTablePipe")
   } else {
     None
   }

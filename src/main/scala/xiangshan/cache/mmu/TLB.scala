@@ -18,17 +18,18 @@ package xiangshan.cache.mmu
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
-
 import chisel3.util._
 import xiangshan._
 import utils._
 import xiangshan.backend.execute.fu.csr.HasCSRConst
 import xiangshan.backend.execute.fu.fence.SfenceBundle
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
 
 
 
-class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Parameters) extends TlbModule with HasCSRConst with HasPerfEvents {
+class TLB(Width: Int, nRespDups: Int = 1, q: TLBParameters)(implicit p: Parameters) extends TlbModule
+  with HasCSRConst with HasPerfEvents with HasPerfLogging {
   val io = IO(new TlbIO(Width, nRespDups, q))
 
   require(q.superAssociative == "fa")

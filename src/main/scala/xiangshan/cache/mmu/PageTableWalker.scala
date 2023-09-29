@@ -19,11 +19,11 @@ package xiangshan.cache.mmu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-
 import xiangshan._
 import utils._
 import xs.utils._
 import xiangshan.backend.execute.fu.{PMPReqBundle, PMPRespBundle}
+import xs.utils.perf.HasPerfLogging
 
 /** Page Table Walk is divided into two parts
   * One,   PTW: page walk for pde, except for leaf entries, one by one
@@ -66,7 +66,7 @@ class PtwFsmIO()(implicit p: Parameters) extends MMUIOBaseBundle with HasPtwCons
 }
 
 
-class PtwFsm()(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents {
+class PtwFsm()(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents with HasPerfLogging {
   val io = IO(new PtwFsmIO)
 
   val sfence = io.sfence
@@ -255,7 +255,7 @@ class LLPTWEntry(implicit p: Parameters) extends XSBundle with HasPtwConst {
 
 
 
-class LLPTW(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents {
+class LLPTW(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents with HasPerfLogging {
   val io = IO(new LLPTWIO())
 
   val flush = io.sfence.valid || io.csr.satp.changed

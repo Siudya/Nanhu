@@ -323,7 +323,7 @@ class DuplicatedTagArray(readPorts: Int, parentName:String = "Unknown")(implicit
 
   val array = Seq.tabulate(readPorts) { idx => Module(new TagArray(parentName + s"array${idx}_")) }
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
   } else {
     None
   }

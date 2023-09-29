@@ -203,7 +203,7 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
     tagArray
   }
   val mbistTagPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistTagPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTagPipe")
   } else {
     None
   }
@@ -528,7 +528,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
   val prefetchPipe    = Module(new IPrefetchPipe)
   val mbistTagPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${outer.parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${outer.parentName}_mbistPipe")
   } else {
     None
   }
@@ -700,7 +700,7 @@ class ICachePartWayArray[T <: Data](gen: T, pWay: Int, parentName:String = "Unkn
       parentName = parentName + s"bank${bank}_"
     ))
     val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-      Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe${bank}")))
+      MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe${bank}")
     } else {
       None
     }

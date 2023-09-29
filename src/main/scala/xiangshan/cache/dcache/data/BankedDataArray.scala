@@ -20,8 +20,8 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import xs.utils.mbist.MBISTPipeline
-import utils.{XSDebug, XSPerfAccumulate}
 import xiangshan.backend.rob.RobPtr
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 class L1BankedDataReadReq(implicit p: Parameters) extends DCacheBundle
@@ -76,7 +76,7 @@ class DataSRAMBankWriteReq(implicit p: Parameters) extends DCacheBundle {
 // | Way1  | Way1  | Way1  | Way1  | Way1  | Way1  | Way1  | Way1  |
 // | ....  | ....  | ....  | ....  | ....  | ....  | ....  | ....  |
 // -----------------------------------------------------------------
-abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheModule
+abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheModule with HasPerfLogging
 {
   val ReadlinePortErrorIndex = LoadPipelineWidth
   val io = IO(new DCacheBundle {
@@ -195,7 +195,7 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
       ))
     }
     val mbistPipeline = if (coreParams.hasMbist && coreParams.hasShareBus) {
-      Some(Module(new MBISTPipeline(1, s"${parentName}_mbistPipe")))
+      MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
     } else {
       None
     }

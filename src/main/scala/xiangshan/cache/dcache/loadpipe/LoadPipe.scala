@@ -20,10 +20,11 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.ClientMetadata
-import utils.{HasPerfEvents, XSDebug, XSPerfAccumulate}
+import utils.HasPerfEvents
 import xiangshan.L1CacheErrorInfo
+import xs.utils.perf.HasPerfLogging
 
-class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPerfEvents {
+class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPerfEvents with HasPerfLogging {
   val io = IO(new DCacheBundle {
     // incoming requests
     val lsu = Flipped(new DCacheLoadIO)
@@ -292,10 +293,6 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
   io.lsu.resp.bits := resp.bits
   assert(RegNext(!(resp.valid && !io.lsu.resp.ready)), "lsu should be ready in s2")
 
-  when (resp.valid) {
-    resp.bits.dump()
-  }
-
   io.lsu.debug_s1_hit_way := s1_tag_match_way_dup_dc
   io.lsu.s1_disable_fast_wakeup := io.disable_ld_fast_wakeup
   io.lsu.s1_bank_conflict := io.bank_conflict_fast
@@ -357,7 +354,6 @@ class LoadPipe(id: Int)(implicit p: Parameters) extends DCacheModule with HasPer
     req: DCacheWordReq ) = {
       when (valid) {
         XSDebug(s"$pipeline_stage_name: ")
-        req.dump()
       }
   }
 

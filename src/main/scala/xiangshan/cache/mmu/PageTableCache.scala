@@ -19,12 +19,12 @@ package xiangshan.cache.mmu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-
 import xs.utils.mbist.MBISTPipeline
 import xiangshan._
 import utils._
 import xiangshan.backend.execute.fu.fence.SfenceBundle
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 /* ptw cache caches the page table of all the three layers
@@ -107,7 +107,7 @@ class PtwCacheIO()(implicit p: Parameters) extends MMUIOBaseBundle with HasPtwCo
 }
 
 
-class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents {
+class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfEvents with HasPerfLogging {
   val io = IO(new PtwCacheIO)
 
   val ecc = Code.fromString(l2tlbParams.ecc)
@@ -162,7 +162,7 @@ class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XS
     parentName = parentName + "l2_"
   ))
   val mbistL2Pipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistL2Pipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistL2Pipe")
   } else {
     None
   }
@@ -194,7 +194,7 @@ class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XS
     parentName = parentName + "l3_"
   ))
   val mbistL3Pipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistL3Pipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistL3Pipe")
   } else {
     None
   }

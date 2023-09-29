@@ -27,10 +27,11 @@ import xiangshan.backend.execute.fu.FuConfigs.staCfg
 import xiangshan.backend.execute.fu.PMPRespBundle
 import xiangshan.backend.issue.{RSFeedback, RSFeedbackType, RsIdx}
 import xiangshan.cache.mmu.{TlbCmd, TlbReq, TlbRequestIO, TlbResp}
+import xs.utils.perf.HasPerfLogging
 
 // Store Pipeline Stage 0
 // Generate addr, use addr to query DCache and DTLB
-class StoreUnit_S0(implicit p: Parameters) extends XSModule {
+class StoreUnit_S0(implicit p: Parameters) extends XSModule with HasPerfLogging {
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new ExuInput))
     val rsIdx = Input(new RsIdx)
@@ -92,7 +93,7 @@ class StoreUnit_S0(implicit p: Parameters) extends XSModule {
 
 // Store Pipeline Stage 1
 // TLB resp (send paddr to dcache)
-class StoreUnit_S1(implicit p: Parameters) extends XSModule {
+class StoreUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging {
   val io = IO(new Bundle() {
     val in = Flipped(Decoupled(new LsPipelineBundle))
     val out = Decoupled(new LsPipelineBundle)
@@ -205,7 +206,7 @@ class StoreUnit_S3(implicit p: Parameters) extends XSModule {
 
 }
 
-class StoreUnit(implicit p: Parameters) extends XSModule {
+class StoreUnit(implicit p: Parameters) extends XSModule with HasPerfLogging {
   val io = IO(new Bundle() {
     val stin = Flipped(Decoupled(new ExuInput))
     val redirect = Flipped(ValidIO(new Redirect))

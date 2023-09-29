@@ -26,6 +26,7 @@ import freechips.rocketchip.tilelink.{ClientMetadata, ClientStates, TLPermission
 import utils._
 import xs.utils._
 import xiangshan.L1CacheErrorInfo
+import xs.utils.perf.HasPerfLogging
 
 class MainPipeReq(implicit p: Parameters) extends DCacheBundle {
   val miss = Bool() // only amo miss will refill in main pipe
@@ -96,7 +97,7 @@ class MainPipeStatus(implicit p: Parameters) extends DCacheBundle {
   val way_en = UInt(nWays.W)
 }
 
-class MainPipe(implicit p: Parameters) extends DCacheModule with HasPerfEvents {
+class MainPipe(implicit p: Parameters) extends DCacheModule with HasPerfEvents with HasPerfLogging {
   val io = IO(new Bundle() {
     // probe queue
     val probe_req = Flipped(DecoupledIO(new MainPipeReq))

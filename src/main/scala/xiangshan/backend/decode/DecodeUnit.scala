@@ -20,6 +20,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import xs.utils.{LookupTree, SignExt, ZeroExt}
+import xs.utils.perf.HasPerfLogging
 import freechips.rocketchip.util.uintToBitPat
 import utils._
 import xiangshan.ExceptionNO.illegalInstr
@@ -661,43 +662,43 @@ object VectorArithDecode extends VIDecodeConstants {
 object VectorLoadDecode extends VIDecodeConstants {
   val table: Array[(BitPat, List[BitPat])] = Array(
 
-    VL1RE16_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL1RE32_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL1RE64_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL1RE8_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL2RE16_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL2RE32_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL2RE64_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL2RE8_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL4RE16_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL4RE32_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL4RE64_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL4RE8_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL8RE16_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL8RE32_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL8RE64_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VL8RE8_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE16_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE16FF_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE32_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE32FF_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE64_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE64FF_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE8_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLE8FF_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLM_V ->List(SrcType.imm,  SrcType.fp, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
-    VLOXEI16_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLOXEI32_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLOXEI64_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLOXEI8_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLSE16_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLSE32_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLSE64_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLSE8_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLUXEI16_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLUXEI32_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLUXEI64_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
-    VLUXEI8_V ->List(SrcType.fp,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VL1RE16_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL1RE32_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL1RE64_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL1RE8_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL2RE16_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL2RE32_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL2RE64_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL2RE8_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL4RE16_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL4RE32_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL4RE64_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL4RE8_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL8RE16_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL8RE32_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL8RE64_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VL8RE8_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE16_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE16FF_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE32_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE32FF_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE64_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE64FF_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE8_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLE8FF_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLM_V ->List(SrcType.reg,  SrcType.imm, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.IMM_VL),
+    VLOXEI16_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLOXEI32_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLOXEI64_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLOXEI8_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLSE16_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLSE32_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLSE64_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLSE8_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLUXEI16_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLUXEI32_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLUXEI64_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
+    VLUXEI8_V ->List(SrcType.reg,  SrcType.vec, SrcType.DC, FuType.ldu, FuOpType.X, N, N, Y, N, Widen.NotWiden, Narrow.NotNarrow, SelImm.X),
 
   )
 }
@@ -1047,7 +1048,7 @@ class DecodeUnitIO(implicit p: Parameters) extends XSBundle {
 /**
  * Decode unit that takes in a single CtrlFlow and generates a CfCtrl.
  */
-class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstants {
+class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstants with HasPerfLogging{
   val io = IO(new DecodeUnitIO)
 
   val ctrl_flow = Wire(new CtrlFlow) // input with RVC Expanded
@@ -1109,7 +1110,7 @@ class DecodeUnit(implicit p: Parameters) extends XSModule with DecodeUnitConstan
   // read src1~3 location
   cs.lsrc(0) := ctrl_flow.instr(RS1_MSB, RS1_LSB)
   cs.lsrc(1) := ctrl_flow.instr(RS2_MSB, RS2_LSB)
-  cs.lsrc(2) := ctrl_flow.instr(RS3_MSB, RS3_LSB)
+  cs.lsrc(2) := Mux(isVector, ctrl_flow.instr(RD_MSB, RD_LSB), ctrl_flow.instr(RS3_MSB, RS3_LSB))
   // read dest location
   cs.ldest := ctrl_flow.instr(RD_MSB, RD_LSB)
 

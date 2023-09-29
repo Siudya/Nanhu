@@ -25,10 +25,10 @@ import chisel3.util._
 import xiangshan.{FuType, HasXSParameter, MicroOp, Redirect, SrcState, SrcType, XSCoreParamsKey}
 import xiangshan.backend.execute.exu.ExuType
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
-import utils.XSPerfHistogram
 import xiangshan.backend.issue._
 import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
+import xs.utils.perf.HasPerfLogging
 
 class IntegerReservationStation(implicit p: Parameters) extends LazyModule with HasXSParameter{
   private val entryNum = p(XSCoreParamsKey).intRsDepth
@@ -42,7 +42,8 @@ class IntegerReservationStation(implicit p: Parameters) extends LazyModule with 
   lazy val module = new IntegerReservationStationImpl(this, rsParam)
 }
 
-class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsParam) extends LazyModuleImp(outer) with HasXSParameter {
+class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsParam) extends LazyModuleImp(outer)
+  with HasPerfLogging with HasXSParameter {
   require(param.bankNum == 4)
   require(param.entriesNum % param.bankNum == 0)
   private val issue = outer.issueNode.out.head._1 zip outer.issueNode.out.head._2._2

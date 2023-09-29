@@ -41,43 +41,43 @@ import xiangshan.vector._
 import freechips.rocketchip.diplomacy._
 
 class WbMergeBufferWrapper(implicit p: Parameters) extends LazyModule with HasXSParameter with HasVectorParameters {
-    val wbNodeParam = WriteBackSinkParam(name = "MergeBuffer", sinkType = WriteBackSinkType.vecMs)
-    val writebackNode = new WriteBackSinkNode(wbNodeParam)
-    lazy val module = new WbMergeBufferWrapperImp(this)
+  val wbNodeParam = WriteBackSinkParam(name = "MergeBuffer", sinkType = WriteBackSinkType.vecMs)
+  val writebackNode = new WriteBackSinkNode(wbNodeParam)
+  lazy val module = new WbMergeBufferWrapperImp(this)
 }
 
 class WbMergeBufferWrapperImp(outer:WbMergeBufferWrapper)(implicit p: Parameters) extends LazyModuleImp(outer) with HasVectorParameters {
-    val writebackIn = outer.writebackNode.in.head._2._1 zip outer.writebackNode.in.head._1
-    val vectorWbNodes = writebackIn
-    val vectorWbNodeNum = vectorWbNodes.length
+  val writebackIn = outer.writebackNode.in.head._2._1 zip outer.writebackNode.in.head._1
+  val vectorWbNodes = writebackIn
+  val vectorWbNodeNum = vectorWbNodes.length
 
-    println(s"wbMergePortsNum: $vectorWbNodeNum")
-    for(wb <- vectorWbNodes) {
-        val name: String = wb._1.name
-        val id = wb._1.id
-        println(s"wbMergeNodes: $name, id: $id")
-    }
-    
-    val io = IO(new Bundle {
-        val allocate = Vec(VectorMergeAllocateWidth, DecoupledIO(new WbMergeBufferPtr(VectorMergeBufferDepth)))
-        val redirect = Flipped(Valid(new Redirect))
-        val rob = Vec(VectorMergeWbWidth, ValidIO(new ExuOutput))
-    })
+  println(s"wbMergePortsNum: $vectorWbNodeNum")
+  for(wb <- vectorWbNodes) {
+    val name: String = wb._1.name
+    val id = wb._1.id
+    println(s"wbMergeNodes: $name, id: $id")
+  }
+  
+  val io = IO(new Bundle {
+    val allocate = Vec(VectorMergeAllocateWidth, DecoupledIO(new WbMergeBufferPtr(VectorMergeBufferDepth)))
+    val redirect = Flipped(Valid(new Redirect))
+    val rob = Vec(VectorMergeWbWidth, ValidIO(new ExuOutput))
+  })
 
-    //io.allocate <> outer.module.io.allocate
+  //io.allocate <> outer.module.io.allocate
 
 
-    val bufferImp = Module(new WbMergeBuffer(VectorMergeBufferDepth, VectorMergeAllocateWidth, vectorWbNodeNum, VectorMergeWbWidth))
+  val bufferImp = Module(new WbMergeBuffer(VectorMergeBufferDepth, VectorMergeAllocateWidth, vectorWbNodeNum, VectorMergeWbWidth))
 
-    //write back from VectorExu, use Diplomacy
-    val vectorWriteBack = vectorWbNodes.map(_._2)
-    for((wb, i) <- vectorWriteBack.zipWithIndex) {
-        bufferImp.io.exu(i).valid := wb.valid
-        bufferImp.io.exu(i).bits := wb.bits
-    }
+  //write back from VectorExu, use Diplomacy
+  val vectorWriteBack = vectorWbNodes.map(_._2)
+  for((wb, i) <- vectorWriteBack.zipWithIndex) {
+    bufferImp.io.exu(i).valid := wb.valid
+    bufferImp.io.exu(i).bits := wb.bits
+  }
 
-    io.allocate <> bufferImp.io.waitqueue
+  io.allocate <> bufferImp.io.waitqueue
 
-    bufferImp.io.redirect <> io.redirect
-    io.rob <> bufferImp.io.rob
+  bufferImp.io.redirect <> io.redirect
+  io.rob <> bufferImp.io.rob
 }

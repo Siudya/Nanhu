@@ -21,6 +21,7 @@ import chisel3._
 import chisel3.util._
 import utils._
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
 
 import scala.math.min
 
@@ -103,7 +104,7 @@ class TLBFA(
   saveLevel: Boolean = false,
   normalPage: Boolean,
   superPage: Boolean
-)(implicit p: Parameters) extends TlbModule with HasPerfEvents {
+)(implicit p: Parameters) extends TlbModule with HasPerfEvents with HasPerfLogging {
   require(!(sameCycle && saveLevel))
 
   val io = IO(new TlbStorageIO(nSets, nWays, ports))
@@ -241,7 +242,7 @@ class TLBSA(
   nWays: Int,
   normalPage: Boolean,
   superPage: Boolean
-)(implicit p: Parameters) extends TlbModule {
+)(implicit p: Parameters) extends TlbModule with HasPerfLogging {
   require(!superPage, "super page should use reg/fa")
   require(!sameCycle, "syncDataModule needs next cycle")
   require(nWays == 1, "nWays larger than 1 causes bad timing")

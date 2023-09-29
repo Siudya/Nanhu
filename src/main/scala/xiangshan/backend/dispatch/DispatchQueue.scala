@@ -22,14 +22,16 @@ package xiangshan.backend.dispatch
 import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
-import utils.{HasPerfEvents, XSPerfHistogram}
+import utils.HasPerfEvents
 import xiangshan._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.{CircularQueuePtr, HasCircularQueuePtrHelper, ParallelPriorityEncoder, ParallelPriorityMux, UIntToMask}
 
-class DispatchQueueIO(enqNum: Int, deqNum: Int)(implicit p: Parameters) extends XSBundle {
+class DispatchQueueIO(enqNum: Int, deqNum: Int)(implicit p: Parameters) extends XSBundle{
   val enq = new Bundle {
     // output: dispatch queue can accept new requests
     val canAccept = Output(Bool())
+    val canAccept_dup = Vec(RenameWidth - 1,Output(Bool()))
     // input: need to allocate new entries (for address computing)
     val needAlloc = Vec(enqNum, Input(Bool()))
     // input: actually do the allocation (for write enable)
@@ -74,7 +76,7 @@ class DispatchQueuePayload(entryNum:Int, enqNum:Int, deqNum:Int)(implicit p: Par
   io.flushVec := Cat(redirectHits.reverse)
 }
 
-class DeqDriver(deqNum:Int)(implicit p: Parameters)extends XSModule {
+class DeqDriver(deqNum:Int)(implicit p: Parameters)extends XSModule{
   val io = IO(new Bundle{
     val in = Input(Vec(deqNum, Valid(new MicroOp())))
     val deq = Vec(deqNum, Decoupled(new MicroOp()))
@@ -112,19 +114,29 @@ class DeqDriver(deqNum:Int)(implicit p: Parameters)extends XSModule {
 }
 
 class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters)
-  extends XSModule with HasCircularQueuePtrHelper with HasPerfEvents {
+  extends XSModule with HasCircularQueuePtrHelper with HasPerfEvents with HasPerfLogging{
   val io: DispatchQueueIO = IO(new DispatchQueueIO(enqNum, deqNum))
 
   private class DispatchQueuePtr extends CircularQueuePtr[DispatchQueuePtr](size)
 
-  private val payloadArray = Module(new DispatchQueuePayload(size, enqNum, 2 * deqNum))
+    private val payloadArray = Module(new DispatchQueuePayload(size, enqNum, 2 * deqNum))
   private val deqDriver = Module(new DeqDriver(deqNum))
   private val enqPtr = RegInit(0.U.asTypeOf(new DispatchQueuePtr)) //Fanout to enq logics and payloads
   private val enqPtrAux = RegInit(0.U.asTypeOf(new DispatchQueuePtr)) //Fanout to other logics
+  private val enqPtrIntDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
+  private val enqPtrFpDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
+  private val enqPtrLsDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
   private val deqPtrVec = Seq.tabulate(deqNum)(i => RegInit(i.U.asTypeOf(new DispatchQueuePtr)))
   private val deqPtrVecNext = deqPtrVec.map(WireInit(_))
   private val deqPtr = deqPtrVec.head
+  private val deqPtrIntDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
+  private val deqPtrFpDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
+  private val deqPtrLsDq = RegInit(0.U.asTypeOf(new DispatchQueuePtr))
+  //TODO: ADD THE NUMBER OF PTR AND ACCEPT PORT TO DECREASE FANOUT
   private val validEntriesNum = distanceBetween(enqPtr, deqPtr)
+  private val validEntriesNumToIntDq = distanceBetween(enqPtrIntDq, deqPtr)
+  private val validEntriesNumToFpDq = distanceBetween(enqPtrFpDq, deqPtr)
+  private val validEntriesNumToLsDq = distanceBetween(enqPtrLsDq, deqPtr)
   private val emptyEntriesNum = size.U - validEntriesNum
   io.dqFull := deqPtr.value === enqPtrAux.value && deqPtr.flag =/= enqPtrAux.flag
 
@@ -138,7 +150,9 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   private val flushNum = PopCount(redirectMask)
 
   io.enq.canAccept := ((size - enqNum).U >= validEntriesNum) && !io.redirect.valid
-
+  io.enq.canAccept_dup(0) := ((size - enqNum).U >= validEntriesNumToIntDq) && !io.redirect.valid
+  io.enq.canAccept_dup(1) := ((size - enqNum).U >= validEntriesNumToFpDq) && !io.redirect.valid
+  io.enq.canAccept_dup(2) := ((size - enqNum).U >= validEntriesNumToLsDq) && !io.redirect.valid
   private val enqAddrDelta = Wire(Vec(enqNum, UInt(log2Ceil(enqNum).W)))
   for((e,i) <- enqAddrDelta.zipWithIndex){
     if(i == 0) {
@@ -157,9 +171,15 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
   when(io.redirect.valid){
     enqPtr := enqPtr - flushNum
     enqPtrAux := enqPtr - flushNum
+    enqPtrIntDq := enqPtr - flushNum
+    enqPtrFpDq := enqPtr - flushNum
+    enqPtrLsDq := enqPtr - flushNum
   }.elsewhen(actualEnqNum =/= 0.U){
     enqPtr := enqPtr + actualEnqNum
     enqPtrAux := enqPtr + actualEnqNum
+    enqPtrIntDq := enqPtr + actualEnqNum
+    enqPtrFpDq := enqPtr + actualEnqNum
+    enqPtrLsDq := enqPtr + actualEnqNum
   }
 
 
@@ -183,6 +203,9 @@ class DispatchQueue (size: Int, enqNum: Int, deqNum: Int)(implicit p: Parameters
     dn := d + deqDriver.io.deqPtrMoveVal
     when(deqDriver.io.deqPtrUpdate){
       d := dn
+      deqPtrIntDq := dn
+      deqPtrFpDq := dn
+      deqPtrLsDq := dn
     }
   })
   io.deq.zip(deqDriver.io.deq).foreach({case(a,b) => a <> b})

@@ -24,6 +24,7 @@ import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp, Trans
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleA, TLBundleD, TLClientNode, TLEdgeOut, TLMasterParameters, TLMasterPortParameters}
 import xiangshan._
 import xiangshan.frontend._
+import xs.utils.perf.HasPerfLogging
 
 class InsUncacheReq(implicit p: Parameters) extends ICacheBundle
 {
@@ -156,6 +157,7 @@ class InstrUncacheImp(outer: InstrUncache)
   extends LazyModuleImp(outer)
     with HasICacheParameters
     with HasTLDump
+    with HasPerfLogging
 {
   val io = IO(new InstrUncacheIO)
 

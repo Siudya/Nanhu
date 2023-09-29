@@ -110,15 +110,17 @@ class MemoryReservationBank(entryNum:Int, stuNum:Int, wakeupWidth:Int, regWkpIdx
       //STDState handles STORE,CBO.ZERO
       enqEntry.stdState := Mux(in.ctrl.fuType === FuType.stu && !isCbo, s_ready, s_issued)
     }.otherwise{
-      val agnostic = (in.vCsrInfo.vta(0) && in.isTail) || (in.vCsrInfo.vma(0) && in.ctrl.vm)
+      val tailAgnostic = (in.vCsrInfo.vta(0) && in.isTail)
+      val inactiveAgnostic = (in.vCsrInfo.vma(0) && in.ctrl.vm)
+      val src2NeedWakeup = !(tailAgnostic || inactiveAgnostic)
       enqEntry.psrc(1) := in.psrc(1)
       enqEntry.psrc(2) := in.psrc(2)
       enqEntry.vm := in.vm
       enqEntry.srcType(1) := in.ctrl.srcType(1)
-      enqEntry.srcType(2) := Mux(agnostic, SrcType.default, SrcType.vec)
+      enqEntry.srcType(2) := Mux(src2NeedWakeup, SrcType.vec, SrcType.default)
       enqEntry.srcState(1) := Mux(SrcType.needWakeup(in.ctrl.srcType(1)), in.srcState(1), SrcState.rdy)
-      enqEntry.srcState(2) := Mux(agnostic, SrcState.rdy, in.srcState(2))
-      enqEntry.vmState := Mux(in.ctrl.vm, in.vmState, SrcState.rdy)
+      enqEntry.srcState(2) := Mux(src2NeedWakeup, in.srcState(2), SrcState.rdy)
+      enqEntry.vmState := Mux(in.ctrl.vm && in.vCsrInfo.vma(0), in.vmState, SrcState.rdy)
       enqEntry.staLoadState := s_ready
       enqEntry.stdState := Mux(FuType.isStore(in.ctrl.fuType), s_ready, s_issued)
     }

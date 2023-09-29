@@ -4,6 +4,7 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.experimental.prefix
 import chisel3.util._
+import difftest._
 import freechips.rocketchip.diplomacy.{AdapterNode, LazyModule, LazyModuleImp, ValName}
 import xiangshan.backend.execute.exu.{ExuConfig, ExuOutputNode, ExuOutwardImpl, ExuType}
 import xiangshan.backend.execute.fu.FuConfigs
@@ -202,6 +203,20 @@ class VRegfileTop(extraVectorRfReadPort: Int)(implicit p:Parameters) extends Laz
 
       scalarReadPortIdx = scalarReadPortIdx + 1
       vecReadPortIdx = vecReadPortIdx + 4
+    }
+
+    if (env.EnableDifftest || env.AlwaysBasicDiff) {
+      val difftestArchVec = DifftestModule(new DiffArchVecRegState, delay = 2)
+      difftestArchVec.clock := clock
+      difftestArchVec.coreid := io.hartId
+
+      vrf.io.debug.get.zipWithIndex.foreach {
+        case (rp, i) => {
+          rp.addr := io.debug_vec_rat(i)
+          difftestArchVec.value(i*2) := rp.data(VLEN/2-1, 0)
+          difftestArchVec.value(i*2+1) := rp.data(VLEN-1, VLEN/2)
+        }
+      }
     }
   }
 }

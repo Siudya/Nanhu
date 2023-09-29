@@ -19,8 +19,8 @@ package xiangshan.cache
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import utils.XSDebug
 import xiangshan.L1CacheErrorInfo
+import xs.utils.perf.HasPerfLogging
 
 class L1DataReadReq(implicit p: Parameters) extends DCacheBundle {
   // you can choose which bank to read to save power
@@ -35,7 +35,7 @@ class L1DataWriteReq(implicit p: Parameters) extends L1DataReadReq {
   val data = Vec(blockRows, Bits(rowBits.W))
 }
 
-abstract class AbstractDataArray(implicit p: Parameters) extends DCacheModule {
+abstract class AbstractDataArray(implicit p: Parameters) extends DCacheModule with HasPerfLogging {
   val io = IO(new DCacheBundle {
     val read = Vec(3, Flipped(DecoupledIO(new L1DataReadReq)))
     val write = Flipped(DecoupledIO(new L1DataWriteReq))

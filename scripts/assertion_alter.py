@@ -26,42 +26,33 @@ def alter_print_info(file_queue):
     line = file_queue.get()
     is_single_line = match(line, rex_assert_begin) and match(line, rex_assert_end)
     is_begin = match(line, rex_assert_begin)
-    if(is_single_line):
-      if(match(line, rex_assert_body)):
-        res_queue.put(gen_spaces(line) + "begin\n")
+    if(is_begin):
+      res_queue.put(gen_spaces(line) + "begin\n")
+      if(is_single_line):
         res_queue.put(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
-        line = line.replace("Assertion failed", "").replace("$error(", "$fwrite(32'h80000002, ")
+        line = line.replace("Assertion failed:", "").replace("$error(", "$fwrite(32'h80000002, ")
         res_queue.put(line)
         res_queue.put(gen_spaces(line) + "end\n")
       else:
-        res_queue.put(line)
-
-    elif(is_begin):
-      is_assert = False
-      res_queue.put(gen_spaces(line) + "begin\n")
-      if(match(line, rex_assert_body)):
-        line = line.replace("Assertion failed", "")
-        is_assert = True
-
-      assertion_queue.put(line)
-      while(True):
-        line = file_queue.get()
         if(match(line, rex_assert_body)):
-          is_assert = True
-          line = line.replace("Assertion failed", "").replace("$error(", "$fwrite(32'h80000002, ")
-
+          line = line.replace("$error(", "$fwrite(32'h80000002, ").replace("Assertion failed:", "")
+        else:
+          line = line.replace("$error(", "$fwrite(32'h80000002, ")
         assertion_queue.put(line)
-        if(match(line, rex_assert_end)):
-          if(is_assert):
+        while(True):
+          line = file_queue.get()
+          if(match(line, rex_assert_body)):
+            line = line.replace("Assertion failed:", "")
+          assertion_queue.put(line)
+          if(match(line, rex_assert_end)):
             ol = assertion_queue.get()
             res_queue.put(gen_prefix(ol) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
             res_queue.put(ol)
 
-          while(not assertion_queue.empty()):
-            res_queue.put(assertion_queue.get())
-          res_queue.put(gen_spaces(line) + "end\n")
-          break
-
+            while(not assertion_queue.empty()):
+              res_queue.put(assertion_queue.get())
+            res_queue.put(gen_spaces(line) + "end\n")
+            break
     else:
       res_queue.put(line)
 

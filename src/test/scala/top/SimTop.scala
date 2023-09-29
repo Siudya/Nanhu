@@ -21,11 +21,10 @@ import chisel3.stage.ChiselGeneratorAnnotation
 import chisel3._
 import device.{AXI4RAMWrapper, SimJTAG}
 import freechips.rocketchip.diplomacy.{DisableMonitors, LazyModule}
-import xs.utils.GTimer
-import xiangshan.DebugOptionsKey
+import xs.utils.{FileRegisters, GTimer}
 import difftest._
 import circt.stage.FirtoolOption
-import xs.utils.FileRegisters
+import xs.utils.perf.DebugOptionsKey
 
 class SimTop(implicit p: Parameters) extends Module {
   val debugOpts = p(DebugOptionsKey)
@@ -85,32 +84,26 @@ class SimTop(implicit p: Parameters) extends Module {
     io.memAXI <> soc.memory
   }
 
-  if (!debugOpts.FPGAPlatform && (debugOpts.EnableDebug || debugOpts.EnablePerfDebug)) {
-    val timer = GTimer()
-    val logEnable = Wire(Bool())
-    logEnable := (timer >= io.logCtrl.log_begin) && (timer < io.logCtrl.log_end)
-    ExcitingUtils.addSource(logEnable, "DISPLAY_LOG_ENABLE")
-    ExcitingUtils.addSource(timer, "logTimestamp")
-  }
-
   if (!debugOpts.FPGAPlatform && debugOpts.EnablePerfDebug) {
+    val timer = Wire(UInt(64.W))
+    val logEnable = Wire(Bool())
     val clean = Wire(Bool())
     val dump = Wire(Bool())
+    timer := GTimer()
+    logEnable := (timer >= io.logCtrl.log_begin) && (timer < io.logCtrl.log_end)
     clean := io.perfInfo.clean
     dump := io.perfInfo.dump
-    ExcitingUtils.addSource(clean, "XSPERF_CLEAN")
-    ExcitingUtils.addSource(dump, "XSPERF_DUMP")
+    dontTouch(timer)
+    dontTouch(logEnable)
+    dontTouch(clean)
+    dontTouch(dump)
   }
-
-  // Check and dispaly all source and sink connections
-  ExcitingUtils.fixConnections()
-  ExcitingUtils.checkAndDisplay()
 }
 
 object SimTop extends App {
   // Keep this the same as TopMain except that SimTop is used here instead of XSTop
   val (config, firrtlOpts) = ArgParser.parse(args)
-  xsphase.PrefixingHelper.prefix = config(PrefixKey)
+  xsphase.PrefixHelper.prefix = config(PrefixKey)
   (new XiangShanStage).execute(firrtlOpts, Seq(
     FirtoolOption("-O=release"),
     FirtoolOption("--disable-all-randomization"),

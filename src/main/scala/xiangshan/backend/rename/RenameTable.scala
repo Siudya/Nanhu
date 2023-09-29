@@ -19,9 +19,9 @@ package xiangshan.backend.rename
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import utils.XSError
 import xiangshan._
 import xs.utils.ParallelPriorityMux
+import xs.utils.perf.HasPerfLogging
 
 class RatReadPort(implicit p: Parameters) extends XSBundle {
   val hold = Input(Bool())
@@ -35,7 +35,7 @@ class RatWritePort(implicit p: Parameters) extends XSBundle {
   val data = UInt(PhyRegIdxWidth.W)
 }
 
-class RenameTable(float: Boolean)(implicit p: Parameters) extends XSModule {
+class RenameTable(float: Boolean)(implicit p: Parameters) extends XSModule{
   val io = IO(new Bundle {
     val readPorts = Vec({if(float) 4 else 3} * RenameWidth, new RatReadPort)
     val specWritePorts = Vec(CommitWidth, Input(new RatWritePort))
@@ -92,7 +92,7 @@ class RenameTable(float: Boolean)(implicit p: Parameters) extends XSModule {
   io.debug_rdata := arch_table
 }
 
-class RenameTableWrapper(implicit p: Parameters) extends XSModule {
+class RenameTableWrapper(implicit p: Parameters) extends XSModule with HasPerfLogging{
   val io = IO(new Bundle() {
     val robCommits = Flipped(new RobCommitIO)
     val intReadPorts = Vec(RenameWidth, Vec(3, new RatReadPort))

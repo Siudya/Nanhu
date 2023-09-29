@@ -19,12 +19,12 @@ package xiangshan.mem
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import utils.{XSDebug, XSInfo}
 import xiangshan._
 import xiangshan.cache.{DCacheLineIO, DCacheWordReq, MemoryOpConstants}
+import xs.utils.perf.HasPerfLogging
 
 // Fake Store buffer for XiangShan Out of Order LSU
-class FakeSbuffer(implicit p: Parameters) extends XSModule {
+class FakeSbuffer(implicit p: Parameters) extends XSModule with HasPerfLogging {
   val io = IO(new Bundle() {
     val in = Vec(StorePipelineWidth, Flipped(Decoupled(new DCacheWordReq)))
     val dcache = new DCacheLineIO

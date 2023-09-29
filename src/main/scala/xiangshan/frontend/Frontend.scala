@@ -19,7 +19,6 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
-import xs.utils.mbist.MBISTPipeline
 import utils._
 import xs.utils._
 import xiangshan._
@@ -28,6 +27,7 @@ import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle}
 import xiangshan.cache.mmu._
 import xiangshan.frontend.icache._
+import xs.utils.perf.HasPerfLogging
 
 
 class Frontend(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasXSParameter{
@@ -42,6 +42,7 @@ class Frontend(val parentName:String = "Unknown")(implicit p: Parameters) extend
 class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   with HasXSParameter
   with HasPerfEvents
+  with HasPerfLogging
 {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))

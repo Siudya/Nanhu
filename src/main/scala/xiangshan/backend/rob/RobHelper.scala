@@ -4,7 +4,6 @@ import chisel3._
 import chisel3.util._
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
-
 import difftest._
 import utils._
 import xs.utils._
@@ -13,6 +12,7 @@ import xiangshan.frontend.FtqPtr
 import xiangshan.backend.execute.exu.{ExuConfig, ExuType}
 import xiangshan.backend.writeback._
 import xiangshan.vector._
+import xs.utils.perf.HasPerfLogging
 
 /*  Commit Helper
 *--------------------------------------------------------------------
@@ -20,7 +20,7 @@ import xiangshan.vector._
 *--------------------------------------------------------------------
 */
 
-class RobCommitHelper(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper {
+class RobCommitHelper(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper with HasPerfLogging {
   val io = IO(new Bundle {
     // for commits/flush
     val state = Input(UInt(2.W))

@@ -20,7 +20,6 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.experimental.ExtModule
 import chisel3.util._
-
 import xiangshan._
 import xiangshan.cache.{HasDCacheParameters, MemoryOpConstants}
 import utils._
@@ -32,6 +31,7 @@ import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle, PMPRespBundl
 import xiangshan.backend.execute.fu.csr.HasCSRConst
 import xs.utils.{DataHoldBypass, DelayN, TimeOutAssert}
 import difftest._
+import xs.utils.perf.HasPerfLogging
 
 class PTW(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasPtwConst {
 
@@ -39,15 +39,14 @@ class PTW(val parentName:String = "Unknown")(implicit p: Parameters) extends Laz
     clients = Seq(TLMasterParameters.v1(
       "ptw",
       sourceId = IdRange(0, MemReqWidth)
-    )),
-    requestFields = Seq(PreferCacheField())
+    ))
   )))
 
   lazy val module = new PTWImp(this)
 }
 
 
-class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with HasCSRConst with HasPerfEvents {
+class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with HasCSRConst with HasPerfEvents with HasPerfLogging {
 
   val (mem, edge) = outer.node.out.head
 
@@ -95,7 +94,7 @@ class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with H
   val missQueue = Module(new L2TlbMissQueue)
   val cache = Module(new PtwCache(parentName = outer.parentName + "cache_"))
   val mbistPipeline0 = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${outer.parentName}_mbistPipe0")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${outer.parentName}_mbistPipe")
   } else {
     None
   }
@@ -250,6 +249,7 @@ class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with H
   )._2
   mem.a.bits := memRead
   mem.a.valid := mem_arb.io.out.valid && !flush
+  mem.a.bits.user := DontCare
   mem.a.bits.user.lift(PreferCacheKey).foreach(_ := RegNext(io.csr.prefercache, true.B))
   mem.d.ready := true.B
   // mem -> data buffer

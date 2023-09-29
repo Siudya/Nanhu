@@ -20,9 +20,9 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.{ClientMetadata, TLClientParameters, TLEdgeOut}
-import utils.XSDebug
 import xs.utils.sram.SRAMTemplate
 import xiangshan.L1CacheErrorInfo
+import xs.utils.perf.HasPerfLogging
 
 // basic building blocks for L1 DCache
 class L1Metadata(implicit p: Parameters) extends DCacheBundle {
@@ -50,7 +50,7 @@ class L1MetaWriteReq(implicit p: Parameters) extends L1MetaReadReq {
 }
 
 
-class L1MetadataArray(onReset: () => L1Metadata)(implicit p: Parameters) extends DCacheModule {
+class L1MetadataArray(onReset: () => L1Metadata)(implicit p: Parameters) extends DCacheModule with HasPerfLogging {
   val rstVal = onReset()
   val metaBits = rstVal.getWidth
   val encMetaBits = cacheParams.tagCode.width(metaBits)
@@ -124,7 +124,7 @@ class L1MetadataArray(onReset: () => L1Metadata)(implicit p: Parameters) extends
   }
 }
 
-class DuplicatedMetaArray(numReadPorts: Int)(implicit p: Parameters) extends DCacheModule {
+class DuplicatedMetaArray(numReadPorts: Int)(implicit p: Parameters) extends DCacheModule with HasPerfLogging {
   def onReset = L1Metadata(0.U, ClientMetadata.onReset, 0.U)
 
   val metaBits = onReset.getWidth

@@ -33,8 +33,9 @@ import xiangshan.backend.rob.RobPtr
 import xiangshan.mem.mdp._
 import xiangshan.vector.SIRenameInfo
 import xiangshan.vector.vtyperename.{VtpToVCtl, VtypeRename}
+import xs.utils.perf.HasPerfLogging
 
-class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents {
+class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with HasPerfLogging{
   val io = IO(new Bundle() {
     val redirect = Flipped(ValidIO(new Redirect))
     val robCommits = Flipped(new RobCommitIO)
@@ -241,6 +242,10 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents {
   // a simple functional model for now
   io.out(0).bits.pdest := Mux(isMove(0), uops(0).psrc.head, uops(0).pdest)
   io.out(0).bits.vtypeRegIdx := vtyperename.io.out(0).bits.vtypeRegIdx
+  io.toVCtl(0).psrc := io.out(0).bits.psrc
+  io.toVCtl(0).pdest := io.out(0).bits.pdest
+  io.toVCtl(0).old_pdest := io.out(0).bits.old_pdest
+  io.toVCtl(0).robIdx := io.out(0).bits.robIdx
   val bypassCond = Wire(Vec(4, MixedVec(List.tabulate(RenameWidth-1)(i => UInt((i+1).W)))))
   for (i <- 1 until RenameWidth) {
     val fpCond = io.in(i).bits.ctrl.srcType.map(_ === SrcType.fp) :+ needFpDest(i)

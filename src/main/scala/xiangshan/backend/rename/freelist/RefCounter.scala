@@ -21,10 +21,11 @@ import chisel3._
 import chisel3.util._
 import xiangshan._
 import utils._
+import xs.utils.perf.HasPerfLogging
 
 
 
-class RefCounter(size: Int)(implicit p: Parameters) extends XSModule {
+class RefCounter(size: Int)(implicit p: Parameters) extends XSModule  with HasPerfLogging{
   val io = IO(new Bundle {
     val allocate = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
     val deallocate = Vec(CommitWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))

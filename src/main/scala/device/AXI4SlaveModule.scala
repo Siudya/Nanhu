@@ -23,6 +23,7 @@ import xs.utils._
 import freechips.rocketchip.diplomacy.{AddressSet, LazyModule, LazyModuleImp, RegionType, TransferSizes}
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.amba.axi4.{AXI4Parameters, AXI4SlaveNode, AXI4SlaveParameters, AXI4SlavePortParameters}
+import xs.utils.perf.HasPerfLogging
 
 abstract class AXI4SlaveModule[T <: Data]
 (
@@ -50,7 +51,7 @@ abstract class AXI4SlaveModule[T <: Data]
 }
 
 class AXI4SlaveModuleImp[T<:Data](outer: AXI4SlaveModule[T])
-  extends LazyModuleImp(outer)
+  extends LazyModuleImp(outer) with HasPerfLogging
 {
   val io = IO(new Bundle {
     val extra = if(outer._extra == null) None else Some(outer._extra.cloneType)

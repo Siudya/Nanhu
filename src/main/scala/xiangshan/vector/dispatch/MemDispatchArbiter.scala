@@ -48,6 +48,7 @@ class MemDispatchArbiter(arbWidth: Int)(implicit p: Parameters) extends XSModule
   val vmemCanDeqVec = Wire(Vec(arbWidth, Bool()))
   val memDeqNum = PopCount(io.memIn.map(_.fire))
   val vmemDeqNum = PopCount(io.vmemIn.map(_.fire))
+  val vmemDeqTail = PopCount(io.vmemIn.map(_.fire)) - 1.U
 
   val vRobIdx = Reg(new RobPtr)
 
@@ -84,7 +85,7 @@ class MemDispatchArbiter(arbWidth: Int)(implicit p: Parameters) extends XSModule
 
   io.vmemIn.zip(io.toMem2RS).zipWithIndex.foreach {
     case ((in, out), i) => {
-      in.ready := (arbState===s_vmem) && out.ready && in.valid
+      in.ready := (arbState===s_vmem) && out.ready && in.valid && (in.bits.robIdx === vRobIdx)
     }
   }
 
@@ -108,8 +109,8 @@ class MemDispatchArbiter(arbWidth: Int)(implicit p: Parameters) extends XSModule
   
   when(arbState === s_vmem) {
     val needFlush = io.redirect.valid && (redirectRobIdx <= vRobIdx)
-    val accessTail = (io.vmemIn(vmemDeqNum).bits.uopIdx + 1.U) === io.vmemIn(vmemDeqNum).bits.uopNum
-    val stateSwitch = (io.vmemIn(vmemDeqNum).fire && accessTail) || needFlush
+    val accessTail = (io.vmemIn(vmemDeqTail).bits.uopIdx + 1.U) === io.vmemIn(vmemDeqTail).bits.uopNum
+    val stateSwitch = (io.vmemIn(vmemDeqTail).fire && accessTail) || needFlush
     arbState := Mux(stateSwitch, s_mem, s_vmem)
   }
 

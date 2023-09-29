@@ -19,7 +19,6 @@ package xiangshan.cache
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import utils.XSDebug
 import xs.utils.sram.SRAMTemplate
 
 class DuplicatedDataArray(implicit p: Parameters) extends AbstractDataArray {

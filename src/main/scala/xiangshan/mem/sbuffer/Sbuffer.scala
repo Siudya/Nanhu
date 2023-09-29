@@ -25,6 +25,7 @@ import xs.utils.{GetEvenBits, GetOddBits, ParallelOR, PriorityEncoderWithFlag, P
 import xiangshan.cache._
 import difftest._
 import freechips.rocketchip.util._
+import xs.utils.perf.HasPerfLogging
 
 class SbufferFlushBundle extends Bundle {
   val valid = Output(Bool())
@@ -271,7 +272,7 @@ class ValidPLRUWrapper(nWay: Int,accessWay: Int,accessType : UInt) extends Modul
   io.replaceWay := plru.way(io.candidateVec.reverse)._2
 }
 
-class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst with HasPerfEvents {
+class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst with HasPerfEvents with HasPerfLogging {
   val io = IO(new Bundle() {
     val hartId = Input(UInt(8.W))
     val in = Vec(EnsbufferWidth, Flipped(Decoupled(new DCacheWordReqWithVaddr)))  //Todo: store logic only support Width == 2 now

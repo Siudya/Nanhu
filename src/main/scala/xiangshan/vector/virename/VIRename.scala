@@ -41,11 +41,14 @@ class VIRename(implicit p: Parameters) extends VectorBaseModule {
     })
     //commit, from ROB
     val commit = Flipped(new RobCommitIO)
+    val debug = Output(Vec(32, UInt(VIPhyRegIdxWidth.W)))
   })
 
   val freeList        = Module(new VIFreeList)
   val renameTable     = Module(new VIRenameTable)
   val rollBackList    = Module(new VIRollBackList)
+
+  io.debug := renameTable.io.debug
 
   //-------------------------------------------- Rename --------------------------------------------
   //TODO: !redirect && !walk

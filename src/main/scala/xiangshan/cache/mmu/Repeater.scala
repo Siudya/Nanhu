@@ -23,6 +23,7 @@ import xiangshan._
 import utils._
 import xiangshan.backend.execute.fu.fence.SfenceBundle
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
 
 class PTWReapterIO(Width: Int)(implicit p: Parameters) extends MMUIOBaseBundle {
   val tlb = Flipped(new TlbPtwIO(Width))
@@ -43,7 +44,7 @@ class PTWReapterIO(Width: Int)(implicit p: Parameters) extends MMUIOBaseBundle {
 
 }
 
-class PTWRepeater(Width: Int = 1)(implicit p: Parameters) extends XSModule with HasPtwConst {
+class PTWRepeater(Width: Int = 1)(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfLogging {
   val io = IO(new PTWReapterIO(Width))
 
   val req_in = if (Width == 1) {
@@ -86,7 +87,7 @@ class PTWRepeater(Width: Int = 1)(implicit p: Parameters) extends XSModule with 
  *
  */
 
-class PTWRepeaterNB(Width: Int = 1, passReady: Boolean = false)(implicit p: Parameters) extends XSModule with HasPtwConst {
+class PTWRepeaterNB(Width: Int = 1, passReady: Boolean = false)(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfLogging {
   val io = IO(new PTWReapterIO(Width))
 
   val req_in = if (Width == 1) {
@@ -147,7 +148,7 @@ class PTWFilterIO(Width: Int)(implicit p: Parameters) extends MMUIOBaseBundle {
 
 }
 
-class PTWFilter(Width: Int, Size: Int)(implicit p: Parameters) extends XSModule with HasPtwConst {
+class PTWFilter(Width: Int, Size: Int)(implicit p: Parameters) extends XSModule with HasPtwConst with HasPerfLogging {
   require(Size >= Width)
 
   val io = IO(new PTWFilterIO(Width))

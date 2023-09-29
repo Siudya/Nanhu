@@ -55,43 +55,43 @@ class VIFreeList(implicit p: Parameters) extends VectorBaseModule with HasCircul
   }
 
   //free list
-  val freeList_ds = VecInit(Seq.tabulate(VIPhyRegsNum)(i => i.U(VIPhyRegIdxWidth.W)))
+  val freeList_ds = VecInit(Seq.tabulate(VIPhyRegsNum - 32)(i => (i + 32).U(PhyRegIdxWidth.W)) ++ (Seq.tabulate(32)(i => (i).U(PhyRegIdxWidth.W))))
   val freeList = RegInit(freeList_ds)
 
   //head and tail pointer
-  val headPtr = RegInit(VIFreeListPtr(false, 0))
-  val tailPtr = RegInit(VIFreeListPtr(true, 0))
+  val allocatePtr = RegInit(VIFreeListPtr(false, 0))
+  val releasePtr = RegInit(VIFreeListPtr(true, 0))
 
   //Allocate
   // val freeEntryNum = distanceBetween(tailPtr, headPtr)
-  val headPtrOHVec = Wire(Vec(VIRenameWidth, UInt(VIPhyRegsNum.W)))
+  val allocPtrOHVec = Wire(Vec(VIRenameWidth, UInt(VIPhyRegsNum.W)))
   for(i <- 0 until VIRenameWidth) {
-    headPtrOHVec(i) := (headPtr + i.U).toOH
+    allocPtrOHVec(i) := (allocatePtr + i.U).toOH
   }
 
   val phyRegCandidates = Wire(Vec(VIRenameWidth, UInt(VIPhyRegIdxWidth.W)))
-  phyRegCandidates := headPtrOHVec.map(sel => Mux1H(sel, freeList))
+  phyRegCandidates := allocPtrOHVec.map(sel => Mux1H(sel, freeList))
 
   // io.canAllocateNum := Mux(freeEntryNum >= VIRenameWidth.U, VIRenameWidth.U, freeEntryNum)
   for((alloc, i) <- io.allocatePhyReg.zipWithIndex) {
-    val canAlloc = (tailPtr + i.U) < headPtr
+    val canAlloc = (allocatePtr + i.U) < releasePtr
     alloc.valid := canAlloc
     alloc.bits := phyRegCandidates(i)
   }
 
   val allocNum = PopCount(io.allocatePhyReg.map(_.fire))
-  val headPtrNext = headPtr + allocNum
-  headPtr := headPtrNext
+  val allocPtrNext = allocatePtr + allocNum
+  allocatePtr := allocPtrNext
 
   //Release
   val releaseNum = PopCount(io.releasePhyReg.map(_.valid))
-  val tailPtrNext = tailPtr + releaseNum
-  tailPtr := tailPtrNext
+  val releasePtrNext = releasePtr + releaseNum
+  releasePtr := releasePtrNext
 
   for((rls, i) <- io.releasePhyReg.zipWithIndex) {
-    val releasePtr = tailPtr + PopCount(io.releasePhyReg.take(i+1).map(_.valid))
+    val ptr = releasePtr + PopCount(io.releasePhyReg.take(i+1).map(_.valid))
     when(rls.valid === true.B) {
-      freeList(releasePtr.value) := rls.bits
+      freeList(ptr.value) := rls.bits
     }
   }
 }

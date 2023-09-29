@@ -28,6 +28,7 @@ import xiangshan.cache._
 import utils._
 import xs.utils._
 import difftest._
+import xs.utils.perf.HasPerfLogging
 
 
 abstract class ICacheMissUnitModule(implicit p: Parameters) extends XSModule
@@ -62,7 +63,7 @@ class ICacheMissBundle(implicit p: Parameters) extends ICacheBundle{
 
 
 class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends ICacheMissUnitModule
-  with MemoryOpConstants
+  with MemoryOpConstants with HasPerfLogging
 {
   val io = IO(new Bundle {
     val id = Input(UInt(log2Ceil(PortNumber).W))
@@ -219,7 +220,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
 }
 
 
-class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMissUnitModule
+class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMissUnitModule with HasPerfLogging
 {
   val io = IO(new Bundle{
     val hartId      = Input(UInt(8.W))

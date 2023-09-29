@@ -9,6 +9,7 @@ import xs.utils._
 import xiangshan.backend.dispatch.DispatchQueue
 import xiangshan.backend.rob._
 import xiangshan.vector.writeback.WbMergeBufferPtr
+import xiangshan.backend.execute.fu.csr.vcsr._
 
 class NewVIMop(implicit p: Parameters) extends VectorBaseBundle {
   val uop = new MicroOp
@@ -26,7 +27,7 @@ class NewWaitQueue(implicit p: Parameters) extends VectorBaseModule with HasCirc
   val io = IO(new Bundle() {
     //val hartId = Input(UInt(8.W))
     val vstart = Input(UInt(7.W))
-    val vtypeWbData = Flipped(ValidIO(new ExuOutput))
+    val vtypeWbData = Flipped(ValidIO(new VtypeWbIO))
     val robin = Vec(VIDecodeWidth, Flipped(ValidIO(new RobPtr)))
     val mergeId = Vec(VIDecodeWidth, Flipped(DecoupledIO(new WbMergeBufferPtr(VectorMergeBufferDepth))))
     val canRename = Input(Bool())
@@ -108,8 +109,7 @@ class NewWaitQueue(implicit p: Parameters) extends VectorBaseModule with HasCirc
 
   //Misc entry update logics
   table.io.vtypeWb.valid := io.vtypeWbData.valid
-  table.io.vtypeWb.bits.data := io.vtypeWbData.bits.data
-  table.io.vtypeWb.bits.uop := io.vtypeWbData.bits.uop
+  table.io.vtypeWb := io.vtypeWbData
   table.io.robEnq := io.robin
   table.io.redirect := io.redirect
 

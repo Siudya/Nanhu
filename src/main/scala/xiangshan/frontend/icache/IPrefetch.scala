@@ -24,7 +24,8 @@ import utils._
 import xiangshan.cache.mmu._
 import xiangshan.frontend._
 import xs.utils._
-import huancun.{PreferCacheKey}
+import huancun.PreferCacheKey
+import xs.utils.perf.HasPerfLogging
 
 
 abstract class IPrefetchBundle(implicit p: Parameters) extends ICacheBundle
@@ -205,7 +206,7 @@ class IPrefetchPipe(implicit p: Parameters) extends  IPrefetchModule
 
 }
 
-class IPrefetchEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends ICacheMissUnitModule
+class IPrefetchEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends ICacheMissUnitModule with HasPerfLogging
 {
   val io = IO(new Bundle {
     val id = Input(UInt(log2Ceil(PortNumber + nPrefetchEntries).W))

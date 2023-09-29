@@ -130,6 +130,10 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   fence.disableSfence := csr.csrio.disableSfence
   fence.priviledgeMode := csr.csrio.priviledgeMode
   csr.csrio <> io.csrio
+  csr.csrio.vcsr.robWb.vxsat := Pipe(io.csrio.vcsr.robWb.vxsat, 2)
+  csr.csrio.vcsr.robWb.vstart := Pipe(io.csrio.vcsr.robWb.vstart, 2)
+  io.csrio.vcsr.vtype.vtypeRead.readEn := RegNext(csr.csrio.vcsr.vtype.vtypeRead.readEn, false.B)
+  io.csrio.vcsr.vtype.vlRead.readEn := RegNext(csr.csrio.vcsr.vtype.vlRead.readEn, false.B)
   io.csrio.tlb := DelayN(csr.csrio.tlb, 2)
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)
   csr.csrio.exception := Pipe(io.csrio.exception)

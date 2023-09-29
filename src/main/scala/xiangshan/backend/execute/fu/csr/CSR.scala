@@ -24,12 +24,12 @@ import freechips.rocketchip.util._
 
 import difftest._
 import utils._
-import xs.utils.MaskedRegMap.WritableMask
 import xs.utils._
+import xs.utils.MaskedRegMap._
+import xs.utils.perf.HasPerfLogging
 
 import xiangshan._
 import xiangshan.ExceptionNO._
-
 import xiangshan.backend.execute.fu.{FUWithRedirect, FunctionUnit, PMAMethod, PMPEntry, PMPMethod}
 import xiangshan.backend.execute.fu.csr.vcsr._
 import xiangshan.backend.execute.fu.FuOutput
@@ -119,7 +119,7 @@ class CSRFileIO(implicit p: Parameters) extends XSBundle {
 
 class CSR(implicit p: Parameters) extends FUWithRedirect
   with HasCSRConst with PMPMethod with PMAMethod
-  with HasTriggerConst  with SdtrigExt with DebugCSR {
+  with HasTriggerConst  with SdtrigExt with DebugCSR with HasPerfLogging {
 
   val csrio = IO(new CSRFileIO)
 
@@ -166,7 +166,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     val xs = Output(UInt(2.W))
     val fs = Output(UInt(2.W))
     val mpp = Output(UInt(2.W))
-    val hpp = Output(UInt(2.W))
+    val vs = Output(UInt(2.W))
     val spp = Output(UInt(1.W))
     val pie = new Priv
     val ie = new Priv
@@ -268,6 +268,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   if (HasMExtension) { extList = extList :+ 'm' }
   if (HasCExtension) { extList = extList :+ 'c' }
   if (HasFPU) { extList = extList ++ List('f', 'd') }
+  if (hasVector) { extList = extList :+ 'v' }
   val misaInitVal = getMisaMxl(2) | extList.foldLeft(0L)((sum, i) => sum | getMisaExt(i)) //"h8000000000141105".U
   val misa = RegInit(UInt(XLEN.W), misaInitVal.U)
 
@@ -282,7 +283,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     mhartid := csrio.hartId
   }
   val mconfigptr = RegInit(UInt(XLEN.W), 0.U) // the read-only pointer pointing to the platform config structure, 0 for not supported.
-  val mstatus = RegInit("ha00002000".U(XLEN.W))
+  val mstatus = RegInit("ha00002200".U(XLEN.W))
 
   // mstatus Value Table
   // | sd   |
@@ -307,7 +308,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val mstatusStruct = mstatus.asTypeOf(new MstatusStruct)
   def mstatusUpdateSideEffect(mstatus: UInt): UInt = {
     val mstatusOld = WireInit(mstatus.asTypeOf(new MstatusStruct))
-    val mstatusNew = Cat(mstatusOld.xs === "b11".U || mstatusOld.fs === "b11".U, mstatus(XLEN-2, 0))
+    val mstatusNew = Cat(mstatusOld.xs === "b11".U || mstatusOld.fs === "b11".U || mstatusOld.vs === "b11".U, mstatus(XLEN-2, 0))
     mstatusNew
   }
 
@@ -316,7 +317,6 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     GenMask(35, 32)       | // SXL and UXL cannot be changed
     GenMask(31, 23)       | // WPRI
     GenMask(16, 15)       | // XS is read-only
-    GenMask(10, 9)        | // WPRI
     GenMask(6)            | // WPRI
     GenMask(2)            | // WPRI
     GenMask(0)              // WPRI
@@ -324,7 +324,6 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val mstatusMask = (~ZeroExt((
     GenMask(XLEN - 2, 36) | // WPRI
     GenMask(31, 23)       | // WPRI
-    GenMask(10, 9)        | // WPRI
     GenMask(6)            | // WPRI
     GenMask(2)            | // WPRI
     GenMask(0)              // WPRI
@@ -343,7 +342,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // Superviser-Level CSRs
 
   // val sstatus = RegInit(UInt(XLEN.W), "h00000000".U)
-  val sstatusWmask = "hc6122".U(XLEN.W)
+  val sstatusWmask = "hc6722".U(XLEN.W)
   // Sstatus Write Mask
   // -------------------------------------------------------
   //    19           9   5     2
@@ -510,10 +509,67 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   }
 
   val fcsrMapping = Map(
-    MaskedRegMap(Fflags, fcsr, wfn = fflags_wfn(update = false), rfn = fflags_rfn),
-    MaskedRegMap(Frm, fcsr, wfn = frm_wfn, rfn = frm_rfn),
-    MaskedRegMap(Fcsr, fcsr, wfn = fcsr_wfn)
+    MaskedRegMap(Fflags,  fcsr, wfn = fflags_wfn(update = false), rfn = fflags_rfn),
+    MaskedRegMap(Frm,     fcsr, wfn = frm_wfn, rfn = frm_rfn),
+    MaskedRegMap(Fcsr,    fcsr, wfn = fcsr_wfn)
   )
+
+  //vector CSRs
+  val csrw_dirty_vec_state = WireInit(false.B)
+  class VCsrStruct extends Bundle {
+    val reserved = UInt((XLEN - 3).W)
+    val vxrm = UInt(2.W)
+    val vxsat = UInt(1.W)
+  }
+
+  def vxrm_wfn(wdata: UInt): UInt = {
+    val vcsrOld = WireInit(vcsr.asTypeOf(new VCsrStruct))
+    csrw_dirty_vec_state := true.B
+    vcsrOld.vxrm := wdata(1, 0)
+    vcsrOld.asUInt
+  }
+  def vxrm_rfn(rdata: UInt): UInt = rdata(2,1)
+
+  def vxsat_wfn(update: Boolean)(wdata: UInt): UInt = {
+    val vcsrOld = fcsr.asTypeOf(new VCsrStruct)
+    val vcsrNew = WireInit(vcsrOld)
+    csrw_dirty_vec_state := true.B
+    if (update) {
+      vcsrNew.vxsat := wdata(0) | vcsrOld.vxsat
+    } else {
+      vcsrNew.vxsat := wdata(0)
+    }
+    vcsrNew.asUInt
+  }
+  def vxsat_rfn(rdata:UInt): UInt = rdata(0)
+
+  def vcsr_wfn(wdata: UInt): UInt = {
+    val vcsrOld = WireInit(vcsr.asTypeOf(new VCsrStruct))
+    csrw_dirty_vec_state := true.B
+    Cat(vcsrOld.reserved, wdata.asTypeOf(vcsrOld).vxrm, wdata.asTypeOf(vcsrOld).vxsat)
+  }
+
+  val vlenb   = RegInit(UInt(XLEN.W), (VLEN/8).U(XLEN.W)) //is read-only
+  val vstart  = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+  //val vxrm    = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+  //val vxsat   = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+  val vcsr    = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+
+  val fakeVtype = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+  val fakeVl = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
+
+  val vcsrMapping = Map(
+    MaskedRegMap(Vlenb,   vlenb, 0.U(XLEN.W), MaskedRegMap.Unwritable),
+    MaskedRegMap(Vstart,  vstart),
+    MaskedRegMap(Vxrm,    vcsr, wfn = vxrm_wfn, rfn = vxrm_rfn),
+    MaskedRegMap(Vxsat,   vcsr, wfn = vxsat_wfn(update = false), rfn = vxsat_rfn),
+    MaskedRegMap(Vcsr,    vcsr, wfn = vcsr_wfn),
+    MaskedRegMap(Vtype,   fakeVtype, MaskedRegMap.WritableMask, MaskedRegMap.Unwritable),
+    MaskedRegMap(Vl,      fakeVl, MaskedRegMap.WritableMask, MaskedRegMap.Unwritable)
+  )
+
+  csrio.vcsr.vcsr := vcsr(2, 0)
+
 
   val addr = src2(11, 0)
   val csri = ZeroExt(src2(16, 12), XLEN)
@@ -527,35 +583,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     CSROpType.clri -> (rdata & (~csri).asUInt)
   ))
 
-  //vector CSRs
-  val vlenb   = RegInit(UInt(XLEN.W), (VLEN/8).U(XLEN.W)) //is read-only
-  val vstart  = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-  val vxrm    = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-  val vxsat   = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-  val vcsr    = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-
-  val fakeVtype = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-  val fakeVl = RegInit(UInt(XLEN.W), 0.U(XLEN.W))
-
-  val vcsrMapping = Map(
-    MaskedRegMap(Vlenb,   vlenb),
-    MaskedRegMap(Vstart,  vstart),
-    MaskedRegMap(Vxrm,    vxrm),
-    MaskedRegMap(Vxsat,   vxsat),
-    MaskedRegMap(Vcsr,    vcsr),
-    MaskedRegMap(Vtype,   fakeVtype),
-    MaskedRegMap(Vl,      fakeVl)
-  )
-
-  csrio.vcsr.vcsr := vcsr(2, 0)
-
     // vcsr
-  // val vcsr = Module(new VCSR)
-  // vcsr.io.in.bits := io.in.bits
-  // vcsr.io.in.valid := io.in.bits.uop.ctrl.isVector && io.in.valid
-  // csrio.vcsr <> vcsr.vcsr_io
-  // vcsr.io.redirectIn <> io.redirectIn
-  // vcsr.io.out.ready := io.out.ready
   val vsetFu = Module(new VSetFu)
   vsetFu.io.src(0) := io.in.bits.src(0)
   vsetFu.io.src(1) := io.in.bits.uop.ctrl.imm
@@ -566,18 +594,23 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
                             io.in.bits.uop.ctrl.fuOpType === CSROpType.vsetvli,
                             io.in.bits.uop.ctrl.fuOpType === CSROpType.vsetvl
                           )
-  csrio.vcsr.vtype.vtypeWbToRename.bits.data := vsetFu.io.vtypeNew
-  csrio.vcsr.vtype.vtypeWbToRename.bits.uop := io.in.bits.uop
+  csrio.vcsr.vtype.vtypeWbToRename.bits.vtype := vsetFu.io.vtypeNew
+  csrio.vcsr.vtype.vtypeWbToRename.bits.vl := vsetFu.io.vlNew
+  csrio.vcsr.vtype.vtypeWbToRename.bits.robIdx := io.in.bits.uop.robIdx
+  csrio.vcsr.vtype.vtypeWbToRename.bits.vtypeRegIdx := io.in.bits.uop.vtypeRegIdx
+  csrio.vcsr.vtype.vtypeWbToRename.bits.pdest := io.in.bits.uop.pdest
   csrio.vcsr.vtype.vtypeWbToRename.valid := io.in.valid && io.in.bits.uop.ctrl.isVtype
-
   csrio.vcsr.vcsr := vcsr(2, 0)
 
-  when(csrio.vcsr.robWb.vstartW.valid) {
-    vstart := csrio.vcsr.robWb.vstartW.bits
+  when(csrio.vcsr.robWb.vstart.valid) {
+    vstart := csrio.vcsr.robWb.vstart.bits
+  }.elsewhen(csrio.vcsr.robWb.vxsat.valid) {
+    //vxsat is valid only when vector instr commit, control by rob
+    vstart := 0.U
   }
 
-  when(csrio.vcsr.robWb.vxsatW.valid) {
-    vxsat := csrio.vcsr.robWb.vxsatW.bits
+  when(RegNext(csrio.vcsr.robWb.vxsat.valid)) {
+    vcsr := vxsat_wfn(update = true)(RegNext(csrio.vcsr.robWb.vxsat.bits))
   }
 
   csrio.vcsr.vstart := vstart
@@ -820,8 +853,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   }
   csrio.fpu.frm := fcsr.asTypeOf(new FcsrStruct).frm
 
-  
-
+  when (csrw_dirty_vec_state || RegNext(csrio.vcsr.robWb.vstart.valid) || RegNext(csrio.vcsr.robWb.vxsat.valid)) {
+    val mstatusNew = WireInit(mstatus.asTypeOf(new MstatusStruct))
+    mstatusNew.vs := "b11".U
+    mstatusNew.sd := true.B
+    mstatus := mstatusNew.asUInt
+  }
+  csrio.fpu.frm := fcsr.asTypeOf(new FcsrStruct).frm
 
   // Trigger Ctrl
   val triggerEnableVec = tdata1RegVec.map { tdata1 =>
@@ -1293,6 +1331,19 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     difftest.dpc := dpc
     difftest.dscratch0 := dscratch0
     difftest.dscratch1 := dscratch1
+  }
+
+  if(env.AlwaysBasicDiff || env.EnableDifftest) {
+    val difftest = DifftestModule(new DiffVecCSRState, delay = 1)
+    difftest.clock := clock
+    difftest.coreid := csrio.hartId
+    difftest.vlenb := vlenb
+    difftest.vxsat := Cat(0.U((XLEN-1).W), vcsr(0))
+    difftest.vxrm := Cat(0.U((XLEN-3).W), vcsr(2, 1))
+    difftest.vcsr := vcsr
+    difftest.vtype := csrio.vcsr.vtype.debug_vtype
+    difftest.vl := csrio.vcsr.vtype.debug_vl
+    difftest.vstart := vstart
   }
 }
 

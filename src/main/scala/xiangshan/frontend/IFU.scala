@@ -25,6 +25,7 @@ import xiangshan.cache.mmu._
 import xiangshan.frontend.icache._
 import utils._
 import xs.utils._
+import xs.utils.perf.HasPerfLogging
 
 trait HasInstrMMIOConst extends HasXSParameter with HasIFUConst{
   def mmioBusWidth = 64
@@ -101,6 +102,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
   with HasPdConst
   with HasCircularQueuePtrHelper
   with HasPerfEvents
+  with HasPerfLogging
 {
   val io = IO(new NewIFUIO)
   val (toFtq, fromFtq)    = (io.ftqInter.toFtq, io.ftqInter.fromFtq)

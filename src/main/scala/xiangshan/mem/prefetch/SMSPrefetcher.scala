@@ -9,6 +9,7 @@ import utils._
 import xs.utils._
 import xiangshan.cache.HasDCacheParameters
 import xiangshan.cache.mmu._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 case class SMSParams
@@ -239,7 +240,7 @@ class PfGenReq()(implicit p: Parameters) extends XSBundle with HasSMSModuleHelpe
   val decr_mode = Bool()
 }
 
-class ActiveGenerationTable()(implicit p: Parameters) extends XSModule with HasSMSModuleHelper {
+class ActiveGenerationTable()(implicit p: Parameters) extends XSModule with HasSMSModuleHelper with HasPerfLogging {
   val io = IO(new Bundle() {
     val agt_en = Input(Bool())
     val s0_lookup = Flipped(ValidIO(new Bundle() {
@@ -491,7 +492,7 @@ class PhtEntry()(implicit p: Parameters) extends XSBundle with HasSMSModuleHelpe
   val decr_mode = Bool()
 }
 
-class PatternHistoryTable(parentName: String = "Unknown")(implicit p: Parameters) extends XSModule with HasSMSModuleHelper {
+class PatternHistoryTable(parentName: String = "Unknown")(implicit p: Parameters) extends XSModule with HasSMSModuleHelper with HasPerfLogging {
   val io = IO(new Bundle() {
     // receive agt evicted entry
     val agt_update = Flipped(ValidIO(new AGTEntry()))
@@ -510,7 +511,7 @@ class PatternHistoryTable(parentName: String = "Unknown")(implicit p: Parameters
     parentName = parentName + s"ram_"
   ))
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(1,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
   } else {
     None
   }
@@ -782,7 +783,7 @@ class PrefetchFilterEntry()(implicit p: Parameters) extends XSBundle with HasSMS
   val decr_mode = Bool()
 }
 
-class PrefetchFilter()(implicit p: Parameters) extends XSModule with HasSMSModuleHelper {
+class PrefetchFilter()(implicit p: Parameters) extends XSModule with HasSMSModuleHelper with HasPerfLogging {
   val io = IO(new Bundle() {
     val gen_req = Flipped(ValidIO(new PfGenReq()))
     val tlb_req = new TlbRequestIO(2)
@@ -912,7 +913,8 @@ class PrefetchFilter()(implicit p: Parameters) extends XSModule with HasSMSModul
   XSPerfAccumulate("sms_pf_filter_l2_req", io.l2_pf_addr.valid)
 }
 
-class SMSPrefetcher(parentName: String = "Unknown")(implicit p: Parameters) extends BasePrefecher with HasSMSModuleHelper {
+class SMSPrefetcher(parentName: String = "Unknown")(implicit p: Parameters) extends BasePrefecher
+  with HasSMSModuleHelper with HasPerfLogging {
 
   require(exuParameters.LduCnt == 2)
 

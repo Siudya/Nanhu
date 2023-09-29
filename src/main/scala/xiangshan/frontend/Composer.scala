@@ -26,7 +26,7 @@ import xs.utils._
 class Composer(parentName:String = "Unknown")(implicit p: Parameters) extends BasePredictor with HasBPUConst with HasPerfEvents {
   val (components, resp) = getBPDComponents(io.in.bits.resp_in(0), p, parentName = parentName)
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistPipe", true)
   } else {
     None
   }

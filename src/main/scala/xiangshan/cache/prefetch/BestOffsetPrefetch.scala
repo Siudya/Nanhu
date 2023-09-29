@@ -16,11 +16,12 @@
 
 package xiangshan.cache.prefetch
 
-import org.chipsalliance.cde.config.{Parameters, Field}
+import org.chipsalliance.cde.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
-import xiangshan.cache.mmu.{HasTlbConst}
+import xiangshan.cache.mmu.HasTlbConst
 import utils._
+import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
 case object BOPParamsKey extends Field[BOPParameters]
@@ -134,7 +135,7 @@ class BestOffsetPrefetchIO(implicit p: Parameters) extends PrefetchBundle {
   }
 }
 
-class RecentRequestTable(parentName:String = "Unkown")(implicit p: Parameters) extends PrefetchModule {
+class RecentRequestTable(parentName:String = "Unkown")(implicit p: Parameters) extends PrefetchModule with HasPerfLogging {
   val io = IO(new Bundle {
     val w = Flipped(DecoupledIO(UInt(PAddrBits.W)))
     val r = Flipped(new TestOffsetBundle)
@@ -208,7 +209,7 @@ class RecentRequestTable(parentName:String = "Unkown")(implicit p: Parameters) e
 
 }
 
-class OffsetScoreTable(implicit p: Parameters) extends PrefetchModule {
+class OffsetScoreTable(implicit p: Parameters) extends PrefetchModule with HasPerfLogging {
   val io = IO(new Bundle {
     val req = Flipped(DecoupledIO(UInt(PAddrBits.W))) // req addr from L1
     val prefetchOffset = Output(UInt(bopParams.offsetWidth.W))
@@ -310,7 +311,7 @@ class OffsetScoreTable(implicit p: Parameters) extends PrefetchModule {
   XSDebug(io.req.fire, p"receive req from L1. io.req.bits=0x${Hexadecimal(io.req.bits)}\n")
 }
 
-class BestOffsetPrefetchEntry(implicit p: Parameters) extends PrefetchModule with HasTlbConst {
+class BestOffsetPrefetchEntry(implicit p: Parameters) extends PrefetchModule with HasTlbConst with HasPerfLogging {
   val io = IO(new Bundle {
     val id = Input(UInt(bopParams.totalWidth.W))
     val prefetchOffset = Input(UInt(bopParams.offsetWidth.W))
@@ -384,7 +385,7 @@ class BestOffsetPrefetchEntry(implicit p: Parameters) extends PrefetchModule wit
   XSDebug(p"bopEntry ${io.id}: io.pft: ${io.pft}\n")
 }
 
-class BestOffsetPrefetch(parentName:String = "Unkown")(implicit p: Parameters) extends PrefetchModule {
+class BestOffsetPrefetch(parentName:String = "Unkown")(implicit p: Parameters) extends PrefetchModule with HasPerfLogging {
   val io = IO(new BestOffsetPrefetchIO)
 
   def nEntries = bopParams.nEntries

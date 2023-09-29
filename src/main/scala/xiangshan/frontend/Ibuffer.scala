@@ -23,6 +23,7 @@ import xiangshan._
 import utils._
 import xs.utils._
 import xiangshan.ExceptionNO._
+import xs.utils.perf.HasPerfLogging
 
 class IbufPtr(implicit p: Parameters) extends CircularQueuePtr[IbufPtr](
   p => p(XSCoreParamsKey).IBufSize
@@ -90,7 +91,7 @@ class IBufEntry(implicit p: Parameters) extends XSBundle {
   }
 }
 
-class Ibuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper with HasPerfEvents {
+class Ibuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper with HasPerfEvents with HasPerfLogging {
   val io = IO(new IBufferIO)
 
   val ibuf = Module(new DataModuleTemplate(new IBufEntry, IBufSize, 2 * DecodeWidth, PredictWidth, "IBuffer"))

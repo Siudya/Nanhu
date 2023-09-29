@@ -22,7 +22,8 @@ import chisel3.util._
 import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleC, TLBundleD, TLEdgeOut}
 import coupledL2.DirtyKey
-import utils.{HasPerfEvents, HasTLDump, XSDebug, XSPerfAccumulate}
+import utils.{HasPerfEvents, HasTLDump}
+import xs.utils.perf.HasPerfLogging
 
 class WritebackReqCtrl(implicit p: Parameters) extends DCacheBundle {
   val param  = UInt(cWidth.W)
@@ -38,8 +39,6 @@ class WritebackReqWodata(implicit p: Parameters) extends WritebackReqCtrl {
   val addr = UInt(PAddrBits.W)
 
   def dump() = {
-    XSDebug("WritebackReq addr: %x param: %d voluntary: %b hasData: %b\n",
-      addr, param, voluntary, hasData)
   }
 }
 
@@ -51,8 +50,6 @@ class WritebackReq(implicit p: Parameters) extends WritebackReqWodata {
   val data = UInt((cfg.blockBytes * 8).W)
 
   override def dump() = {
-    XSDebug("WritebackReq addr: %x param: %d voluntary: %b hasData: %b data: %x\n",
-      addr, param, voluntary, hasData, data)
   }
 
   def toWritebackReqWodata(): WritebackReqWodata = {
@@ -116,7 +113,7 @@ class ProbeToBCheckResp(implicit p: Parameters) extends DCacheBundle {
   val toN = Bool() // need to set dcache coh to N
 }
 
-class WritebackEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasTLDump
+class WritebackEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasTLDump with HasPerfLogging
 {
   val io = IO(new Bundle {
     val id = Input(UInt())
@@ -541,7 +538,7 @@ class WritebackEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModu
   XSPerfAccumulate("penalty_waiting_for_channel_D", io.mem_grant.ready && !io.mem_grant.valid && state_dup_1 === s_release_resp)
 }
 
-class WritebackQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasTLDump with HasPerfEvents {
+class WritebackQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule with HasTLDump with HasPerfEvents with HasPerfLogging {
   val io = IO(new Bundle {
     val req = Flipped(DecoupledIO(new WritebackReq))
     val req_ready_dup = Vec(nDupWbReady, Output(Bool()))

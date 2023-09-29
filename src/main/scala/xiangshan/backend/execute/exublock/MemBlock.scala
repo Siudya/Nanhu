@@ -22,7 +22,7 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tile.HasFPUParameters
 import coupledL2.PrefetchRecv
-import coupledL2.prefetch.{PrefetchReceiverParams}
+import coupledL2.prefetch.PrefetchReceiverParams
 import utils._
 import xiangshan._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputMultiSinkNode, ExuOutputNode, ExuType}
@@ -36,6 +36,7 @@ import xiangshan.cache.mmu.{BTlbPtwIO, TLB, TlbIO, TlbReplace}
 import xiangshan.mem._
 import xiangshan.mem.prefetch.{BasePrefecher, SMSParams, SMSPrefetcher}
 import xs.utils.mbist.MBISTPipeline
+import xs.utils.perf.HasPerfLogging
 import xs.utils.{DelayN, ParallelPriorityMux, RegNextN, ValidIODelay}
 
 class Std(implicit p: Parameters) extends XSModule {
@@ -196,6 +197,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   with HasFPUParameters
   with HasPerfEvents
   with SdtrigExt
+  with HasPerfLogging
 {
   private val lduIssues = outer.lduIssueNodes.map(iss => {
     require(iss.in.length == 1)
@@ -520,6 +522,12 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 //  val lChainMapping = Map(0 -> 2)
 //  val sChainMapping = Map(0 -> 1)
   XSDebug(tEnable.asUInt.orR, "Debug Mode: At least one store trigger is enabled\n")
+
+  def PrintTriggerInfo(enable: Bool, trigger: MatchTriggerIO)(implicit p: Parameters) = {
+    XSDebug(enable, p"Debug Mode: Match Type is ${trigger.matchType}; select is ${trigger.select};" +
+      p"timing is ${trigger.timing}; action is ${trigger.action}; chain is ${trigger.chain};" +
+      p"tdata2 is ${Hexadecimal(trigger.tdata2)}")
+  }
   for(j <- 0 until TriggerNum)
     PrintTriggerInfo(tEnable(j), tdata(j))
   // LoadUnit
@@ -845,7 +853,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   io.memInfo.dcacheMSHRFull := RegNext(dcache.io.mshrFull)
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    Some(Module(new MBISTPipeline(2,s"${outer.parentName}_mbistPipe")))
+    MBISTPipeline.PlaceMbistPipeline(2, s"${outer.parentName}_mbistPipe", true)
   } else {
     None
   }
