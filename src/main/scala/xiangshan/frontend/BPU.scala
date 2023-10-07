@@ -462,24 +462,24 @@ class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends X
     b.register(w.reduce(_||_), s1_ghv_wdatas(i), Some(s"s1_new_bit_$i"), 4)
   }
 
-  class PreviousPredInfo extends Bundle {
-    val target = UInt(VAddrBits.W)
-    val lastBrPosOH = UInt((numBr+1).W)
-    val taken = Bool()
-    val cfiIndex = UInt(log2Ceil(PredictWidth).W)
-  }
-
-  def preds_needs_redirect_vec_dup(x: Seq[PreviousPredInfo], y: BranchPredictionBundle) = {
-    val target_diff = x.zip(y.target).map {case (t1, t2) => t1.target =/= t2 }
-    val lastBrPosOH_diff = x.zip(y.lastBrPosOH).map {case (oh1, oh2) => oh1.lastBrPosOH.asUInt =/= oh2.asUInt}
-    val taken_diff = x.zip(y.taken).map {case (t1, t2) => t1.taken =/= t2}
-    val takenOffset_diff = x.zip(y.cfiIndex).map {case (i1, i2) => i1.cfiIndex =/= i2.bits}
-    VecInit(
-      for (tgtd & lbpohd & tkd & tod <-
-        target_diff zip lastBrPosOH_diff zip taken_diff zip takenOffset_diff)
-        yield VecInit(tgtd, lbpohd, tkd, tod)
-    )
-  }
+//  class PreviousPredInfo extends Bundle {
+//    val target = UInt(VAddrBits.W)
+//    val lastBrPosOH = UInt((numBr+1).W)
+//    val taken = Bool()
+//    val cfiIndex = UInt(log2Ceil(PredictWidth).W)
+//  }
+//
+//  def preds_needs_redirect_vec_dup(x: Seq[PreviousPredInfo], y: BranchPredictionBundle) = {
+//    val target_diff = x.zip(y.target).map {case (t1, t2) => t1.target =/= t2 }
+//    val lastBrPosOH_diff = x.zip(y.lastBrPosOH).map {case (oh1, oh2) => oh1.lastBrPosOH.asUInt =/= oh2.asUInt}
+//    val taken_diff = x.zip(y.taken).map {case (t1, t2) => t1.taken =/= t2}
+//    val takenOffset_diff = x.zip(y.cfiIndex).map {case (i1, i2) => i1.cfiIndex =/= i2.bits}
+//    VecInit(
+//      for (tgtd & lbpohd & tkd & tod <-
+//        target_diff zip lastBrPosOH_diff zip taken_diff zip takenOffset_diff)
+//        yield VecInit(tgtd, lbpohd, tkd, tod)
+//    )
+//  }
 
   // s2
   val s2_possible_predicted_ghist_ptrs_dup = s2_ghist_ptr_dup.map(ptr => (0 to numBr).map(ptr - _.U))
@@ -519,15 +519,47 @@ class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends X
     )
   )
 
-  val s1_pred_info = dup_wire(new PreviousPredInfo)
-  s1_pred_info.zip(resp.s1.target).map(tp => tp._1.target := tp._2)
-  s1_pred_info.zip(resp.s1.lastBrPosOH).map(tp => tp._1.lastBrPosOH := tp._2.asUInt)
-  s1_pred_info.zip(resp.s1.taken).map(tp => tp._1.taken := tp._2)
-  s1_pred_info.zip(resp.s1.cfiIndex).map(tp => tp._1.cfiIndex := tp._2.bits)
+  // val s1_pred_info = dup_wire(new PreviousPredInfo)
+  // s1_pred_info.zip(resp.s1.target).map(tp => tp._1.target := tp._2)
+  // s1_pred_info.zip(resp.s1.lastBrPosOH).map(tp => tp._1.lastBrPosOH := tp._2.asUInt)
+  // s1_pred_info.zip(resp.s1.taken).map(tp => tp._1.taken := tp._2)
+  // s1_pred_info.zip(resp.s1.cfiIndex).map(tp => tp._1.cfiIndex := tp._2.bits)
+  //
+  // val previous_s1_pred_info = RegEnable(s1_pred_info, init=0.U.asTypeOf(s1_pred_info), s1_fire_dup(0))
+  //
+  // val s2_redirect_s1_last_pred_vec_dup = preds_needs_redirect_vec_dup(previous_s1_pred_info, resp.s2)
 
-  val previous_s1_pred_info = RegEnable(s1_pred_info, 0.U.asTypeOf(s1_pred_info), s1_fire_dup(0))
+    def preds_needs_redirect_vec_dup(s1: BranchPredictionBundle, s2: BranchPredictionBundle) = {
 
-  val s2_redirect_s1_last_pred_vec_dup = preds_needs_redirect_vec_dup(previous_s1_pred_info, resp.s2)
+    val s1Targets: Vec[Vec[UInt]] = s1.allTargets
+    val s2Targets: Vec[Vec[UInt]] = s2.allTargets
+    val targetUnmatch = s1Targets.zip(s2Targets).map { case (t1s, t2s) =>
+      t1s.zip(t2s).map {case(t1,t2) => t1 =/= t2}
+    }
+
+    val s1Selects: Vec[Vec[Bool]] = s1.allSelects
+    val s2Selects: Vec[Vec[Bool]] = s2.allSelects
+    val selectMatch = s1Selects.zip(s2Selects).map { case (sel1s, sel2s) =>
+      sel1s.zip(sel2s).map {case(sel1,sel2) => sel1 && sel2}
+    }
+
+    val targetDiff = targetUnmatch.zip(selectMatch).map{case (t,s) =>
+      (VecInit(t.init).asUInt & VecInit(s.init).asUInt).orR || !s.reduce(_||_)}
+
+    val lastBrPosOHDiff = s1.lastBrPosOH.zip(s2.lastBrPosOH).map { case (l1, l2) => l1 === l2 }
+    val takenDiff = s1.taken.zip(s2.taken).map { case (t1, t2) => t1 === t2 }
+    val takenOffsetDiff = s1.cfiIndex.zip(s2.cfiIndex).map { case (c1, c2) => c1.bits === c2.bits }
+
+    VecInit(
+      for (tgtd & lbpohd & tkd & tod <-
+             targetDiff zip lastBrPosOHDiff zip takenDiff zip takenOffsetDiff)
+      yield VecInit(tgtd, lbpohd, tkd, tod)
+    )
+  }
+
+  val previous_s1_resp = RegEnable(resp.s1, 0.U.asTypeOf(resp.s1), s1_fire_dup(0))
+
+  val s2_redirect_s1_last_pred_vec_dup = preds_needs_redirect_vec_dup(previous_s1_resp, resp.s2)
 
   for (s2_redirect & s2_fire & s2_redirect_s1_last_pred_vec <- s2_redirect_dup zip s2_fire_dup zip s2_redirect_s1_last_pred_vec_dup)
     s2_redirect := s2_fire && s2_redirect_s1_last_pred_vec.reduce(_||_)

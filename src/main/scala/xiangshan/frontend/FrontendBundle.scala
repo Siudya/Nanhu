@@ -422,6 +422,8 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
   // val call_is_rvc = Bool()
   val hit = Bool()
 
+  val bypassFTB = new FTBEntry()
+
   // def br_slot_valids = slot_valids.init
   // def tail_slot_valid = slot_valids.last
   def tail_slot_valid = slot_valids
@@ -469,6 +471,22 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
     )
 
   def brTaken = (br_valids zip br_taken_mask).map{ case (a, b) => a && b && hit}.reduce(_||_)
+
+  // Only make sense On br = 1
+  def allSelects(pc: UInt): Vec[Bool] = {
+    val falseHitByPC = Cat(0.U(1.W), pc(instOffsetBits + log2Ceil(PredictWidth) - 1, instOffsetBits)) < Cat(bypassFTB.carry, bypassFTB.pftAddr)
+    VecInit(Seq(
+      real_slot_taken_mask().head,
+      !taken_mask_on_slot.head && hit && falseHitByPC,
+      !hit || !falseHitByPC))
+  }
+
+  def partTargets(pc: UInt): Vec[UInt] = {
+    VecInit(Seq(
+      Cat(bypassFTB.tailSlot.lower, bypassFTB.tailSlot.offset),
+      Cat(bypassFTB.carry, bypassFTB.pftAddr),
+      pc))
+  }
 
   def target(pc: UInt): UInt = {
     val targetVec = targets :+ fallThroughAddr :+ (pc + (FetchWidth * 4).U)
@@ -518,6 +536,8 @@ class FullBranchPrediction(implicit p: Parameters) extends XSBundle with HasBPUC
     val endLowerwithCarry = Cat(entry.carry, entry.pftAddr)
     fallThroughErr := startLower >= endLowerwithCarry
     fallThroughAddr := Mux(fallThroughErr, pc + (FetchWidth * 4).U, entry.getFallThrough(pc))
+  
+    bypassFTB := entry
   }
 
   def display(cond: Bool): Unit = {
@@ -551,6 +571,8 @@ class BranchPredictionBundle(implicit p: Parameters) extends XSBundle
       f(fp)(p)
     }
 
+  def allSelects = VecInit(full_pred.zip(pc).map { case (fp, p) => fp.allSelects(p) })
+  def allTargets = VecInit(full_pred.zip(pc).map { case (fp, p) => fp.partTargets(p) })
   def target         = VecInit(full_pred.zip(pc).map {case (fp, p) => fp.target(p)})
   def cfiIndex       = VecInit(full_pred.map(_.cfiIndex))
   def lastBrPosOH    = VecInit(full_pred.map(_.lastBrPosOH))
