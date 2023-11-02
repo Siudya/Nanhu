@@ -421,8 +421,8 @@ trait HasXSParameter {
   val LpvLength = 5
 
   val PCntIncrStep: Int = 6
-  val numPCntHc: Int = 25
   val numPCntPtw: Int = 19
+  val numPCntL2: Int = coreParams.L2CacheParamsOpt.get.getPCntAll
 
   val numCSRPCntFrontend = 8
   val numCSRPCntCtrl     = 8

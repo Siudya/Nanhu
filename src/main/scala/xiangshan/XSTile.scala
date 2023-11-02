@@ -177,14 +177,14 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
   outer.core.module.io.reset_vector := io.reset_vector
   outer.core.module.io.dfx_reset := io.dfx_reset
   io.cpu_halt := outer.core.module.io.cpu_halt
-  // TODO: replace Coupled L2
-  // if(outer.l2cache.isDefined){
-  //   outer.core.module.io.perfEvents.zip(outer.l2cache.get.module.io.perfEvents.flatten).foreach(x => x._1.value := x._2)
-  // }
-  // else {
-  //   outer.core.module.io.perfEvents <> DontCare
-  // }
-  outer.core.module.io.perfEvents <> DontCare
+  
+  if(outer.l2cache.isDefined){
+    require(outer.core.module.io.perfEvents.length == outer.l2cache.get.module.io_perf.length)
+    outer.core.module.io.perfEvents.zip(outer.l2cache.get.module.io_perf).foreach(x => x._1.value := x._2.value)
+  }
+  else {
+    outer.core.module.io.perfEvents <> DontCare
+  }
 
   outer.misc.module.beu_errors.icache <> outer.core.module.io.beu_errors.icache
   outer.misc.module.beu_errors.dcache <> outer.core.module.io.beu_errors.dcache

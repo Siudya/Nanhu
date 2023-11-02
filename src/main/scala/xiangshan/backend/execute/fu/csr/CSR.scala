@@ -51,7 +51,7 @@ class PerfCounterIO(implicit p: Parameters) extends XSBundle {
   val perfEventsFrontend  = Vec(numCSRPCntFrontend, new PerfEvent)
   val perfEventsCtrl      = Vec(numCSRPCntCtrl, new PerfEvent)
   val perfEventsLsu       = Vec(numCSRPCntLsu, new PerfEvent)
-  val perfEventsHc        = Vec(numPCntHc * coreParams.L2NBanks, new PerfEvent)
+  val perfEventsL2        = Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent)
   val retiredInstr = UInt(3.W)
   val frontendInfo = new Bundle {
     val ibufFull  = Bool()
@@ -624,9 +624,9 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     perfEventscounten(i) := (perfEvents(i)(63,60) & priviledgeModeOH).orR
   }
 
-  val hpmEvents = Wire(Vec(numPCntHc * coreParams.L2NBanks, new PerfEvent))
-  for (i <- 0 until numPCntHc * coreParams.L2NBanks) {
-    hpmEvents(i) := csrio.perf.perfEventsHc(i)
+  val hpmEvents = Wire(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
+  for (i <- 0 until numPCntL2 * coreParams.L2NBanks) {
+    hpmEvents(i) := csrio.perf.perfEventsL2(i)
   }
 
   // print perfEvents
