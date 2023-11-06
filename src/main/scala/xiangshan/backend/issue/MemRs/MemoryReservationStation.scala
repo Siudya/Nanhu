@@ -146,9 +146,8 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
 
   private val internalEarlyWakeup = Wire(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
   io.loadEarlyWakeup.zip(internalEarlyWakeup).foreach({case(a, b) =>
-    a.valid := RegNext(b.valid)
-    a.bits := RegEnable(b.bits, b.valid)
-    a.bits.lpv := RegEnable(LogicShiftRight(b.bits.lpv, 1), b.valid)
+    a.valid := b.valid
+    a.bits := b.bits
   })
 
   rsBankSeq.foreach(rb => {
@@ -189,9 +188,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   private val stdExuCfg = stdIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.std).head
   private val lduExuCfg = lduIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.ldu).head
 
-  private val staSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, staIssuePortNum, staExuCfg, true, true, true, Some(s"MemoryStaSelectNetwork")))
-  private val stdSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, stdIssuePortNum, stdExuCfg, true, true, true, Some(s"MemoryStdSelectNetwork")))
-  private val lduSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, lduIssuePortNum, lduExuCfg, true, true, true, Some(s"MemoryLduSelectNetwork")))
+  private val staSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, staIssuePortNum, staExuCfg, true, Some(s"MemoryStaSelectNetwork")))
+  private val stdSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, stdIssuePortNum, stdExuCfg, true, Some(s"MemoryStdSelectNetwork")))
+  private val lduSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, lduIssuePortNum, lduExuCfg, true, Some(s"MemoryLduSelectNetwork")))
 
   staSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.staSelectInfo
@@ -358,7 +357,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
       })
 
       val lduIssueInfo = lduSelectNetwork.io.issueInfo(issuePortIdx)
-      val earlyWakeupQueue = Module(new WakeupQueue(2))
+      val earlyWakeupQueue = Module(new WakeupQueue(3))
       earlyWakeupQueue.io.in.valid := scalarLoadSel && !(issueDriver.io.hold && issueDriver.io.isLoad)
       earlyWakeupQueue.io.earlyWakeUpCancel := io.earlyWakeUpCancel
       earlyWakeupQueue.io.in.bits.robPtr := lduIssueInfo.bits.info.robPtr

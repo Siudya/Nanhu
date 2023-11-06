@@ -142,16 +142,16 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
   private val divExuCfg = divIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.div).head
   private val jmpExuCfg = jmpIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.jmp).head
 
-  private val aluSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, aluIssuePortNum, aluExuCfg, false, false, false, Some(s"IntegerAluSelectNetwork")))
-  private val mulSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, mulIssuePortNum, mulExuCfg, false, false, false, Some(s"IntegerMulSelectNetwork")))
+  private val aluSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, aluIssuePortNum, aluExuCfg, false, Some(s"IntegerAluSelectNetwork")))
+  private val mulSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, mulIssuePortNum, mulExuCfg, false, Some(s"IntegerMulSelectNetwork")))
   private val divSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, divIssuePortNum, divExuCfg, false, false, false, Some(s"IntegerDivSelectNetwork")))
-  private val jmpSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, jmpIssuePortNum, jmpExuCfg, false, false, false, Some(s"IntegerJmpSelectNetwork")))
+  private val jmpSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, jmpIssuePortNum, jmpExuCfg, false, Some(s"IntegerJmpSelectNetwork")))
   divSelectNetwork.io.tokenRelease.get.zip(wakeup.filter(_._2.exuType == ExuType.div).map(_._1)).foreach({
     case(sink, source) =>
       sink.valid := source.valid && source.bits.uop.ctrl.rfWen
       sink.bits := source.bits.uop.pdest
   })
-  private val selectNetworkSeq = Seq(aluSelectNetwork, mulSelectNetwork, divSelectNetwork, jmpSelectNetwork)
+  private val selectNetworkSeq = Seq(aluSelectNetwork, mulSelectNetwork, jmpSelectNetwork)
   selectNetworkSeq.foreach(sn => {
     sn.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
       sink := source.io.selectInfo
@@ -159,6 +159,11 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     sn.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     sn.io.redirect := io.redirect
   })
+  divSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
+    sink := source.io.selectInfo
+  })
+  divSelectNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
+  divSelectNetwork.io.redirect := io.redirect
 
   private var busyTableReadIdx = 0
   allocateNetwork.io.enqFromDispatch.zip(enq).foreach({case(sink, source) =>
