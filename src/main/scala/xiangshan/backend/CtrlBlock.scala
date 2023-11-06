@@ -160,7 +160,10 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   wbMergeBuffer.io.vmbInit := vCtrlBlock.io.vmbInit
   vCtrlBlock.io.splitCtrl.allDone := RegNext(wbMergeBuffer.io.splitCtrl.allDone)
   vCtrlBlock.io.splitCtrl.allowNext := RegNext(wbMergeBuffer.io.splitCtrl.allowNext)
-  io.vecFaultOnlyFirst := Pipe(wbMergeBuffer.io.ffOut)
+  io.vecFaultOnlyFirst.valid := RegNext(wbMergeBuffer.io.ffOut.valid, false.B)
+  io.vecFaultOnlyFirst.bits := RegEnable(wbMergeBuffer.io.ffOut.bits, wbMergeBuffer.io.ffOut.valid)
+  io.vecFaultOnlyFirst.bits.redirectValid := RegNext(wbMergeBuffer.io.ffOut.bits.redirectValid, false.B)
+  io.vecFaultOnlyFirst.bits.redirect := RegEnable(wbMergeBuffer.io.ffOut.bits.redirect, wbMergeBuffer.io.ffOut.bits.redirectValid)
 
   //Redirect
   for (i <- 0 until CommitWidth) {
