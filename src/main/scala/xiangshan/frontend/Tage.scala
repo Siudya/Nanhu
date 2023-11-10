@@ -39,9 +39,9 @@ trait TageParams extends HasBPUConst with HasXSParameter {
   val TageCtrBits = 3
   val TickWidth = 7
 
-  val USE_ALT_ON_NA_WIDTH = 4
-  val NUM_USE_ALT_ON_NA = 128
-  def use_alt_idx(pc: UInt) = (pc >> instOffsetBits)(log2Ceil(NUM_USE_ALT_ON_NA)-1, 0)
+  // val USE_ALT_ON_NA_WIDTH = 4
+  // val NUM_USE_ALT_ON_NA = 128
+  // def use_alt_idx(pc: UInt) = (pc >> instOffsetBits)(log2Ceil(NUM_USE_ALT_ON_NA)-1, 0)
 
   val TotalBits = TageTableInfos.map {
     case (s, h, t) => {
@@ -582,11 +582,11 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
 
   val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit((1 << (TickWidth-1)).U(TickWidth.W)))
   val bankTickCtrs = Seq.fill(numBr)(RegInit(0.U(TickWidth.W)))
-  val useAltOnNaCtrs = RegInit(
-    VecInit(Seq.fill(numBr)(
-      VecInit(Seq.fill(NUM_USE_ALT_ON_NA)((1 << (USE_ALT_ON_NA_WIDTH-1)).U(USE_ALT_ON_NA_WIDTH.W)))
-    ))
-  )
+  // val useAltOnNaCtrs = RegInit(
+  //   VecInit(Seq.fill(numBr)(
+  //     VecInit(Seq.fill(NUM_USE_ALT_ON_NA)((1 << (USE_ALT_ON_NA_WIDTH-1)).U(USE_ALT_ON_NA_WIDTH.W)))
+  //   ))
+  // )
 
   val tage_fh_info = tables.map(_.getFoldedHistoryInfo).reduce(_++_).toSet
   override def getFoldedHistoryInfo = Some(tage_fh_info)
@@ -666,14 +666,14 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   // access tag tables and output meta info
 
   for (i <- 0 until numBr) {
-    val useAltCtr = Mux1H(UIntToOH(use_alt_idx(s1_pc_dup(4)), NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
-    val useAltOnNa = useAltCtr(USE_ALT_ON_NA_WIDTH-1) // highest bit
+    // val useAltCtr = Mux1H(UIntToOH(use_alt_idx(s1_pc_dup(4)), NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
+    // val useAltOnNa = useAltCtr(USE_ALT_ON_NA_WIDTH-1) // highest bit
 
     val s1_per_br_resp = VecInit(s1_resps.map(_(i)))
     val inputRes = s1_per_br_resp.zipWithIndex.map{case (r, idx) => {
       val tableInfo = Wire(new TageTableInfo)
       tableInfo.resp := r.bits
-      tableInfo.use_alt_on_unconf := r.bits.unconf && useAltOnNa
+      tableInfo.use_alt_on_unconf := r.bits.unconf // && useAltOnNa
       tableInfo.tableIdx := idx.U(log2Ceil(TageNTables).W)
       (r.valid, tableInfo)
     }}
@@ -750,8 +750,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     val updateProviderCorrect = updateProviderResp.ctr(TageCtrBits-1) === updateTaken
     val updateUseAlt = updateMeta.altUsed(i)
     val updateAltDiffers = updateMeta.altDiffers(i)
-    val updateAltIdx = use_alt_idx(update.pc)
-    val updateUseAltCtr = Mux1H(UIntToOH(updateAltIdx, NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
+    // val updateAltIdx = use_alt_idx(update.pc)
+    // val updateUseAltCtr = Mux1H(UIntToOH(updateAltIdx, NUM_USE_ALT_ON_NA), useAltOnNaCtrs(i))
     val updateAltPred = updateMeta.altPreds(i)
     val updateAltCorrect = updateAltPred === updateTaken
 
@@ -760,12 +760,12 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     val updateProviderWeaknotTaken = negUnconf(updateProviderResp.ctr)
     val updateProviderWeak = unconf(updateProviderResp.ctr)
 
-    when (hasUpdate) {
-      when (updateProvided && updateProviderWeak && updateAltDiffers) {
-        val newCtr = satUpdate(updateUseAltCtr, USE_ALT_ON_NA_WIDTH, updateAltCorrect)
-        useAltOnNaCtrs(i)(updateAltIdx) := newCtr
-      }
-    }
+    // when (hasUpdate) {
+    //   when (updateProvided && updateProviderWeak && updateAltDiffers) {
+    //     val newCtr = satUpdate(updateUseAltCtr, USE_ALT_ON_NA_WIDTH, updateAltCorrect)
+    //     useAltOnNaCtrs(i)(updateAltIdx) := newCtr
+    //   }
+    // }
 
     XSPerfAccumulate(f"tage_bank_${i}_use_alt_pred", hasUpdate && updateUseAlt)
     XSPerfAccumulate(f"tage_bank_${i}_alt_correct", hasUpdate && updateUseAlt && updateAltCorrect)
