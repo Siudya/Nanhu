@@ -256,9 +256,10 @@ class WithNKBL2
         echoField = Seq(coupledL2.DirtyField()),
         elaboratedTopDown = false,
         enablePerf = false,
-        hasMbist = p.hasMbist,
+        hasMbist = true,
         hasShareBus = p.hasShareBus,
-        prefetch = Some(coupledL2.prefetch.HyperPrefetchParams()), /*
+        prefetch = Some(coupledL2.prefetch.HyperPrefetchParams()), 
+        /*
         del L2 prefetche recv option, move into: prefetch =  PrefetchReceiverParams
         prefetch options:
           SPPParameters          => spp only
@@ -266,7 +267,19 @@ class WithNKBL2
           PrefetchReceiverParams => sms+bop
           HyperPrefetchParams    => spp+bop+sms
         */
-        sppMultiLevelRefill = Some(coupledL2.prefetch.PrefetchReceiverParams()),
+        // sppMultiLevelRefill = Some(coupledL2.prefetch.PrefetchReceiverParams()),
+        /*must has spp, otherwise Assert Fail
+        sppMultiLevelRefill options:
+        PrefetchReceiverParams() => spp has cross level refill
+        None                     => spp only refill L2
+        */
+        // prefetch = None
+        // enablePerf = true,
+        // sramDepthDiv = 2,
+        // tagECC = None,
+        // dataECC = None,
+        // hasShareBus = false,
+        // simulation = !site(DebugOptionsKey).FPGAPlatform
       )),
       L2NBanks = banks
     ))
@@ -293,7 +306,7 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
         },
         enablePerf = false,
         prefetch = None,
-        prefetchRecv = Some(huancun.prefetch.PrefetchReceiverParams()),
+        // prefetchRecv = Some(huancun.prefetch.PrefetchReceiverParams()),
         ctrl = None,
         reqField = Seq(xs.utils.tl.ReqSourceField()),
         sramClkDivBy2 = true,
@@ -330,6 +343,6 @@ class DefaultConfig(n: Int = 1) extends Config(
   new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 8, core_num = n)
     ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 8, alwaysReleaseData = true)
     ++ new WithNKBL1D(64)
-    ++ new BaseConfig(n)
+    ++ new BaseConfig(n,mbist = true)
 )
 

@@ -322,6 +322,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
         sender.out.head._1.addr_valid := pf_to_l2.valid
         sender.out.head._1.addr := pf_to_l2.bits
         sender.out.head._1.l2_pf_en := RegNextN(io.csrCtrl.l2_pf_enable, 2, Some(true.B))
+        sender.out.head._1.l2_pf_ctrl := RegNextN(io.csrCtrl.l2_pf_ctrl,2,Some(0.U(2.W)))
         sms.io.enable := RegNextN(io.csrCtrl.l1D_pf_enable, 2, Some(false.B))
         case None => assert(cond = false, "Maybe from Config fault: Open SMS but dont have sms sender&recevier")
       }

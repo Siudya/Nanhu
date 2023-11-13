@@ -85,6 +85,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     val reset_vector = Input(UInt(PAddrBits.W))
     val cpu_halt = Output(Bool())
     val l2_pf_enable = Output(Bool())
+    val l2_pf_ctrl = Output(UInt(2.W))
     val perfEvents = Input(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
     val beu_errors = Output(new XSL1BusErrors())
     val dfx_reset = Input(new DFTResetSignals())
@@ -207,6 +208,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
 
   // if l2 prefetcher use stream prefetch, it should be placed in XSCore
   io.l2_pf_enable := csrioIn.customCtrl.l2_pf_enable
+  io.l2_pf_ctrl := csrioIn.customCtrl.l2_pf_ctrl
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_Core", true)
