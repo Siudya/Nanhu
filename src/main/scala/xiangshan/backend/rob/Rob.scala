@@ -55,6 +55,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val writebackIn = writebackInParams zip writebackInBundles
 
   val numWbPorts = writebackIn.length
+  val numWbPortsWithRedirect = writebackIn.count(_._1.hasRedirectOut)
 
   val io = IO(new Bundle() {
     //for multi core debug
@@ -118,7 +119,8 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   // instvalid field
   val valid = RegInit(VecInit(Seq.fill(RobSize)(false.B)))
   // writeback status
-  val writebacked = Reg(Vec(RobSize, Bool()))
+  val wbStatusArray = Module(new WbStateArray(writebackNoStd.length + RenameWidth + VectorMergeWbWidth, numWbPortsWithRedirect + 2))
+  val writebacked = wbStatusArray.io.out
   val store_data_writebacked = Reg(Vec(RobSize, Bool()))
   // data for redirect, exception, etc.
   val flagBkup = Mem(RobSize, Bool())
@@ -272,18 +274,15 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
    */
   // diplomacy port wb and
   // writeback logic set numWbPorts writebacked to true
-  for ((cfg, wb) <- writebackIn) {
-    when(wb.valid) {
-      val wbIdx = wb.bits.uop.robIdx.value
-      val wbHasException = ExceptionNO.selectByExu(wb.bits.uop.cf.exceptionVec, cfg).asUInt.orR
-      val wbHasTriggerCanFire = if (cfg.trigger) wb.bits.uop.cf.trigger.getBackendCanFire else false.B
-      val block_wb = wbHasException || wbHasTriggerCanFire
-      if (cfg.hasRedirectOut && cfg.exuType != ExuType.sta) {
-        val ri = wb.bits.redirect
-        writebacked(wbIdx) := !(wb.bits.redirectValid && (ri.cfiUpdate.isMisPred || ri.isLoadLoad || ri.isFlushPipe)) && !block_wb
-      } else {
-        writebacked(wbIdx) := !block_wb
-      }
+  for ((cfg, wb) <- writebackNoStd) {
+    val wbHasException = ExceptionNO.selectByExu(wb.bits.uop.cf.exceptionVec, cfg).asUInt.orR
+    val wbHasTriggerCanFire = if (cfg.trigger) wb.bits.uop.cf.trigger.getBackendCanFire else false.B
+    val block_wb = wbHasException || wbHasTriggerCanFire
+    wbStatusArray.update(wb.valid, wb.bits.uop.robIdx, !block_wb)
+    if(cfg.hasRedirectOut) {
+      val ri = wb.bits.redirect
+      val hasRedirect = wb.bits.redirectValid && (ri.cfiUpdate.isMisPred || ri.isLoadLoad || ri.isFlushPipe || ri.isLoadStore)
+      wbStatusArray.redirect(hasRedirect, ri.robIdx, false.B)
     }
   }
 
@@ -313,13 +312,10 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   // From MergeBuffer writeback, vmem/vpBlock/valu/vdiv/vfp/vmac
   //TODO:
   for (wb <- io.wbFromMergeBuffer) {
-    when(wb.valid) {
-      val wbIdx = wb.bits.uop.robIdx.value
-      val wbHasException = wb.bits.uop.cf.exceptionVec.asUInt.orR
-      val wbHasTriggerCanFire = wb.bits.uop.cf.trigger.getBackendCanFire
-      val block_wb = wbHasException || wbHasTriggerCanFire
-      writebacked(wbIdx) := !block_wb
-    }
+    val wbHasException = wb.bits.uop.cf.exceptionVec.asUInt.orR
+    val wbHasTriggerCanFire = wb.bits.uop.cf.trigger.getBackendCanFire
+    val block_wb = wbHasException || wbHasTriggerCanFire
+    wbStatusArray.update(wb.valid, wb.bits.uop.robIdx, !block_wb)
   }
 
   for (wb <- io.wbFromMergeBuffer) {
@@ -362,9 +358,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val redirectDelay1 = Pipe(io.redirect)
   val exceptionWaitingRedirect = RegInit(false.B)
 
-  when(io.redirect.valid) {
-    writebacked(io.redirect.bits.robIdx.value) := Mux(io.redirect.bits.flushItself(), false.B, true.B)
-  }
+  wbStatusArray.redirect(io.redirect.valid, io.redirect.bits.robIdx, true.B)
 
   when(io.exception.valid) {
     exceptionWaitingRedirect := true.B
@@ -723,18 +717,19 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   // status field: writebacked
   // enqueue logic set 6 writebacked to false
   for (i <- 0 until RenameWidth) {
+    val enqHasException = ExceptionNO.selectFrontend(io.enq.req(i).bits.cf.exceptionVec).asUInt.orR
+    val enqHasTriggerCanFire = io.enq.req(i).bits.cf.trigger.getFrontendCanFire
+    val enqIsWritebacked = io.enq.req(i).bits.eliminatedMove
+    wbStatusArray.update(canEnqueue(i), allocatePtrVec(i), enqIsWritebacked && !enqHasException && !enqHasTriggerCanFire)
     when(canEnqueue(i)) {
-      val enqHasException = ExceptionNO.selectFrontend(io.enq.req(i).bits.cf.exceptionVec).asUInt.orR
-      val enqHasTriggerCanFire = io.enq.req(i).bits.cf.trigger.getFrontendCanFire
-      val enqIsWritebacked = io.enq.req(i).bits.eliminatedMove
-      writebacked(allocatePtrVec(i).value) := enqIsWritebacked && !enqHasException && !enqHasTriggerCanFire
       val isScalarStu = io.enq.req(i).bits.ctrl.fuType === FuType.stu && !io.enq.req(i).bits.ctrl.isVector
       store_data_writebacked(allocatePtrVec(i).value) := !isScalarStu
     }
   }
+
+  wbStatusArray.redirect(exceptionGen.io.out.valid, exceptionGen.io.out.bits.robIdx, true.B)
   when(exceptionGen.io.out.valid) {
     val wbIdx = exceptionGen.io.out.bits.robIdx.value
-    writebacked(wbIdx) := true.B
     store_data_writebacked(wbIdx) := true.B
   }
 
