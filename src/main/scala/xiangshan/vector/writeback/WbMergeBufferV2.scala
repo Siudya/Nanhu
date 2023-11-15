@@ -64,7 +64,7 @@ class WbMergeBufferV2Impl(outer: WbMergeBufferV2) extends LazyModuleImp(outer) w
 
   private val table = Reg(Vec(size, new ExuOutput))
   private val valids = RegInit(VecInit(Seq.fill(size)(false.B)))
-  private val wbCnts = RegInit(VecInit(Seq.fill(size)(0.U(log2Ceil(VLEN + 1).W))))
+  private val wbCnts = RegInit(VecInit(Seq.fill(size)((0.U((log2Ceil(VLEN + 1) + 1).W)))))
   private val allocPtrVec = RegInit(VecInit(Seq.tabulate(allocWidth)(i => i.U.asTypeOf(new VmbPtr))))
   private val cmtPtrVec = RegInit(VecInit(Seq.tabulate(deqWidth)(i => i.U.asTypeOf(new VmbPtr))))
   assert(cmtPtrVec.head <= allocPtrVec.head)
@@ -176,9 +176,10 @@ class WbMergeBufferV2Impl(outer: WbMergeBufferV2) extends LazyModuleImp(outer) w
   private def checkWbHit(wb:Valid[ExuOutput], idx:Int):Bool = {
     wb.valid && wb.bits.uop.mergeIdx.value === idx.U
   }
+
   for((c, idx) <- wbCnts.zipWithIndex){
     val hitVec = allWritebacks.map(checkWbHit(_, idx))
-    when(hitVec.reduce(_|_)){
+    when(hitVec.reduce(_|_)) {
       c := c + PopCount(hitVec)
     }
   }

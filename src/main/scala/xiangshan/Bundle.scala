@@ -219,8 +219,8 @@ class MicroOp(implicit p: Parameters) extends CfCtrl {
   //vector
   val vm = UInt(PhyRegIdxWidth.W)
   val vmState = SrcState()
-  val uopIdx = UInt(7.W)
-  val uopNum = UInt(8.W)
+  val uopIdx = UInt(8.W)
+  val uopNum = UInt(9.W)
   val isTail = Bool()
   val partialTail = Bool()
   val isPrestart = Bool()

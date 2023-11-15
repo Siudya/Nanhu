@@ -53,6 +53,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val writebackInParams = outer.writebackNode.in.head._2._1
   //writeback: Seq[(param, bundle)]
   val writebackIn = writebackInParams zip writebackInBundles
+
   val numWbPorts = writebackIn.length
 
   val io = IO(new Bundle() {
@@ -73,7 +74,9 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
 
   val wbWithFFlag = writebackIn.filter(wb => wb._1.writeFFlags)
   val wbWithException = writebackIn.filter(_._1.hasException)
-  val wbPorts = writebackIn.map(_._2)
+  val writebackStd = writebackIn.filter(_._1.exuType == ExuType.std)
+  val writebackNoStd = writebackIn.filter(_._1.exuType != ExuType.std)
+  val wbPorts = writebackNoStd.map(_._2)
   println(s"Rob     : size: $RobSize, numWbPorts: $numWbPorts, commitwidth: $CommitWidth")
   println(s"fflags  : ${wbWithFFlag.map(_._1.name)}")
   println(s"exception from exu: ${wbWithException.map(_._1.name)}")
@@ -116,6 +119,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val valid = RegInit(VecInit(Seq.fill(RobSize)(false.B)))
   // writeback status
   val writebacked = Reg(Vec(RobSize, Bool()))
+  val store_data_writebacked = Reg(Vec(RobSize, Bool()))
   // data for redirect, exception, etc.
   val flagBkup = Mem(RobSize, Bool())
   // some instructions are not allowed to trigger interrupts
@@ -441,7 +445,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val walkFinished = walkCounter === canWalkNum
   val walk_v = VecInit(walkPtrVec.map(ptr => valid(ptr.value)))
   val commit_v = VecInit(deqPtrVec.map(ptr => valid(ptr.value)))
-  val commit_w = VecInit(deqPtrVec.map(ptr => writebacked(ptr.value)))
+  val commit_w = VecInit(deqPtrVec.map(ptr => writebacked(ptr.value) && store_data_writebacked(ptr.value)))
   val commit_exception = exceptionDataRead.valid && !isAfter(exceptionDataRead.bits.robIdx, deqPtrVec.last)
   val commit_block = VecInit((0 until CommitWidth).map(i => !commit_w(i)))
   val allowOnlyOneCommit = commit_exception || intrBitSetReg
@@ -650,7 +654,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
       VecInit((0 until CommitWidth).map(i => enqPtr - (i + 1).U))
     ),
     Mux(state === s_walk, VecInit(walkPtrVec.map(_ - canWalkNum)), walkPtrVec)
-  ) 
+  )
   walkPtrVec := walkPtrVec_next
 
   val numValidEntries = distanceBetween(enqPtr, deqPtr)
@@ -724,14 +728,22 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
       val enqHasTriggerCanFire = io.enq.req(i).bits.cf.trigger.getFrontendCanFire
       val enqIsWritebacked = io.enq.req(i).bits.eliminatedMove
       writebacked(allocatePtrVec(i).value) := enqIsWritebacked && !enqHasException && !enqHasTriggerCanFire
-      //val isStu = io.enq.req(i).bits.ctrl.fuType === FuType.stu
-      //store_data_writebacked(allocatePtrVec(i).value) := !isStu
+      val isScalarStu = io.enq.req(i).bits.ctrl.fuType === FuType.stu && !io.enq.req(i).bits.ctrl.isVector
+      store_data_writebacked(allocatePtrVec(i).value) := !isScalarStu
     }
   }
   when(exceptionGen.io.out.valid) {
     val wbIdx = exceptionGen.io.out.bits.robIdx.value
     writebacked(wbIdx) := true.B
-    //store_data_writebacked(wbIdx) := true.B
+    store_data_writebacked(wbIdx) := true.B
+  }
+
+  writebackStd.map(_._2).zipWithIndex.foreach {
+    case (wb, i) => {
+      when(wb.valid) {
+        store_data_writebacked(wb.bits.uop.robIdx.value) := true.B
+      }
+    }
   }
 
   // flagBkup
