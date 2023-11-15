@@ -29,6 +29,7 @@ import xiangshan.frontend.FtqPtr
 import xiangshan.ExceptionNO._
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.issue.SelectPolicy
+import xiangshan.mem.lsqueue.LSQExceptionGen
 import xs.utils.perf.HasPerfLogging
 
 class LqPtr(implicit p: Parameters) extends CircularQueuePtr[LqPtr](
@@ -169,8 +170,6 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val release2cycle_valid = RegNext(io.release.valid)
   val release2cycle_paddr = RegEnable(io.release.bits.paddr, io.release.valid)
   val release2cycle_paddr_dup_lsu = RegEnable(io.release.bits.paddr, io.release.valid)
-  private val exceptionInfo = RegInit(0.U.asTypeOf(new LSQExceptionInfo))
-
 
   /**
     * Enqueue at dispatch
@@ -966,40 +965,19 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   // Read vaddr for mem exception
   // no inst will be commited 1 cycle before tval update
-
-  private val loadExceptionInfo = Wire(Vec(2, new LSQExceptionInfo))
-  loadExceptionInfo.zipWithIndex.foreach({ case (d, i) =>
+  private val exceptionGen = Module(new LSQExceptionGen(LoadPipelineWidth, FuConfigs.lduCfg))
+  exceptionGen.io.redirect := io.brqRedirect
+  private val exceptionInfo = exceptionGen.io.out
+  exceptionGen.io.in.zipWithIndex.foreach({ case (d, i) =>
     val validCond = io.loadIn(i).valid && !io.loadIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
-    d.robIdx := RegEnable(io.loadIn(i).bits.uop.robIdx, validCond)
-    d.vaddr := RegEnable(io.loadIn(i).bits.vaddr, validCond)
-    d.eVec := RegEnable(io.loadIn(i).bits.uop.cf.exceptionVec, validCond)
+    d.bits.robIdx := RegEnable(io.loadIn(i).bits.uop.robIdx, validCond)
+    d.bits.vaddr := RegEnable(io.loadIn(i).bits.vaddr, validCond)
+    d.bits.eVec := RegEnable(io.loadIn(i).bits.uop.cf.exceptionVec, validCond)
+    d.bits.uopIdx := RegEnable(io.loadIn(i).bits.uop.uopIdx, validCond)
     d.valid := RegNext(validCond, false.B)
   })
-  private val loadExceptionInfoDelay = loadExceptionInfo.map(s => {
-    val res = Wire(new LSQExceptionInfo)
-    val validCond = s.valid && !s.robIdx.needFlush(io.brqRedirect)
-    res.robIdx := RegEnable(s.robIdx, validCond)
-    res.eVec := RegEnable(s.eVec, validCond)
-    res.vaddr := RegEnable(s.vaddr, validCond)
-    val hasException = ExceptionNO.selectByFu(res.eVec, FuConfigs.lduCfg).asUInt.orR
-    res.valid := RegNext(validCond, false.B) && hasException
-    res
-  })
-  private val exceptionSrcs = exceptionInfo +: loadExceptionInfoDelay
-  private val excptSelector = Module(new SelectPolicy(exceptionSrcs.length, true, true))
-  excptSelector.io.in.zip(exceptionSrcs).foreach({ case (a, b) =>
-    a.valid := b.valid && !b.robIdx.needFlush(io.brqRedirect)
-    a.bits := b.robIdx
-  })
-  private val excptUpdateCond = excptSelector.io.out.valid && excptSelector.io.out.bits =/= 1.U(exceptionSrcs.length.W)
-  when(excptUpdateCond) {
-    exceptionInfo := Mux1H(excptSelector.io.out.bits, exceptionSrcs)
-  }.elsewhen(io.brqRedirect.valid && exceptionInfo.robIdx.needFlush(io.brqRedirect)) {
-    exceptionInfo.valid := false.B
-  }
 
-  io.exceptionAddr.vaddr := exceptionInfo.vaddr
-
+  io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 
   // Read vaddr for debug
   (0 until LoadPipelineWidth).foreach(i => {

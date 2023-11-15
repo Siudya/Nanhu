@@ -30,6 +30,7 @@ import device.RAMHelper
 import freechips.rocketchip.util.SeqBoolBitwiseOps
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.issue.SelectPolicy
+import xiangshan.mem.lsqueue.LSQExceptionGen
 import xs.utils.perf.HasPerfLogging
 
 class SqPtr(implicit p: Parameters) extends CircularQueuePtr[SqPtr](
@@ -62,13 +63,6 @@ class DataBufferEntry (implicit p: Parameters)  extends DCacheBundle {
   val mask   = UInt((DataBits/8).W)
   val wline = Bool()
   val sqPtr  = new SqPtr
-}
-
-class LSQExceptionInfo (implicit p: Parameters)  extends DCacheBundle{
-  val valid = Bool()
-  val eVec = ExceptionVec()
-  val robIdx = new RobPtr
-  val vaddr = UInt(VAddrBits.W)
 }
 
 // Store Queue
@@ -142,7 +136,6 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   val order = RegInit(VecInit(List.fill(StoreQueueSize)(false.B))) // inst is an order store
   val mmio = RegInit(VecInit(List.fill(StoreQueueSize)(false.B))) // inst is an mmio store
   val writebacked = RegInit(VecInit(List.fill(StoreQueueSize)(false.B)))  //inst has writebacked
-  val exception_info = RegInit(0.U.asTypeOf(new LSQExceptionInfo))
 
   // ptr
   val enqPtrExt = RegInit(VecInit((0 until io.enq.req.length).map(_.U.asTypeOf(new SqPtr))))
@@ -264,38 +257,19 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
 
   //update STA exception info
   require(io.storeIn.length == 2)
-  val storeExceptionInfo = Wire(Vec(2, new LSQExceptionInfo))
-  storeExceptionInfo.zipWithIndex.foreach({case (d,i) =>
+  private val exceptionGen = Module(new LSQExceptionGen(StorePipelineWidth, FuConfigs.staCfg))
+  exceptionGen.io.redirect := io.brqRedirect
+  private val exceptionInfo = exceptionGen.io.out
+  exceptionGen.io.in.zipWithIndex.foreach({case (d,i) =>
     val validCond = io.storeIn(i).valid && !io.storeIn(i).bits.miss && !io.storeIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
-    d.robIdx := RegEnable(io.storeIn(i).bits.uop.robIdx, validCond)
-    d.vaddr := RegEnable(io.storeIn(i).bits.vaddr, validCond)
-    d.eVec := io.storeInRe(i).uop.cf.exceptionVec
+    d.bits.robIdx := RegEnable(io.storeIn(i).bits.uop.robIdx, validCond)
+    d.bits.vaddr := RegEnable(io.storeIn(i).bits.vaddr, validCond)
+    d.bits.uopIdx := RegEnable(io.storeIn(i).bits.uop.uopIdx, validCond)
+    d.bits.eVec := io.storeInRe(i).uop.cf.exceptionVec
     d.valid := RegNext(validCond, false.B)
   })
-  private val storeExceptionInfoDelay = storeExceptionInfo.map(s => {
-    val res = Wire(new LSQExceptionInfo)
-    val validCond = s.valid && !s.robIdx.needFlush(io.brqRedirect)
-    res.robIdx := RegEnable(s.robIdx, validCond)
-    res.eVec := RegEnable(s.eVec, validCond)
-    res.vaddr := RegEnable(s.vaddr, validCond)
-    val hasException = ExceptionNO.selectByFu(res.eVec, FuConfigs.staCfg).asUInt.orR
-    res.valid := RegNext(validCond, false.B) && hasException
-    res
-  })
-  private val exceptionSrcs = exception_info +: storeExceptionInfoDelay
-  private val excptSelector = Module(new SelectPolicy(exceptionSrcs.length, true, true))
-  excptSelector.io.in.zip(exceptionSrcs).foreach({case(a, b)=>
-    a.valid := b.valid && !b.robIdx.needFlush(io.brqRedirect)
-    a.bits := b.robIdx
-  })
-  private val excptUpdateCond = excptSelector.io.out.valid && excptSelector.io.out.bits =/= 1.U(exceptionSrcs.length.W)
-  when(excptUpdateCond){
-    exception_info := Mux1H(excptSelector.io.out.bits, exceptionSrcs)
-  }.elsewhen(io.brqRedirect.valid && exception_info.robIdx.needFlush(io.brqRedirect)){
-    exception_info.valid := false.B
-  }
 
-  io.exceptionAddr.vaddr := exception_info.vaddr
+  io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 
   /**
     * Writeback store from store units
@@ -586,7 +560,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   private val readyToDeq = Reg(Vec(StoreQueueSize, Bool()))
   for (i <- 0 until StoreQueueSize) {
     readyToDeq(i) := readyToLeave(i) & writebacked(i) & allocated(i) &
-      !(uop(i).robIdx === exception_info.robIdx && exception_info.valid)
+      !(uop(i).robIdx === exceptionInfo.bits.robIdx && exceptionInfo.valid)
   }
   private val cmtVec = Seq.tabulate(CommitWidth)({idx =>
     val ptr = cmtPtrExt(idx)
@@ -726,7 +700,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
     io.stout(i).bits.data := rdata
     io.stout(i).bits.redirectValid := false.B
     io.stout(i).bits.redirect := DontCare
-    io.stout(i).bits.uop.cf.exceptionVec := Mux(exception_info.valid && (seluop.robIdx === exception_info.robIdx),exception_info.eVec,0.U.asTypeOf(ExceptionVec()))
+    io.stout(i).bits.uop.cf.exceptionVec := Mux(exceptionInfo.valid && (seluop.robIdx === exceptionInfo.bits.robIdx),exceptionInfo.bits.eVec,0.U.asTypeOf(ExceptionVec()))
   })
 
 
