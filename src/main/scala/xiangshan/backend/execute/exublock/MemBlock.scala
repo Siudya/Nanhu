@@ -96,7 +96,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
       complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.staCfg),
       exuType = ExuType.sta,
-      writebackToRob = false,
+      writebackToRob = true,
       writebackToVms = false
     )
   })
@@ -107,7 +107,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
       complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.stdCfg),
       exuType = ExuType.std,
-      writebackToRob = false,
+      writebackToRob = true,
       writebackToVms = false
     )
   })
@@ -121,20 +121,20 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
     writebackToVms = false
   )})
 
-  private val stuParams = Seq.tabulate(exuParameters.StuCnt)(idx => {
+  private val vstdParams = Seq.tabulate(exuParameters.StuCnt)(idx => {
     ExuConfig(
-      name = "StuExu",
+      name = "vStdExu",
       id = idx,
       complexName = "MemComplex",
-      fuConfigs = Seq(FuConfigs.staCfg),
-      exuType = ExuType.sta,
-      writebackToRob = true,
-      writebackToVms = false
+      fuConfigs = Seq(FuConfigs.stdCfg),
+      exuType = ExuType.std,
+      writebackToRob = false,
+      writebackToVms = true
     )
   })
-  private val vstuParams = Seq.tabulate(exuParameters.StuCnt)(idx => {
+  private val vstaParams = Seq.tabulate(exuParameters.StuCnt)(idx => {
     ExuConfig(
-      name = "vStuExu",
+      name = "vStaExu",
       id = idx,
       complexName = "MemComplex",
       fuConfigs = Seq(FuConfigs.staCfg),
@@ -143,6 +143,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
       writebackToVms = true
     )
   })
+
   private val vlduParams = Seq.tabulate(exuParameters.LduCnt)(idx => {
     ExuConfig(
       name = "vLduExu",
@@ -156,16 +157,16 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
   })
 
   val lduIssueNodes: Seq[ExuInputNode] = lduParams.zipWithIndex.map(e => new ExuInputNode(e._1))
-
   val slduIssueNodes: Seq[MemoryBlockIssueNode] = slduParams.zipWithIndex.map(e => new MemoryBlockIssueNode(e._1, e._2))
   val staIssueNodes: Seq[ExuInputNode] = staParams.zipWithIndex.map(e => new ExuInputNode(e._1))
-
   val stdIssueNodes: Seq[ExuInputNode] = stdParams.zipWithIndex.map(e => new ExuInputNode(e._1))
 
   val lduWritebackNodes: Seq[ExuOutputNode] = lduParams.map(e => new ExuOutputNode(e))
   val vlduWritebackNodes: Seq[ExuOutputNode] = vlduParams.map(e => new ExuOutputNode(e))
-  val stuWritebackNodes: Seq[ExuOutputNode] = stuParams.map(new ExuOutputNode(_))
-  val vstuWritebackNodes: Seq[ExuOutputNode] = vstuParams.map(new ExuOutputNode(_))
+  val staWritebackNodes: Seq[ExuOutputNode] = staParams.map(new ExuOutputNode(_))
+  val vstaWritebackNodes: Seq[ExuOutputNode] = vstaParams.map(new ExuOutputNode(_))
+  val stdWritebackNodes: Seq[ExuOutputNode] = stdParams.map(new ExuOutputNode(_))
+  val vstdWritebackNodes: Seq[ExuOutputNode] = vstdParams.map(new ExuOutputNode(_))
 
   val memIssueRouters: Seq[MemIssueRouter] = Seq.fill(2)(LazyModule(new MemIssueRouter))
   memIssueRouters.zip(lduIssueNodes).zip(staIssueNodes).zip(stdIssueNodes).foreach({case(((mir, ldu), sta), std) =>
@@ -174,7 +175,7 @@ class MemBlock(val parentName:String = "Unknown")(implicit p: Parameters) extend
     std :*= mir.node
   })
 
-  private val allWritebackNodes = lduWritebackNodes ++ stuWritebackNodes
+  private val allWritebackNodes = lduWritebackNodes ++ staWritebackNodes ++ stdWritebackNodes
 
   memIssueRouters.foreach(mir => mir.node :*= issueNode)
   slduIssueNodes.foreach(_ :*= issueNode)
@@ -225,11 +226,19 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     require(wb.out.length == 1)
     wb.out.head._1
   })
-  private val stuWritebacks = outer.stuWritebackNodes.map(wb => {
+  private val staWritebacks = outer.staWritebackNodes.map(wb => {
     require(wb.out.length == 1)
     wb.out.head._1
   })
-  private val vstuWritebacks = outer.vstuWritebackNodes.map(wb => {
+  private val vstaWritebacks = outer.vstaWritebackNodes.map(wb => {
+    require(wb.out.length == 1)
+    wb.out.head._1
+  })
+  private val stdWritebacks = outer.stdWritebackNodes.map(wb => {
+    require(wb.out.length == 1)
+    wb.out.head._1
+  })
+  private val vstdWritebacks = outer.vstdWritebackNodes.map(wb => {
     require(wb.out.length == 1)
     wb.out.head._1
   })
@@ -339,7 +348,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   io.writebackFromMou.bits := RegEnable(atomicsUnit.io.out.bits, atomicsUnit.io.out.valid)
   atomicsUnit.io.out.ready := true.B
 
-  private val stOut = stuWritebacks
+  private val stOut = staWritebacks
 
   // TODO: fast load wakeup
   val lsq     = Module(new LsqWrappper)
@@ -358,15 +367,10 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   private val redirectInDelay = Pipe(redirectIn)
   private val ldExeWbReqs = loadUnits.map(_.io.ldout)
-  private val stuExeWbReqs = lsq.io.stout.map(swb =>{
-    val res = Wire(Decoupled(new ExuOutput))
-    res.valid := RegNext(swb.valid && !swb.bits.uop.robIdx.needFlush(redirectInDelay), false.B)
-    res.bits := RegEnable(swb.bits, swb.valid)
-    swb.ready := res.ready
-    res
-  })
-  (lduWritebacks ++ stuWritebacks)
-    .zip(ldExeWbReqs ++ stuExeWbReqs)
+  private val staExeWbReqs = storeUnits.map(_.io.stout)
+  private val stdExeWbReqs = stdUnits.map(_.io.out)
+  (lduWritebacks ++ staWritebacks ++ stdWritebacks)
+    .zip(ldExeWbReqs ++ staExeWbReqs ++ stdExeWbReqs)
     .foreach({case(wb, out) =>
       wb.valid := out.valid && !out.bits.uop.ctrl.isVector
       wb.bits := out.bits
@@ -374,8 +378,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
       out.ready := true.B
   })
 
-  (vlduWritebacks ++ vstuWritebacks)
-    .zip(ldExeWbReqs ++ stuExeWbReqs)
+  (vlduWritebacks ++ vstaWritebacks ++ vstdWritebacks)
+    .zip(ldExeWbReqs ++ staExeWbReqs ++ stdExeWbReqs)
     .foreach({case(vwb, vout) =>
       vwb.valid := vout.valid && vout.bits.uop.ctrl.isVector
       vwb.bits := vout.bits
@@ -401,8 +405,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     redirect_wb.isFlushPipe := false.B
   })
 
-
-  vlduWritebacks.zip(ldExeWbReqs).foreach({ case (vwb, vout) =>
+  vlduWritebacks.foreach(vwb => {
     vwb.bits.redirectValid := false.B
     vwb.bits.redirect := DontCare
   })
@@ -720,7 +723,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
   // mmio store writeback will use store writeback port 0
   lsq.io.mmioStout.ready := false.B
-  when (lsq.io.mmioStout.valid && !stuExeWbReqs(0).valid) {
+  when (lsq.io.mmioStout.valid && !staExeWbReqs(0).valid) {
     stOut(0).valid := true.B
     stOut(0).bits  := lsq.io.mmioStout.bits
     lsq.io.mmioStout.ready := true.B
@@ -730,13 +733,13 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   lsq.io.rob            <> io.lsqio.rob
   lsq.io.enq            <> io.enqLsq
   lsq.io.brqRedirect    <> Pipe(redirectIn)
-  stuWritebacks.head.bits.redirectValid := lsq.io.rollback.valid
-  stuWritebacks.head.bits.redirect := lsq.io.rollback.bits
-  stuWritebacks.tail.foreach(e => {
+  staWritebacks.head.bits.redirectValid := lsq.io.rollback.valid
+  staWritebacks.head.bits.redirect := lsq.io.rollback.bits
+  staWritebacks.tail.foreach(e => {
     e.bits.redirectValid := false.B
     e.bits.redirect := DontCare
   })
-  vstuWritebacks.foreach(e => {
+  vstaWritebacks.foreach(e => {
     e.bits.redirectValid := false.B
     e.bits.redirect := DontCare
   })

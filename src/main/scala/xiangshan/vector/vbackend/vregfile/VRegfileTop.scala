@@ -102,14 +102,14 @@ class VRegfileTop(extraVectorRfReadPort: Int)(implicit p:Parameters) extends Laz
 
     private val wbVFUPair = fromVectorFu.zip(toWritebackNetwork).map(e => {
       require(e._1._2.name == e._2._2.name && e._1._2.id == e._2._2.id)
-      require(e._1._2.writeVecRf || e._1._2.exuType == ExuType.sta)
+      require(e._1._2.writeVecRf || e._1._2.exuType == ExuType.sta || e._1._2.exuType == ExuType.std)
       (e._1._1, e._2._1, e._1._2)
     })
     require(issueNode.in.length == 1)
 
     private val wbPairNeedMerge = wbVFUPair.filter(_._3.willTriggerVrfWkp)
-    private val wbPairDontNeedMerge = wbVFUPair.filterNot(_._3.willTriggerVrfWkp).filterNot(_._3.exuType == ExuType.sta)
-    private val wbPairStu = wbVFUPair.filter(_._3.exuType == ExuType.sta)
+    private val wbPairDontNeedMerge = wbVFUPair.filterNot(_._3.willTriggerVrfWkp).filterNot(_._3.exuType == ExuType.sta).filterNot(_._3.exuType == ExuType.std)
+    private val wbPairStu = wbVFUPair.filter(p => p._3.exuType == ExuType.sta || p._3.exuType == ExuType.std)
 
     private val fromRs = issueNode.in.flatMap(i => i._1.zip(i._2._2).map(e => (e._1, e._2, i._2._1)))
     private val toExuMap = issueNode.out.map(i => i._2._2 -> (i._1, i._2._2, i._2._1)).toMap
