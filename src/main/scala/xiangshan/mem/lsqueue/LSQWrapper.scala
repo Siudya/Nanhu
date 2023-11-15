@@ -212,20 +212,16 @@ class LsqWrappper(implicit p: Parameters) extends XSModule with HasDCacheParamet
     }
   }
 
-  loadQueue.io.uncache := DontCare
-  storeQueue.io.uncache := DontCare
-  loadQueue.io.uncache.resp.valid := false.B
-  storeQueue.io.uncache.resp.valid := false.B
-  when(loadQueue.io.uncache.req.valid){
-    io.uncache.req <> loadQueue.io.uncache.req
-  }.otherwise{
-    io.uncache.req <> storeQueue.io.uncache.req
-  }
-  when(pendingstate === s_load){
-    io.uncache.resp <> loadQueue.io.uncache.resp
-  }.otherwise{
-    io.uncache.resp <> storeQueue.io.uncache.resp
-  }
+  io.uncache.req.valid := loadQueue.io.uncache.req.valid | storeQueue.io.uncache.req.valid
+  io.uncache.req.bits := Mux(loadQueue.io.uncache.req.valid, loadQueue.io.uncache.req.bits, storeQueue.io.uncache.req.bits)
+  loadQueue.io.uncache.req.ready := loadQueue.io.uncache.req.valid && io.uncache.req.ready
+  storeQueue.io.uncache.req.ready := !loadQueue.io.uncache.req.valid && io.uncache.req.ready
+
+  loadQueue.io.uncache.resp.valid := pendingstate === s_load && io.uncache.resp.valid
+  loadQueue.io.uncache.resp.bits := io.uncache.resp.bits
+  storeQueue.io.uncache.resp.valid := !(pendingstate === s_load) && io.uncache.resp.valid
+  storeQueue.io.uncache.resp.bits := io.uncache.resp.bits
+  io.uncache.resp.ready := Mux(pendingstate === s_load, loadQueue.io.uncache.resp.ready, storeQueue.io.uncache.resp.ready)
 
   assert(!(loadQueue.io.uncache.req.valid && storeQueue.io.uncache.req.valid))
   assert(!(loadQueue.io.uncache.resp.valid && storeQueue.io.uncache.resp.valid))
