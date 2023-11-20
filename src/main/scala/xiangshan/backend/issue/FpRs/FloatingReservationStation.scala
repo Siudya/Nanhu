@@ -105,7 +105,7 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     mod
   })
   private val wakeupWidth = (wakeupSignals ++ rsFmacWkp ++ mulWkp).length
-  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("FloatingAllocateNetwork")))
+  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("FpAllocNetwork")))
   private val floatingBusyTable = Module(new BusyTable(NRPhyRegs, param.bankNum * 3, wakeupWidth, RenameWidth))
   floatingBusyTable.io.allocPregs := io.floatingAllocPregs
   floatingBusyTable.io.wbPregs.zip(wakeupSignals ++ rsFmacWkp ++ mulWkp).foreach({ case (bt, wb) =>
@@ -120,9 +120,9 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
   private val fdivExuCfg = fdivIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.fdiv).head
   private val fmiscExuCfg = fmiscIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.fmisc).head
 
-  private val fmacSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmaIssuePortNum, fmaExuCfg, true, false, false, Some(s"FloatingFmacSelectNetwork")))
-  private val fdivSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fdivIssuePortNum, fdivExuCfg, false, false, false, Some(s"FloatingFdivSelectNetwork")))
-  private val fmiscSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmiscIssuePortNum, fmiscExuCfg, false, false, false, Some(s"FloatingFmiscSelectNetwork")))
+  private val fmacSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmaIssuePortNum, fmaExuCfg, true, false, false, Some(s"FpFmacSelNetwork")))
+  private val fdivSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fdivIssuePortNum, fdivExuCfg, false, false, false, Some(s"FpFdivSelNetwork")))
+  private val fmiscSelectNetwork = Module(new SelectNetwork(param.bankNum, entriesNumPerBank, fmiscIssuePortNum, fmiscExuCfg, false, false, false, Some(s"FpFmiscSelNetwork")))
   fdivSelectNetwork.io.tokenRelease.get.zip(wakeup.filter(_._2.exuType == ExuType.fdiv).map(_._1)).foreach({ case(sink, source) => sink := source })
   private val selectNetworkSeq = Seq(fmacSelectNetwork, fdivSelectNetwork, fmiscSelectNetwork)
   selectNetworkSeq.foreach(sn => {

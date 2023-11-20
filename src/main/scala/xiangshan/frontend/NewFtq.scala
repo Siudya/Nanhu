@@ -195,11 +195,6 @@ class FtqToICacheIO(implicit p: Parameters) extends XSBundle with HasCircularQue
   val req = Decoupled(new FtqToICacheRequestBundle)
 }
 
-trait HasBackendRedirectInfo extends HasXSParameter {
-  def numRedirectPcRead = exuParameters.AluJmpCnt + exuParameters.AluMulCnt + 1
-  def isLoadReplay(r: Valid[Redirect]) = r.bits.flushItself()
-}
-
 class FtqToCtrlIO(implicit p: Parameters) extends XSBundle {
   // write to backend pc mem
   val pc_mem_wen = Output(Bool())

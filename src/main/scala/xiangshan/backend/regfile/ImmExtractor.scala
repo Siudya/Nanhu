@@ -32,12 +32,12 @@ object ImmExtractor {
            (implicit p: Parameters): ExuInput = {
     if (cfg.hasJmp) {
       val res = Wire(new ExuInput)
-      res := Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get, mmuEnable.get), AluImmExtractor(in))
+      res := JumpImmExtractor(in, pc.get, target.get, mmuEnable.get)
       res.uop.cf.pc := pc.get
       res
     } else if (cfg.hasMul) {
       Mux(in.uop.ctrl.fuType === FuType.bku, BkuImmExtractor(in), AluImmExtractor(in))
-    } else if (cfg.hasDiv) {
+    } else if (cfg.hasDiv || cfg.hasMisc) {
       AluImmExtractor(in)
     } else if (cfg.hasLoad || cfg.hasSpecialLoad) {
       LoadImmExtractor(in)

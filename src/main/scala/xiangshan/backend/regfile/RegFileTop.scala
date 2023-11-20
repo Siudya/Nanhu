@@ -192,7 +192,18 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
         val exuInBundle = WireInit(bi.issue.bits)
         exuInBundle.src := DontCare
 
-        if (exuComplexParam.isIntType) {
+        if(exuComplexParam.hasJmp){
+          val issueBundle = WireInit(bi.issue.bits)
+          intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
+          issueBundle.src(0) := intRf.io.read(intRfReadIdx).data
+          io.pcReadAddr(pcReadPortIdx) := bi.issue.bits.uop.cf.ftqPtr.value
+          io.pcReadAddr(pcReadPortIdx + 1) := (bi.issue.bits.uop.cf.ftqPtr + 1.U).value
+          val instrPc = io.pcReadData(pcReadPortIdx).getPc(bi.issue.bits.uop.cf.ftqOffset)
+          val jalrTarget = io.pcReadData(pcReadPortIdx + 1).startAddr
+          exuInBundle := ImmExtractor(exuComplexParam, issueBundle, Some(instrPc), Some(jalrTarget), Some(io.mmuEnable))
+          intRfReadIdx = intRfReadIdx + 1
+          pcReadPortIdx = pcReadPortIdx + 2
+        } else if (exuComplexParam.isIntType) {
           val issueBundle = WireInit(bi.issue.bits)
           val srcNum = exuComplexParam.intSrcNum
           for((d, addr) <- issueBundle.src.zip(bi.issue.bits.uop.psrc).take(srcNum)){
@@ -200,16 +211,7 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
             d := intRf.io.read(intRfReadIdx).data
             intRfReadIdx = intRfReadIdx + 1
           }
-          if(exuComplexParam.hasJmp){
-            io.pcReadAddr(pcReadPortIdx) := bi.issue.bits.uop.cf.ftqPtr.value
-            io.pcReadAddr(pcReadPortIdx + 1) := (bi.issue.bits.uop.cf.ftqPtr + 1.U).value
-            val instrPc = io.pcReadData(pcReadPortIdx).getPc(bi.issue.bits.uop.cf.ftqOffset)
-            val jalrTarget = io.pcReadData(pcReadPortIdx + 1).startAddr
-            pcReadPortIdx = pcReadPortIdx + 2
-            exuInBundle := ImmExtractor(exuComplexParam, issueBundle, Some(instrPc), Some(jalrTarget), Some(io.mmuEnable))
-          } else {
-            exuInBundle := ImmExtractor(exuComplexParam, issueBundle)
-          }
+          exuInBundle := ImmExtractor(exuComplexParam, issueBundle)
         } else if(exuComplexParam.isFpType){
           val srcNum = exuComplexParam.fpSrcNum
           for ((d, addr) <- exuInBundle.src.zip(bi.issue.bits.uop.psrc).take(srcNum)) {

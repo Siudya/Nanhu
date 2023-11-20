@@ -40,6 +40,7 @@ object ExuType{
   def s2v = 15
   def sldu = 16
   def vmask = 17
+  def misc = 18
 
   private val mapping = Map(
     jmp -> "jmp",
@@ -59,10 +60,11 @@ object ExuType{
     vperm -> "vperm",
     s2v -> "s2v",
     sldu -> "sldu",
-    vmask -> "vmask"
+    vmask -> "vmask",
+    misc -> "misc"
   )
 
-  def intTypes: Seq[Int] = Seq(jmp, alu, mul, div)
+  def intTypes: Seq[Int] = Seq(alu, mul, div, jmp, misc)
   def memTypes: Seq[Int] = Seq(ldu, sta, std, sldu)
   def fpTypes: Seq[Int] = Seq(fmisc, fmac, fdiv)
   def vecTypes: Seq[Int] = Seq(vfp, valu, vperm, vmac, vdiv, s2v)

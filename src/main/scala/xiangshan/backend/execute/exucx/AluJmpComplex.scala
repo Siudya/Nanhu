@@ -22,48 +22,46 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.LazyModule
-import xiangshan.backend.execute.exu.{AluExu, ExuType, FenceIO, JmpCsrExu}
+import xiangshan.backend.execute.exu.{AluExu, ExuType, FenceIO, MiscExu}
 import xiangshan.backend.execute.fu.csr.CSRFileIO
 import xiangshan.{ExuInput, ExuOutput, FuType, XSCoreParamsKey}
 
-class AluJmpComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
-  val alu = LazyModule(new AluExu(id, "AluJmpComplex", bypassNum))
-  val jmp = LazyModule(new JmpCsrExu(id, "AluJmpComplex", bypassNum))
+class AluMiscComplex(id: Int, bypassNum:Int)(implicit p:Parameters) extends BasicExuComplex{
+  val alu = LazyModule(new AluExu(id, "AluMiscComplex", bypassNum))
+  val misc = LazyModule(new MiscExu(id, "AluMiscComplex", bypassNum))
   alu.issueNode :*= issueNode
-  jmp.issueNode :*= issueNode
+  misc.issueNode :*= issueNode
   writebackNode :=* alu.writebackNode
-  writebackNode :=* jmp.writebackNode
-  lazy val module = new AluJmpComplexImp(this, id, bypassNum)
+  writebackNode :=* misc.writebackNode
+  lazy val module = new AluMiscComplexImp(this, id, bypassNum)
 }
-class AluJmpComplexImp(outer:AluJmpComplex, id: Int, bypassNum:Int) extends BasicExuComplexImp(outer, bypassNum) {
+class AluMiscComplexImp(outer:AluMiscComplex, id: Int, bypassNum:Int) extends BasicExuComplexImp(outer, bypassNum) {
   require(outer.issueNode.in.length == 1)
   require(outer.issueNode.out.length == 2)
   private val issueIn = outer.issueNode.in.head._1
   private val issueAlu = outer.issueNode.out.filter(_._2._2.exuType == ExuType.alu).head._1
-  private val issueJmp = outer.issueNode.out.filter(_._2._2.exuType == ExuType.jmp).head._1
+  private val issueMisc = outer.issueNode.out.filter(_._2._2.exuType == ExuType.misc).head._1
   val io = IO(new Bundle {
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
     val issueToMou = Decoupled(new ExuInput)
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
-    val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
   })
 
   issueAlu <> issueIn
   outer.alu.module.io.bypassIn := bypassIn
   outer.alu.module.redirectIn := redirectIn
 
-  issueJmp <> issueIn
-  outer.jmp.module.io.bypassIn := bypassIn
-  outer.jmp.module.redirectIn := redirectIn
+  issueMisc <> issueIn
+  outer.misc.module.io.bypassIn := bypassIn
+  outer.misc.module.redirectIn := redirectIn
 
-  outer.jmp.module.io.fenceio <> io.fenceio
-  outer.jmp.module.io.csrio <> io.csrio
-  io.prefetchI := outer.jmp.module.io.prefetchI
-  io.issueToMou <> outer.jmp.module.io.issueToMou
-  io.writebackFromMou <> outer.jmp.module.io.writebackFromMou
+  outer.misc.module.io.fenceio <> io.fenceio
+  outer.misc.module.io.csrio <> io.csrio
+  io.issueToMou <> outer.misc.module.io.issueToMou
+  io.writebackFromMou <> outer.misc.module.io.writebackFromMou
 
-  issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueJmp.issue.ready)
+  issueIn.issue.ready := Mux(issueIn.issue.bits.uop.ctrl.fuType === FuType.alu, issueAlu.issue.ready, issueMisc.issue.ready)
   private val issueFuHit = outer.issueNode.in.head._2._2.exuConfigs.flatMap(_.fuConfigs).map(_.fuType === issueIn.issue.bits.uop.ctrl.fuType).reduce(_ | _)
   when(issueIn.issue.valid) {
     assert(issueFuHit)

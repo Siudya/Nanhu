@@ -59,7 +59,6 @@ object RedirectGen{
 }
 
 class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(implicit p: Parameters) extends XSModule with HasPerfLogging{
-  require(jmpRedirectNum == 1)
   val io = IO(new Bundle{
     val jmpWbIn = Input(Vec(jmpRedirectNum, Flipped(ValidIO(new ExuOutput))))
     val aluWbIn = Input(Vec(aluRedirectNum, Flipped(ValidIO(new ExuOutput))))
@@ -83,11 +82,12 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   private val (s1_redirectSel, s1_redirectIdxOH) = selectOldest(s1_allRedirect, p)
   private val s1_redirectValid = s1_redirectSel.valid && !s1_redirectSel.bits.robIdx.needFlush(io.redirectIn)
   private val s1_exuOutSel = Mux1H(s1_redirectIdxOH, s1_allWb)
+  private val s1_target = Mux1H(s1_redirectIdxOH(jmpRedirectNum - 1, 0), s1_allWb.take(jmpRedirectNum).map(_.bits.redirect.cfiUpdate.target))
 
   private val s2_redirectValidReg = RegNext(s1_redirectValid, false.B)
   private val s2_redirectBitsReg = RegEnable(s1_redirectSel.bits, s1_redirectValid)
   private val s2_redirectIdxOHReg = RegEnable(s1_redirectIdxOH, s1_redirectValid)
-  private val s2_jmpTargetReg = RegEnable(s1_allWb.head.bits.redirect.cfiUpdate.target, s1_redirectValid)
+  private val s2_jmpTargetReg = RegEnable(s1_target, s1_redirectValid)
   private val s2_uopReg = RegEnable(s1_exuOutSel.bits.uop, s1_redirectValid)
 
   private val s2_redirectValid = s2_redirectValidReg && !s2_redirectBitsReg.robIdx.needFlush(io.redirectIn)

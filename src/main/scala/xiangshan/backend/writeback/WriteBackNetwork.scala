@@ -48,10 +48,10 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
     val memPredUpdate = Output(Valid(new MemPredUpdateReq))
     val vecFaultOnlyFirst = Flipped(ValidIO(new ExuOutput))
   })
-  private val jmpNum = wbSources.count(_._2.exuType == ExuType.jmp)
+  private val jmpCsrNum = wbSources.count(wb => wb._2.exuType == ExuType.jmp || wb._2.exuType == ExuType.misc)
   private val aluNum = wbSources.count(_._2.exuType == ExuType.alu)
   private val lduNum = wbSources.count(w => (w._2.exuType == ExuType.ldu || w._2.exuType == ExuType.sta) && w._2.writebackToRob)
-  private val redirectGen = Module(new RedirectGen(jmpNum, aluNum, lduNum))
+  private val redirectGen = Module(new RedirectGen(jmpCsrNum, aluNum, lduNum))
   io.pcReadAddr := redirectGen.io.pcReadAddr
   redirectGen.io.pcReadData := io.pcReadData
   private val localRedirectReg = Pipe(redirectGen.io.redirectOut)
@@ -73,7 +73,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
   private var memRedirectIdx = 0
   print("\n\nRedirect Info:")
   wbSources.filter(e => e._2.hasRedirectOut && e._2.writebackToRob).foreach(source => {
-    if (source._2.exuType == ExuType.jmp) {
+    if (source._2.exuType == ExuType.jmp || source._2.exuType == ExuType.misc) {
       print(source._2)
       redirectGen.io.jmpWbIn(jmpRedirectIdx) := source._1
       jmpRedirectIdx = jmpRedirectIdx + 1

@@ -34,19 +34,19 @@ class FenceIO(implicit p: Parameters) extends XSBundle {
   val sbuffer = new FenceToSbuffer
 }
 
-class JmpCsrExu (id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu{
+class MiscExu (id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu{
   private val cfg = ExuConfig(
-    name = "JmpCsrExu",
+    name = "MiscExu",
     id = id,
     complexName = complexName,
-    fuConfigs = Seq(FuConfigs.jmpCfg, FuConfigs.fenceCfg, FuConfigs.mouCfg, FuConfigs.csrCfg),
-    exuType = ExuType.jmp,
+    fuConfigs = Seq(FuConfigs.fenceCfg, FuConfigs.mouCfg, FuConfigs.csrCfg),
+    exuType = ExuType.misc,
     writebackToRob = true,
     writebackToVms = false
   )
   val issueNode = new ExuInputNode(cfg)
   val writebackNode = new ExuOutputNode(cfg)
-  override lazy val module = new JmpCsrExuImpl(this, cfg)
+  override lazy val module = new MiscExuImpl(this, cfg)
 }
 class FakeMou()(implicit p:Parameters) extends FunctionUnit(p(XSCoreParamsKey).XLEN) {
   val issueToMou = IO(Decoupled(new ExuInput))
@@ -61,26 +61,24 @@ class FakeMou()(implicit p:Parameters) extends FunctionUnit(p(XSCoreParamsKey).X
   writebackFromMou.ready := io.out.ready
 }
 
-class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer) {
+class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer) {
   val io = IO(new Bundle{
     val bypassIn = Input(Vec(outer.bypassInNum, Valid(new ExuOutput)))
     val issueToMou = Decoupled(new ExuInput)
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
-    val prefetchI = Output(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
   })
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
   private val fence = Module(new Fence)
-  private val jmp = Module(new Jump)
   private val mou = Module(new FakeMou)
   private val csr = Module(new CSR)
 
   issuePort.issue.ready := true.B
 
   private val finalIssueSignals = bypassSigGen(io.bypassIn, issuePort, outer.bypassInNum > 0)
-  private val fuSeq = Seq(jmp, fence, mou, csr)
+  private val fuSeq = Seq(fence, mou, csr)
   fuSeq.zip(exuCfg.fuConfigs).foreach({ case (m, cfg) =>
     m.io.redirectIn := redirectIn
     m.io.in.valid := finalIssueSignals.valid && finalIssueSignals.bits.uop.ctrl.fuType === cfg.fuType
@@ -88,12 +86,11 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
     m.io.in.bits.src := finalIssueSignals.bits.src
     m.io.out.ready := true.B
 
-    val isJmp = finalIssueSignals.bits.uop.ctrl.fuType === FuType.jmp
     val isCsr = finalIssueSignals.bits.uop.ctrl.fuType === FuType.csr
     val isExclusive = finalIssueSignals.bits.uop.ctrl.noSpecExec && finalIssueSignals.bits.uop.ctrl.blockBackward
     when(m.io.in.valid){
       assert(m.io.in.ready)
-      assert(isJmp || isCsr || isExclusive)
+      assert(isCsr || isExclusive)
     }
   })
 
@@ -114,16 +111,13 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.writebackFromMou <> mou.writebackFromMou
 
   writebackPort.bits.fflags := DontCare
-  private val redirectValids = VecInit(Seq(jmp.redirectOutValid, fence.redirectOutValid))
-  private val redirectBits = Seq(jmp.redirectOut, fence.redirectOut)
-  writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, Mux1H(redirectValids, redirectBits))
-  writebackPort.bits.redirectValid := csr.redirectOutValid || redirectValids.reduce(_ || _)
+  writebackPort.bits.redirect := Mux(csr.redirectOutValid, csr.redirectOut, fence.redirectOut)
+  writebackPort.bits.redirectValid := csr.redirectOutValid || fence.redirectOutValid
   writebackPort.bits.debug.isMMIO := false.B
   writebackPort.bits.debug.isPerfCnt := csr.csrio.isPerfCnt
   writebackPort.bits.debug.paddr := 0.U
   writebackPort.bits.debug.vaddr := 0.U
 
-  io.prefetchI := Pipe(jmp.prefetchI)
   io.fenceio.sfence := fence.sfence
   io.fenceio.fencei <> fence.fencei
   io.fenceio.sbuffer <> fence.toSbuffer
@@ -138,7 +132,4 @@ class JmpCsrExuImpl(outer:JmpCsrExu, exuCfg:ExuConfig)(implicit p:Parameters) ex
   io.csrio.tlb := DelayN(csr.csrio.tlb, 2)
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)
   csr.csrio.exception := Pipe(io.csrio.exception)
-
-  assert(PopCount(redirectValids.asUInt) === 1.U || PopCount(redirectValids.asUInt) === 0.U)
-  //TODO: this signals should connect to csr
 }

@@ -100,7 +100,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   val io = IO(new Bundle{
     val redirect = Input(Valid(new Redirect))
     val mulSpecWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.mulNum, Valid(new WakeUpInfo)))
-    val aluJmpSpecWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.aluNum + p(XSCoreParamsKey).exuParameters.AluJmpCnt, Valid(new WakeUpInfo)))
+    val aluJmpSpecWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.aluNum + p(XSCoreParamsKey).exuParameters.JmpCnt, Valid(new WakeUpInfo)))
     val fmaSpecWakeup = Input(Vec(p(XSCoreParamsKey).exuParameters.fmaNum, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Output(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
@@ -157,7 +157,7 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
     })
   })
 
-  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemoryAllocateNetwork")))
+  private val allocateNetwork = Module(new AllocateNetwork(param.bankNum, entriesNumPerBank, Some("MemAllocNetwork")))
 
   private val regWkpIns = wakeup.filter(_._2.writeIntRf).map(_._1).map(MemRsHelper.WbToWkp(_, p))
   private val fpWkpIns = wakeup.filter(_._2.writeFpRf).map(_._1).map(MemRsHelper.WbToWkp(_, p))
@@ -188,9 +188,9 @@ class MemoryReservationStationImpl(outer:MemoryReservationStation, param:RsParam
   private val stdExuCfg = stdIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.std).head
   private val lduExuCfg = lduIssue.flatMap(_._2.exuConfigs).filter(_.exuType == ExuType.ldu).head
 
-  private val staSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, staIssuePortNum, staExuCfg, true, Some(s"MemoryStaSelectNetwork")))
-  private val stdSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, stdIssuePortNum, stdExuCfg, true, Some(s"MemoryStdSelectNetwork")))
-  private val lduSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, lduIssuePortNum, lduExuCfg, true, Some(s"MemoryLduSelectNetwork")))
+  private val staSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, staIssuePortNum, staExuCfg, true, Some(s"MemStaSelNetwork")))
+  private val stdSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, stdIssuePortNum, stdExuCfg, true, Some(s"MemStdSelNetwork")))
+  private val lduSelectNetwork = Module(new HybridSelectNetwork(param.bankNum, entriesNumPerBank, lduIssuePortNum, lduExuCfg, true, Some(s"MemLduSelNetwork")))
 
   staSelectNetwork.io.selectInfo.zip(rsBankSeq).foreach({ case (sink, source) =>
     sink := source.io.staSelectInfo

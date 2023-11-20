@@ -20,7 +20,7 @@
 package xiangshan.backend.execute.exublock
 
 import org.chipsalliance.cde.config.Parameters
-import xiangshan.backend.execute.exucx.{AluDivComplex, AluJmpComplex, AluMulComplex}
+import xiangshan.backend.execute.exucx.{AluDivComplex, AluMiscComplex, AluMulComplex, JmpComplex}
 import freechips.rocketchip.diplomacy.LazyModule
 import chisel3._
 import chisel3.util._
@@ -29,11 +29,12 @@ import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.backend.execute.fu.csr.CSRFileIO
 
 class IntegerBlock(implicit p:Parameters) extends BasicExuBlock {
-  require(jmpNum == 1)
+  require(miscNum == 1)
   val aluMuls = Seq.tabulate(mulNum)(idx => LazyModule(new AluMulComplex(idx, 0)))
   val aluDivs = Seq.tabulate(divNum)(idx => LazyModule(new AluDivComplex(idx, 0)))
-  val aluJmps = Seq.tabulate(jmpNum)(idx => LazyModule(new AluJmpComplex(idx, 0)))
-  val intComplexes = aluMuls ++ aluDivs ++ aluJmps
+  val aluMiscs = Seq.tabulate(miscNum)(idx => LazyModule(new AluMiscComplex(idx, 0)))
+  val jmps = Seq.tabulate(jmpNum)(idx => LazyModule(new JmpComplex(idx, 0)))
+  val intComplexes = aluMuls ++ aluDivs ++ aluMiscs ++ jmps
   intComplexes.foreach(exucx => {
     exucx.issueNode :*= issueNode
     writebackNode :=* exucx.writebackNode
@@ -51,13 +52,15 @@ class IntegerBlockImp(outer:IntegerBlock) extends BasicExuBlockImp(outer){
   })
   outer.intComplexes.foreach(_.module.redirectIn := Pipe(redirectIn))
 
-  (outer.aluJmps ++ outer.aluDivs ++ outer.aluMuls).foreach(cplx => cplx.module.bypassIn.zip(outer.aluMuls.map(_.module.io.bypassOut)).foreach({ case (a, b) => a := b }))
+  (outer.aluMiscs ++ outer.aluDivs ++ outer.aluMuls ++ outer.jmps)
+    .foreach(cplx => cplx.module.bypassIn.zip(outer.aluMuls.map(_.module.io.bypassOut))
+      .foreach({ case (a, b) => a := b }))
 
-  outer.aluJmps.head.module.io.fenceio <> io.fenceio
-  outer.aluJmps.head.module.io.fenceio.sbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
-  outer.aluJmps.head.module.io.csrio <> io.csrio
-  outer.aluJmps.head.module.io.issueToMou <> io.issueToMou
-  outer.aluJmps.head.module.io.writebackFromMou <> io.writebackFromMou
+  outer.aluMiscs.head.module.io.fenceio <> io.fenceio
+  outer.aluMiscs.head.module.io.fenceio.sbuffer.sbIsEmpty := io.fenceio.sbuffer.sbIsEmpty
+  outer.aluMiscs.head.module.io.csrio <> io.csrio
+  outer.aluMiscs.head.module.io.issueToMou <> io.issueToMou
+  outer.aluMiscs.head.module.io.writebackFromMou <> io.writebackFromMou
   outer.aluMuls.foreach(_.module.io.csr_frm := io.csrio.fpu.frm)
-  io.prefetchI := outer.aluJmps.head.module.io.prefetchI
+  io.prefetchI := outer.jmps.head.module.io.prefetchI
 }
