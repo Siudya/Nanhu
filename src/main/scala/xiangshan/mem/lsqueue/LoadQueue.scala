@@ -795,7 +795,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   io.rollback.bits.isLoadLoad := false.B
   io.rollback.bits.isXRet := false.B
   io.rollback.bits.isFlushPipe := false.B
-  // io.rollback.bits.pc := DontCare
+  io.rollback.bits.isPreWalk := false.B
 
   io.rollback.valid := rollbackValidVecChecked.asUInt.orR
 

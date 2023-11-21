@@ -403,6 +403,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     redirect_wb.isLoadLoad := true.B
     redirect_wb.isXRet := false.B
     redirect_wb.isFlushPipe := false.B
+    redirect_wb.isPreWalk := false.B
   })
 
   vlduWritebacks.foreach(vwb => {

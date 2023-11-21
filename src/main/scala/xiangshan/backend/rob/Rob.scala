@@ -358,7 +358,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   val redirectDelay1 = Pipe(io.redirect)
   val exceptionWaitingRedirect = RegInit(false.B)
 
-  wbStatusArray.redirect(io.redirect.valid, io.redirect.bits.robIdx, true.B)
+  wbStatusArray.redirect(io.redirect.valid, io.redirect.bits.robIdx, !io.redirect.bits.isPreWalk)
 
   when(io.exception.valid) {
     exceptionWaitingRedirect := true.B

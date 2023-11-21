@@ -74,6 +74,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val lqDeq = Input(UInt(log2Up(CommitWidth + 1).W))
     // from int block
     val redirectIn = Input(Valid(new Redirect))
+    val preWalk = Input(Valid(new Redirect))
     val memPredUpdate = Input(Valid(new MemPredUpdateReq))
     val stIn = Vec(exuParameters.StuCnt, Flipped(ValidIO(new ExuInput)))
     val robio = new Bundle {
@@ -127,7 +128,9 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   private val fusionDecoder = Module(new FusionDecoder)
 
   //Dec-Rename Pipeline
+  private val pipeHolds_dup = RegInit(VecInit(Seq.fill(DecodeWidth)(false.B)))
   private val decPipe = Module(new PipelineRouter(new CfCtrl, DecodeWidth, 2))
+  decPipe.io.holds := pipeHolds_dup
 
   //Rename
   private val rename = Module(new Rename)
@@ -313,9 +316,10 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   rename.io.vlUpdate := Pipe(wbMergeBuffer.io.vlUpdate, 2)
 
   //pipeline between rename and dispatch
+  private val flushRenamePipe = Wire(Bool())
   for (d <- 0 until RenameWidth) {
     for (i <- 0 until RenameWidth) {
-      PipelineConnect(rename.io.out(i), dispatch.io.fromRename(d)(i), dispatch.io.recv(i), redirectDelay.valid)
+      PipelineConnect(rename.io.out(i), dispatch.io.fromRename(d)(i), dispatch.io.recv(i), flushRenamePipe)
     }
   }
 
@@ -413,7 +417,30 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
   rob.io.hartId := io.hartId
   rob.io.mmuEnable := io.mmuEnable
   io.cpu_halt := DelayN(rob.io.cpu_halt, 5)
-  rob.io.redirect := Pipe(io.redirectIn)
+  private val robRedirect = Pipe(io.redirectIn)
+  private val robPreWalk = Pipe(io.preWalk)
+  rob.io.redirect.valid := robRedirect.valid | robPreWalk.valid
+  rob.io.redirect.bits := Mux(robRedirect.valid, robRedirect.bits, robPreWalk.bits)
+  when(io.redirectIn.valid) {
+    pipeHolds_dup.foreach(_ := false.B)
+  }.elsewhen(io.preWalk.valid) {
+    pipeHolds_dup.foreach(_ := true.B)
+  }
+  flushRenamePipe := robRedirect.valid | robPreWalk.valid
+  private val preWalkDbgValid = RegInit(false.B)
+  private val preWalkDbgBits = RegEnable(io.preWalk.bits, io.preWalk.valid)
+  when(robRedirect.valid) {
+    preWalkDbgValid := false.B
+  }.elsewhen(io.preWalk.valid) {
+    preWalkDbgValid := true.B
+  }
+  when(preWalkDbgValid){
+    assert(!io.preWalk.valid, "Continous 2 prewalk req is not expected!")
+  }
+  when(preWalkDbgValid & robRedirect.valid) {
+    assert(preWalkDbgBits.robIdx >= robRedirect.bits.robIdx, "Prewalk req should pick younger inst!")
+  }
+  assert(PopCount(Cat(robRedirect.valid, robPreWalk.valid)) <= 1.U)
 
   // rob to int block
   io.robio.toCSR <> rob.io.csr

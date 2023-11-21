@@ -96,6 +96,7 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
   redirectOut.isFlushPipe := uop.ctrl.flushPipe
+  redirectOut.isPreWalk := false.B
 
   io.in.ready := io.out.ready
   io.out.valid := valid

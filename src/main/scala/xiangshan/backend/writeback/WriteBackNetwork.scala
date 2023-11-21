@@ -46,6 +46,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
     val pcReadData = Input(Vec(2, new Ftq_RF_Components))
     val redirectOut = Output(Valid(new Redirect))
     val memPredUpdate = Output(Valid(new MemPredUpdateReq))
+    val preWalk = Output(Valid(new Redirect))
     val vecFaultOnlyFirst = Flipped(ValidIO(new ExuOutput))
   })
   private val jmpCsrNum = wbSources.count(wb => wb._2.exuType == ExuType.jmp || wb._2.exuType == ExuType.misc)
@@ -54,6 +55,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
   private val redirectGen = Module(new RedirectGen(jmpCsrNum, aluNum, lduNum))
   io.pcReadAddr := redirectGen.io.pcReadAddr
   redirectGen.io.pcReadData := io.pcReadData
+  io.preWalk := redirectGen.io.preWalk
   private val localRedirectReg = Pipe(redirectGen.io.redirectOut)
 
   private def PipeWithRedirect(in: Valid[ExuOutput], latency: Int, p: Parameters): Valid[ExuOutput] = {

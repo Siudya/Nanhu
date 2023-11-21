@@ -10,6 +10,7 @@ class PipelineRouter[T <: Data](gen:T, vecLen:Int, outNum:Int) extends Module{
     val out = Vec(outNum, Vec(vecLen, Decoupled(gen)))
     val allowOut = Output(Vec(outNum, Bool()))
     val flush = Input(Bool())
+    val holds = Input(Vec(vecLen, Bool()))
   })
   io.out.foreach(o => assert(PopCount(o.map(_.ready)) === 0.U || PopCount(o.map(_.ready)) === vecLen.U))
 
@@ -47,9 +48,9 @@ class PipelineRouter[T <: Data](gen:T, vecLen:Int, outNum:Int) extends Module{
     })
   })
 
-  validRegs.zip(bitsRegs).zip(io.out).zip(allowOut).foreach({case(((vrl, brl), ol), en) =>
-    vrl.zip(brl).zip(ol).foreach({case((vr, br), out) =>
-      out.valid := vr
+  validRegs.zip(bitsRegs).zip(io.out).foreach({case((vrl, brl), ol) =>
+    vrl.zip(brl).zip(ol).zip(io.holds).foreach({case(((vr, br), out), hold) =>
+      out.valid := vr & !hold
       out.bits := br
     })
   })

@@ -262,6 +262,7 @@ class Redirect(implicit p: Parameters) extends XSBundle {
   val isLoadLoad = Bool()
   val isXRet = Bool()
   val isFlushPipe = Bool()
+  val isPreWalk = Bool()
 
   val stFtqIdx = new FtqPtr // for load violation predict
   val stFtqOffset = UInt(log2Up(PredictWidth).W)

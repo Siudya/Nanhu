@@ -1195,6 +1195,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   redirectOut.isLoadStore := false.B
   redirectOut.isXRet := (isXRet && !illegalXret)
   redirectOut.isFlushPipe := flushPipe
+  redirectOut.isPreWalk := false.B
 
   when (hasExceptionIntr) {
     val mstatusOld = WireInit(mstatus.asTypeOf(new MstatusStruct))

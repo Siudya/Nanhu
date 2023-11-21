@@ -133,6 +133,7 @@ class Fence(implicit p: Parameters) extends FUWithRedirect {
   redirectOut.isLoadLoad := false.B
   redirectOut.isLoadStore := false.B
   redirectOut.isFlushPipe := uop.ctrl.flushPipe
+  redirectOut.isPreWalk := false.B
 
   assert(!(io.out.valid && io.out.bits.uop.ctrl.rfWen))
 }

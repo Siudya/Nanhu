@@ -67,6 +67,7 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
     val pcReadData = Input(Vec(2, new Ftq_RF_Components))
     val redirectIn = Input(Valid(new Redirect))
     val redirectOut = Output(Valid(new Redirect))
+    val preWalk = Output(Valid(new Redirect))
     val memPredUpdate = Output(Valid(new MemPredUpdateReq))
   })
   private val s1_allWb = Wire(Vec(jmpRedirectNum + aluRedirectNum + memRedirectNum, Valid(new ExuOutput)))
@@ -127,7 +128,18 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   io.redirectOut.bits.cfiUpdate.pc := s3_pcReadReg
   io.redirectOut.bits.cfiUpdate.pd := s3_pdReg
   io.redirectOut.bits.cfiUpdate.target := redirectTarget
+  io.redirectOut.bits.isPreWalk := false.B
 
+  io.preWalk.bits := DontCare
+  io.preWalk.valid := s1_redirectSel.valid & !s2_redirectValidReg & !s3_redirectValidReg
+  io.preWalk.bits.robIdx := PriorityMux(s1_allRedirect.map(_.valid), s1_allRedirect.map(_.bits.robIdx))
+  io.preWalk.bits.level := RedirectLevel.flushAfter
+  io.preWalk.bits.isException := false.B
+  io.preWalk.bits.isLoadStore := false.B
+  io.preWalk.bits.isLoadLoad := false.B
+  io.preWalk.bits.isFlushPipe := false.B
+  io.preWalk.bits.cfiUpdate.isMisPred := false.B
+  io.preWalk.bits.isPreWalk := true.B
 
   // get pc from PcMem
   // valid only if redirect is caused by load violation

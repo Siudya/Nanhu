@@ -123,6 +123,7 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
 
     val vecFaultOnlyFirst = Flipped(ValidIO(new ExuOutput))
     val redirectOut = Output(Valid(new Redirect))
+    val preWalk = Output(Valid(new Redirect))
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
     val memBlk_csrUpdate = Output(new DistributedCSRUpdateReq)  //connect to ExuBlock.io.csrio
@@ -150,6 +151,8 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
 
   private val writeback = outer.writebackNetwork.module
   writeback.io.vecFaultOnlyFirst := io.vecFaultOnlyFirst
+  io.preWalk.valid := writeback.io.preWalk.valid & !RegNext(writeback.io.redirectOut.valid, false.B)
+  io.preWalk.bits := writeback.io.preWalk.bits
 
   private val localRedirect = writeback.io.redirectOut
   rf.io.hartId := io.hartId
