@@ -45,6 +45,7 @@ class LSQExceptionGen(wbInNum:Int, fuCfg:FuConfig)(implicit p: Parameters) exten
   val io = IO(new Bundle {
     val in = Input(Vec(wbInNum, Valid(new LSQExceptionInfo)))
     val out = Output(Valid(new LSQExceptionInfo))
+    val mmioUpdate = Input(Valid(new LSQExceptionInfo))
     val redirect = Input(Valid(new Redirect))
   })
   private val exceptionInfo = RegInit(0.U.asTypeOf(Valid(new LSQExceptionInfo())))
@@ -63,7 +64,9 @@ class LSQExceptionGen(wbInNum:Int, fuCfg:FuConfig)(implicit p: Parameters) exten
     a.bits := b.bits
   })
 
-  when(selector.io.out.valid) {
+  when(io.mmioUpdate.valid) {
+    exceptionInfo := io.mmioUpdate
+  }.elsewhen(selector.io.out.valid) {
     exceptionInfo := selector.io.out
   }.elsewhen(io.redirect.valid && exceptionInfo.valid && exceptionInfo.bits.robIdx.needFlush(io.redirect)) {
     exceptionInfo.valid := false.B

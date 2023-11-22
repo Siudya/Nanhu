@@ -47,6 +47,7 @@ class MMIOEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
 
   val req       = Reg(new DCacheWordReq )
   val resp_data = Reg(UInt(DataBits.W))
+  val resp_err = RegInit(false.B)
 
 
   // assign default values to output signals
@@ -115,6 +116,7 @@ class MMIOEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
 
     when (io.mem_grant.fire) {
       resp_data := io.mem_grant.bits.data
+      resp_err := io.mem_grant.bits.denied | io.mem_grant.bits.corrupt
       assert(refill_done, "MMIO response should be one beat only!")
       state := s_send_resp
     }
@@ -129,7 +131,7 @@ class MMIOEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
     io.resp.bits.miss   := false.B
     io.resp.bits.replay := false.B
     io.resp.bits.tag_error := false.B
-    io.resp.bits.error := false.B
+    io.resp.bits.error := resp_err
 
     when (io.resp.fire) {
       state := s_invalid

@@ -137,6 +137,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val vaddrTriggerResultModule = Module(new vaddrTriggerResultDataModule(Vec(TriggerNum, Bool()), LoadQueueSize, numRead = LoadPipelineWidth, numWrite = LoadPipelineWidth, "LqTrigger"))
   vaddrTriggerResultModule.io := DontCare
 
+  private val exceptionGen = Module(new LSQExceptionGen(LoadPipelineWidth, FuConfigs.lduCfg))
+  exceptionGen.io.redirect := io.brqRedirect
+  private val exceptionInfo = exceptionGen.io.out
 
   val allocated = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // lq entry has been allocated
   val readyToLeave = RegInit(VecInit(List.fill(LoadQueueSize)(false.B))) // lq entry is ready to leave
@@ -515,9 +518,11 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     // writeback missed int/fp load
     //
     // Int load writeback will finish (if not blocked) in one cycle
-
+    val defaultEVec = Wire(ExceptionVec())
+    defaultEVec.foreach(_ := false.B)
     io.ldout(i) := DontCare
     io.ldout(i).bits.uop := seluop
+    io.ldout(i).bits.uop.cf.exceptionVec := Mux(exceptionInfo.valid && seluop.robIdx === exceptionInfo.bits.robIdx, exceptionInfo.bits.eVec, defaultEVec)
     io.ldout(i).bits.uop.lqIdx := loadWbSel(i).asTypeOf(new LqPtr)
     io.ldout(i).bits.data := rdataPartialLoad // not used
     io.ldout(i).bits.redirectValid := false.B
@@ -965,9 +970,6 @@ class LoadQueue(implicit p: Parameters) extends XSModule
 
   // Read vaddr for mem exception
   // no inst will be commited 1 cycle before tval update
-  private val exceptionGen = Module(new LSQExceptionGen(LoadPipelineWidth, FuConfigs.lduCfg))
-  exceptionGen.io.redirect := io.brqRedirect
-  private val exceptionInfo = exceptionGen.io.out
   exceptionGen.io.in.zipWithIndex.foreach({ case (d, i) =>
     val validCond = io.loadIn(i).valid && !io.loadIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
     d.bits.robIdx := RegEnable(io.loadIn(i).bits.uop.robIdx, validCond)
@@ -976,6 +978,14 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     d.bits.uopIdx := RegEnable(io.loadIn(i).bits.uop.uopIdx, validCond)
     d.valid := RegNext(validCond, false.B)
   })
+  val mmioEvec = Wire(ExceptionVec())
+  mmioEvec.foreach(_ := false.B)
+  mmioEvec(loadAccessFault) := true.B
+  exceptionGen.io.mmioUpdate.valid := io.uncache.resp.fire && io.uncache.resp.bits.error
+  exceptionGen.io.mmioUpdate.bits.eVec := mmioEvec
+  exceptionGen.io.mmioUpdate.bits.robIdx := io.robHead
+  exceptionGen.io.mmioUpdate.bits.vaddr := dataModule.io.uncache.rdata.paddr
+  exceptionGen.io.mmioUpdate.bits.uopIdx := 0.U
 
   io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 

@@ -28,6 +28,7 @@ import xiangshan.backend.rob.{RobLsqIO, RobPtr}
 import difftest._
 import difftest.common.DifftestMem
 import freechips.rocketchip.util.SeqBoolBitwiseOps
+import xiangshan.ExceptionNO.storeAccessFault
 import xiangshan.backend.execute.fu.FuConfigs
 import xiangshan.backend.issue.SelectPolicy
 import xiangshan.mem.lsqueue.LSQExceptionGen
@@ -268,6 +269,14 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
     d.bits.eVec := io.storeInRe(i).uop.cf.exceptionVec
     d.valid := RegNext(validCond, false.B)
   })
+  val mmioEvec = Wire(ExceptionVec())
+  mmioEvec.foreach(_ := false.B)
+  mmioEvec(storeAccessFault) := true.B
+  exceptionGen.io.mmioUpdate.valid := io.uncache.resp.fire && io.uncache.resp.bits.error
+  exceptionGen.io.mmioUpdate.bits.eVec := mmioEvec
+  exceptionGen.io.mmioUpdate.bits.robIdx := io.rob
+  exceptionGen.io.mmioUpdate.bits.vaddr := io.uncache.req.bits.addr
+  exceptionGen.io.mmioUpdate.bits.uopIdx := 0.U
 
   io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 
@@ -536,8 +545,11 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   io.uncache.resp.ready := true.B
   io.mmioStout := DontCare
   // (4) writeback to ROB (and other units): mark as writebacked
+  val defaultEVec = Wire(ExceptionVec())
+  defaultEVec.foreach(_ := false.B)
   io.mmioStout.valid := (order_state === s_wb_mmio)
   io.mmioStout.bits.uop := deqUop
+  io.mmioStout.bits.uop.cf.exceptionVec := Mux(exceptionInfo.valid && deqUop.robIdx === exceptionInfo.bits.robIdx, exceptionInfo.bits.eVec, defaultEVec)
   io.mmioStout.bits.uop.sqIdx := deqPtrExt(0)
   io.mmioStout.bits.data := dataModule.io.rdata(0).data // dataModule.io.rdata.read(deqPtr)
   io.mmioStout.bits.redirectValid := false.B
