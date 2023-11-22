@@ -162,9 +162,12 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   icache.io.csr_parity_enable := RegNext(csrCtrl.icache_parity_enable)
 
   //IFU-Ibuffer
-  ifu.io.toIbuffer    <> ibuffer.io.in
+  ibuffer.io.in <> ifu.io.toIbuffer
+  ibuffer.io.fromIfuPd := ifu.io.toIbufferPd
 
   ftq.io.fromBackend <> io.backend.toFtq
+  ibuffer.io.fromBackend <> io.backend.toFtq
+  //assert(ftq.ifuWbPtr.value === ibuffer.ifuWbPtr.value)
   io.backend.fromFtq <> ftq.io.toBackend
   io.frontendInfo.bpuInfo <> ftq.io.bpuInfo
 

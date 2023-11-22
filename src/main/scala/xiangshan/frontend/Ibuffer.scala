@@ -24,6 +24,7 @@ import utils._
 import xs.utils._
 import xiangshan.ExceptionNO._
 import xs.utils.perf.HasPerfLogging
+import xiangshan.backend.CtrlToFtqIO
 
 class IbufPtr(implicit p: Parameters) extends CircularQueuePtr[IbufPtr](
   p => p(XSCoreParamsKey).IBufSize
@@ -36,6 +37,8 @@ class IBufferIO(implicit p: Parameters) extends XSBundle {
   val out = Vec(DecodeWidth, DecoupledIO(new CtrlFlow))
   val full = Output(Bool())
   val fromFtq = Input(new FtqPtr)
+  val fromIfuPd = Input(Bool())
+  val fromBackend = Flipped(new CtrlToFtqIO) // just use ftqPtr
 }
 
 class IBufEntry(implicit p: Parameters) extends XSBundle {
@@ -96,6 +99,14 @@ class Ibuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrH
 
   val ibuf = Module(new SyncDataModuleTemplate(new IBufEntry, IBufSize, 2 * DecodeWidth, PredictWidth, "IBuffer"))
 
+  val ifuWbPtr = RegInit(FtqPtr(false.B, 0.U))
+  when (io.fromIfuPd) {
+    ifuWbPtr := ifuWbPtr + 1.U
+  }
+  when (io.fromBackend.redirect.valid){
+    ifuWbPtr := io.fromBackend.redirect.bits.ftqIdx + 1.U
+  }
+
   val deqPtrVec = RegInit(VecInit.tabulate(2 * DecodeWidth)(_.U.asTypeOf(new IbufPtr)))
   val deqPtrVecNext = Wire(Vec(2 * DecodeWidth, new IbufPtr))
   deqPtrVec := deqPtrVecNext
@@ -146,7 +157,7 @@ class Ibuffer(implicit p: Parameters) extends XSModule with HasCircularQueuePtrH
     when(isJump){
       io.out(i).valid := Mux(isMMIO,
         validVec(i) && (io.out(i).bits.ftqPtr < (io.fromFtq - 1.U)),
-        validVec(i) && (validVec(i + 1) || io.out(i).bits.ftqPtr < (io.fromFtq - 1.U)))
+        validVec(i) && (validVec(i + 1) || io.out(i).bits.ftqPtr < (ifuWbPtr - 1.U)))
     }.otherwise{
       io.out(i).valid := validVec(i)
     }

@@ -63,6 +63,7 @@ class NewIFUIO(implicit p: Parameters) extends XSBundle {
   val icacheStop      = Output(Bool())
   val icachePerfInfo  = Input(new ICachePerfInfo)
   val toIbuffer       = Decoupled(new FetchToIBuffer)
+  val toIbufferPd     = Output(Bool())
   val uncacheInter   =  new UncacheInterface
   val frontendTrigger = Flipped(new FrontendTdataDistributeIO)
   val rob_commits = Flipped(Vec(CommitWidth, Valid(new RobCommitInfo)))
@@ -738,6 +739,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
   checkFlushWb.bits.instrRange        := wb_instr_range.asTypeOf(Vec(PredictWidth, Bool()))
 
   toFtq.pdWb := Mux(wb_valid, checkFlushWb,  mmioFlushWb)
+  io.toIbufferPd := Mux(wb_valid, checkFlushWb.valid,  mmioFlushWb.valid)
 
   wb_redirect := checkFlushWb.bits.misOffset.valid && wb_valid
 
