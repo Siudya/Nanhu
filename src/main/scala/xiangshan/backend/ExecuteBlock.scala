@@ -37,6 +37,7 @@ import xiangshan.backend.issue.MemRs.MemoryReservationStation
 import xiangshan.backend.rob.RobLsqIO
 import xiangshan.backend.writeback.WriteBackNetwork
 import xiangshan.cache.mmu.BTlbPtwIO
+import xiangshan.frontend.FtqPtr
 import xiangshan.mem.LsqEnqIO
 import xiangshan.vector.HasVectorParameters
 import xiangshan.vector.vbackend.vexecute.{VectorBlock, VectorPermutationBlock}
@@ -118,6 +119,8 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
 
     //Pc Mem Write
     val pcMemWrite = new PcWritePort
+    val safeTargetPtr = Input(new FtqPtr)
+    val mmioFetchPending = Input(Bool())
 
     val perfEventsPTW = Input(Vec(19, new PerfEvent))
 
@@ -179,6 +182,8 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
   intRs.io.loadEarlyWakeup := memRs.io.loadEarlyWakeup
   intRs.io.earlyWakeUpCancel := memBlk.io.earlyWakeUpCancel(0)
   intRs.io.integerAllocPregs := io.integerAllocPregs
+  intRs.io.safeTargetPtr := io.safeTargetPtr
+  intRs.io.mmioFetchPending := io.mmioFetchPending
 
   fpRs.io.redirect := Pipe(localRedirect)
   fpRs.io.loadEarlyWakeup := memRs.io.loadEarlyWakeup

@@ -198,6 +198,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   exuBlock.io.pcMemWrite.en := RegNext(frontend.io.backend.fromFtq.pc_mem_wen, false.B)
   exuBlock.io.pcMemWrite.addr := RegEnable(frontend.io.backend.fromFtq.pc_mem_waddr, frontend.io.backend.fromFtq.pc_mem_wen)
   exuBlock.io.pcMemWrite.data := RegEnable(frontend.io.backend.fromFtq.pc_mem_wdata, frontend.io.backend.fromFtq.pc_mem_wen)
+  exuBlock.io.safeTargetPtr := RegNext(frontend.io.backend.fromFtq.safeTargetPtr)
+  exuBlock.io.mmioFetchPending := RegNext(frontend.io.mmioFetchPending, false.B)
 
   private val itlbRepeater1 = PTWRepeater(frontend.io.ptw, fenceio.sfence, csrioIn.tlb)
   private val itlbRepeater2 = PTWRepeater(itlbRepeater1.io.ptw, ptw.io.tlb(0), fenceio.sfence, csrioIn.tlb)

@@ -28,6 +28,7 @@ import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp, ValName}
 import xiangshan.backend.issue._
 import xiangshan.backend.rename.BusyTable
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
+import xiangshan.frontend.FtqPtr
 import xs.utils.GTimer
 import xs.utils.perf.HasPerfLogging
 
@@ -78,10 +79,13 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
     val integerAllocPregs = Vec(RenameWidth, Flipped(ValidIO(UInt(PhyRegIdxWidth.W))))
+    val safeTargetPtr = Input(new FtqPtr)
+    val mmioFetchPending = Input(Bool())
   })
   require(outer.dispatchNode.in.length == 1)
   private val enq = outer.dispatchNode.in.map(_._1).head
-
+  private val safeTargetPtrs = Reg(Vec(param.bankNum, new FtqPtr))
+  safeTargetPtrs.foreach(_ := Mux(io.mmioFetchPending, io.safeTargetPtr, io.safeTargetPtr - 1.U))
   private val internalAluJmpWakeupSignals = Wire(Vec(aluIssuePortNum + jmpIssuePortNum, Valid(new WakeUpInfo)))
   private val extraAluJmpWakeupSignals = Wire(Vec(aluIssuePortNum + jmpIssuePortNum, Valid(new WakeUpInfo)))
   private val internalMulWakeupSignals = Wire(Vec(mulIssuePortNum, Valid(new WakeUpInfo)))
@@ -104,12 +108,13 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
     wkp
   }))
   private val rsWakeupWidth = (wakeupSignals ++ internalAluJmpWakeupSignals ++ internalMulWakeupSignals ++ extraAluJmpWakeupSignals).length
-  private val rsBankSeq = Seq.tabulate(param.bankNum)( _ => {
+  private val rsBankSeq = Seq.tabulate(param.bankNum)(idx => {
     val mod = Module(new IntegerReservationBank(entriesNumPerBank, issueWidth, rsWakeupWidth, loadUnitNum))
     mod.io.redirect := io.redirect
     mod.io.wakeup.zip(wakeupSignals ++ internalAluJmpWakeupSignals ++ internalMulWakeupSignals ++ extraAluJmpWakeupSignals).foreach({case(a, b) => a := b})
     mod.io.loadEarlyWakeup := io.loadEarlyWakeup
     mod.io.earlyWakeUpCancel := io.earlyWakeUpCancel
+    mod.io.safeTargetPtr := safeTargetPtrs(idx)
     mod
   })
   private val btWakeupWidth = (wakeupSignals ++ internalAluJmpWakeupSignals ++ internalMulWakeupSignals).length

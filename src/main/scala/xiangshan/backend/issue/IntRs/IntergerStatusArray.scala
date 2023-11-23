@@ -21,10 +21,11 @@ package xiangshan.backend.issue.IntRs
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xiangshan.{Redirect, SrcState, XSModule}
+import xiangshan.{FuType, Redirect, SrcState, XSModule}
 import xiangshan.backend.issue._
 import xs.utils.LogicShiftRight
 import xiangshan.backend.issue.IntRs.EntryState._
+import xiangshan.frontend.FtqPtr
 protected[IntRs] object EntryState{
   def s_ready:UInt = 0.U
   def s_wait_cancel: UInt = 1.U
@@ -69,13 +70,13 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val safeTargetPtr = Input(new FtqPtr)
     val redirect = Input(Valid(new Redirect))
   })
 
   private val miscNext = WireInit(io.entry)
   private val enqNext = Wire(Valid(new IntegerStatusArrayEntry))
   private val enqUpdateEn = WireInit(false.B)
-
   //Start of wake up
   private val pregMatch = io.entry.bits.psrc
     .zip(io.entry.bits.srcType)
@@ -87,7 +88,11 @@ class IntegerStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(impl
     }
   }
   pregMatch.foreach(hv => when(io.entry.valid){assert(PopCount(hv) <= 1.U)})
-  private val miscUpdateEnWakeUp = pregMatch.map(_.reduce(_|_)).reduce(_|_)
+  when(io.entry.bits.fuType === FuType.jmp && io.entry.bits.ftqPtr < io.safeTargetPtr) {
+    miscNext.bits.srcState(1) := SrcState.rdy
+  }
+  private val miscUpdateTarget = io.entry.bits.fuType === FuType.jmp && io.entry.bits.ftqPtr < io.safeTargetPtr && io.entry.bits.srcState(1) === SrcState.busy
+  private val miscUpdateEnWakeUp = pregMatch.map(_.reduce(_|_)).reduce(_|_) | miscUpdateTarget
   //End of wake up
 
   //Start of issue and cancel
@@ -172,6 +177,7 @@ class IntegerStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnit
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val safeTargetPtr = Input(new FtqPtr)
   })
 
   private val statusArray = Reg(Vec(entryNum, new IntegerStatusArrayEntry))
@@ -208,6 +214,7 @@ class IntegerStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnit
     updateNetwork.io.loadEarlyWakeup := io.loadEarlyWakeup
     updateNetwork.io.earlyWakeUpCancel := io.earlyWakeUpCancel
     updateNetwork.io.redirect := io.redirect
+    updateNetwork.io.safeTargetPtr := io.safeTargetPtr
 
     val en = updateNetwork.io.updateEnable
     when(en) {

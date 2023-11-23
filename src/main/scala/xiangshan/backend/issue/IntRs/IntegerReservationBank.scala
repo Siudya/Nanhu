@@ -23,8 +23,9 @@ import org.chipsalliance.cde.config.Parameters
 import xiangshan.backend.issue._
 import chisel3._
 import chisel3.util._
-import xiangshan.{MicroOp, Redirect, SrcState, SrcType}
+import xiangshan.{FuType, MicroOp, Redirect, SrcState, SrcType}
 import xiangshan.backend.issue.IntRs.EntryState.s_ready
+import xiangshan.frontend.FtqPtr
 
 class IntegerReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(implicit p: Parameters) extends Module{
   val io = IO(new Bundle {
@@ -43,6 +44,7 @@ class IntegerReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, load
     val wakeup = Input(Vec(wakeupWidth, Valid(new WakeUpInfo)))
     val loadEarlyWakeup = Input(Vec(loadUnitNum, Valid(new EarlyWakeUpInfo)))
     val earlyWakeUpCancel = Input(Vec(loadUnitNum, Bool()))
+    val safeTargetPtr = Input(new FtqPtr)
   })
 
   private val statusArray = Module(new IntegerStatusArray(entryNum, issueWidth, wakeupWidth, loadUnitNum))
@@ -55,7 +57,11 @@ class IntegerReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, load
     enqEntry.srcType(0) := in.ctrl.srcType(0)
     enqEntry.srcType(1) := in.ctrl.srcType(1)
     enqEntry.srcState(0) := Mux(in.ctrl.srcType(0) === SrcType.reg, in.srcState(0), SrcState.rdy)
-    enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.reg, in.srcState(1), SrcState.rdy)
+    when(in.ctrl.fuType === FuType.jmp){
+      enqEntry.srcState(1) := Mux(in.cf.ftqPtr < io.safeTargetPtr, SrcState.rdy, SrcState.busy)
+    }.otherwise {
+      enqEntry.srcState(1) := Mux(in.ctrl.srcType(1) === SrcType.reg, in.srcState(1), SrcState.rdy)
+    }
     enqEntry.pdest := in.pdest
     enqEntry.lpv.foreach(_.foreach(_ := 0.U))
     enqEntry.fuType := in.ctrl.fuType
@@ -78,6 +84,7 @@ class IntegerReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, load
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup
   statusArray.io.earlyWakeUpCancel := io.earlyWakeUpCancel
+  statusArray.io.safeTargetPtr := io.safeTargetPtr
 
   payloadArray.io.write.en := io.enq.valid
   payloadArray.io.write.addr := io.enq.bits.addrOH

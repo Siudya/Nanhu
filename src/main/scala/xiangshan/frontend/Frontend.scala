@@ -55,6 +55,7 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
     val tlbCsr = Input(new TlbCsrBundle)
     val csrCtrl = Input(new CustomCSRCtrlIO)
     val csrUpdate = new DistributedCSRUpdateReq
+    val mmioFetchPending = Output(Bool())
     val error  = new L1CacheErrorInfo
     val frontendInfo = new Bundle {
       val ibufFull  = Output(Bool())
@@ -80,6 +81,8 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
 
   // trigger
   ifu.io.frontendTrigger := csrCtrl.frontend_trigger
+
+  io.mmioFetchPending := ifu.io.mmioFetchPending
 
   // bpu ctrl
   bpu.io.ctrl := csrCtrl.bp_ctrl
@@ -163,10 +166,8 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
 
   //IFU-Ibuffer
   ibuffer.io.in <> ifu.io.toIbuffer
-  ibuffer.io.fromIfuPd := ifu.io.toIbufferPd
 
   ftq.io.fromBackend <> io.backend.toFtq
-  ibuffer.io.fromBackend <> io.backend.toFtq
   //assert(ftq.ifuWbPtr.value === ibuffer.ifuWbPtr.value)
   io.backend.fromFtq <> ftq.io.toBackend
   io.frontendInfo.bpuInfo <> ftq.io.bpuInfo
@@ -175,8 +176,6 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
 
   ibuffer.io.flush := needFlush
   io.backend.cfVec <> ibuffer.io.out
-
-  ibuffer.io.fromFtq := Pipe(ftq.io.toIbuffer, 2).bits
 
   instrUncache.io.req   <> ifu.io.uncacheInter.toUncache
   ifu.io.uncacheInter.fromUncache <> instrUncache.io.resp

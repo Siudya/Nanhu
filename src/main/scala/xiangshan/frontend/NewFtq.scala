@@ -200,9 +200,7 @@ class FtqToCtrlIO(implicit p: Parameters) extends XSBundle {
   val pc_mem_wen = Output(Bool())
   val pc_mem_waddr = Output(UInt(log2Ceil(FtqSize).W))
   val pc_mem_wdata = Output(new Ftq_RF_Components)
-  // newest target
-  val newest_entry_target = Output(UInt(VAddrBits.W))
-  val newest_entry_ptr = Output(new FtqPtr)
+  val safeTargetPtr = Output(new FtqPtr)
 }
 
 
@@ -614,12 +612,10 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   }
 
   // num cycle is fixed
-  io.toBackend.newest_entry_ptr := RegNext(newest_entry_ptr)
-  io.toBackend.newest_entry_target := RegNext(newest_entry_target)
-
+  io.toBackend.safeTargetPtr := RegNext(ifuWbPtr)
 
   bpuPtr := bpuPtr + enq_fire
-  copied_bpu_ptr.map(_ := bpuPtr + enq_fire)
+  copied_bpu_ptr.foreach(_ := bpuPtr + enq_fire)
   io.toIbuffer.bits := bpuPtr + enq_fire
   io.toIbuffer.valid := enq_fire
   when (io.toIfu.req.fire && allowToIfu) {
