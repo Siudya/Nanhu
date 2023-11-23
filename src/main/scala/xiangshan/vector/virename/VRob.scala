@@ -154,7 +154,7 @@ class VRob(implicit p: Parameters) extends VectorBaseModule with HasCircularQueu
     deqPtr := deqPtr + PopCount(io.commit.rat.mask)
   }
 
-  when(walkNum.orR) {
+  when(walkNum.orR && io.commit.rat.doWalk) {
     enqPtr := enqPtr - PopCount(io.commit.rat.mask)
   }.otherwise {
     enqPtr := enqPtr + PopCount(io.enq.map(_.valid))
