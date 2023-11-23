@@ -921,7 +921,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
   // Illegal priviledged instruction check
   val isIllegalAddr = valid && CSROpType.needAccess(func) && MaskedRegMap.isIllegalAddr(mapping, addr)
-  val isIllegalAccess = wen && !permitted
+  val isIllegalAccess = !permitted
   val isIllegalPrivOp = illegalMret || illegalSret || illegalSModeSret || illegalWFI
 
   // expose several csr bits for tlb
