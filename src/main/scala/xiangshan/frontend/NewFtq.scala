@@ -504,7 +504,9 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   // **********************************************************************
   // **************************** enq from bpu ****************************
   // **********************************************************************
-  val new_entry_ready = validEntries < FtqSize.U
+  // val new_entry_ready = validEntries < FtqSize.U 
+  val canCommit = Wire(Bool())//#2034
+  val new_entry_ready = validEntries < FtqSize.U || canCommit
   io.fromBpu.resp.ready := new_entry_ready
 
   val bpu_s2_resp = io.fromBpu.resp.bits.s2
@@ -1039,10 +1041,15 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   val may_have_stall_from_bpu = Wire(Bool())
   val bpu_ftb_update_stall = RegInit(0.U(2.W)) // 2-cycle stall, so we need 3 states
   may_have_stall_from_bpu := bpu_ftb_update_stall =/= 0.U
-  val canCommit = commPtr =/= ifuWbPtr && !may_have_stall_from_bpu &&
+  // val canCommit = commPtr =/= ifuWbPtr && !may_have_stall_from_bpu &&
+  //   Cat(commitStateQueue(commPtr.value).map(s => {
+  //     s === c_invalid || s === c_commited
+  //   })).andR
+  //#2034
+  canCommit := commPtr =/= ifuWbPtr && !may_have_stall_from_bpu &&
     Cat(commitStateQueue(commPtr.value).map(s => {
       s === c_invalid || s === c_commited
-    })).andR()
+    })).andR
 
   val mmioReadPtr = io.mmioCommitRead.mmioFtqPtr
   val mmioLastCommit = isBefore(commPtr, mmioReadPtr) && (isAfter(ifuPtr,mmioReadPtr)  ||  mmioReadPtr ===   ifuPtr) &&
