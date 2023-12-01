@@ -81,7 +81,8 @@ class RAS(implicit p: Parameters) extends BasePredictor {
     top_dup.foreach(dontTouch(_))
     
     val wen = WireInit(false.B)
-    val write_bypass_entry = Reg(new RASEntry())
+    //val write_bypass_entry = Reg(new RASEntry())
+    val write_bypass_entry = RegInit(0.U.asTypeOf(new RASEntry()))//#2250
     val write_bypass_ptr = RegInit(0.U(log2Up(rasSize).W))
     val write_bypass_valid = RegInit(false.B)
     when (wen) {
