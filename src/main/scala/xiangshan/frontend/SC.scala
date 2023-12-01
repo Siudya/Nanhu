@@ -122,7 +122,7 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:Str
   table.io.r.req.valid := io.req.valid
   table.io.r.req.bits.setIdx := s0_idx
 
-  val per_br_ctrs_unshuffled = table.io.r.resp.data.sliding(2,2).toSeq.map(VecInit(_)) 2->1
+  val per_br_ctrs_unshuffled = table.io.r.resp.data.sliding(2,2).toSeq.map(VecInit(_)) //2->1
   //val per_br_ctrs_unshuffled = table.io.r.resp.data
 
   val per_br_ctrs = VecInit((0 until numBr).map(i => Mux1H(
