@@ -185,10 +185,9 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
   bt.io.r.req.bits.setIdx := s0_idx
   
   val s1_read = bt.io.r.resp.data
-  val s1_idx = RegEnable(s0_idx, io.s0_fire)
+  // val s1_idx = RegEnable(s0_idx, io.s0_fire)
   
   //#2410
-  // val s1_idx = RegEnable(s0_idx, io.s0_fire)
   val s1_idx = RegEnable(s0_idx, s0_fire)
 
   val per_br_ctr = VecInit((0 until numBr).map(i => Mux1H(UIntToOH(get_phy_br_idx(s1_idx, i), numBr), s1_read)))
