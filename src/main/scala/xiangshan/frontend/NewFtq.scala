@@ -1044,12 +1044,12 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   // val canCommit = commPtr =/= ifuWbPtr && !may_have_stall_from_bpu &&
   //   Cat(commitStateQueue(commPtr.value).map(s => {
   //     s === c_invalid || s === c_commited
-  //   })).andR
+  //   })).andR()
   //#2034
   canCommit := commPtr =/= ifuWbPtr && !may_have_stall_from_bpu &&
     Cat(commitStateQueue(commPtr.value).map(s => {
       s === c_invalid || s === c_commited
-    })).andR
+    })).andR()
 
   val mmioReadPtr = io.mmioCommitRead.mmioFtqPtr
   val mmioLastCommit = isBefore(commPtr, mmioReadPtr) && (isAfter(ifuPtr,mmioReadPtr)  ||  mmioReadPtr ===   ifuPtr) &&
