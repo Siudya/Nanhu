@@ -431,7 +431,7 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val update = io.update(dupForIttage).bits
   val updateValid =
     update.is_jalr && !update.is_ret && u_valid && update.ftb_entry.jmpValid &&
-    update.jmp_taken
+    update.jmp_taken  && update.cfi_idx.valid && update.cfi_idx.bits === update.ftb_entry.tailSlot.offset//#2015
   val updateFhist = update.spec_info.folded_hist
 
   // meta is splited by composer
@@ -479,14 +479,21 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val baseTarget = io.in.bits.resp_in(0).s2.full_pred(dupForIttage).jalr_target // use ftb pred as base target
   
   s2_tageTaken := Mux1H(Seq(
-    (provided && !providerNull, providerInfo.ctr(ITTageCtrBits-1)),
-    (altProvided && providerNull, altProviderInfo.ctr(ITTageCtrBits-1)),
+    // (provided && !providerNull, providerInfo.ctr(ITTageCtrBits-1)),
+    // (altProvided && providerNull, altProviderInfo.ctr(ITTageCtrBits-1)),
+    // (!provided || providerNull && !altProvided, basePred)
+    // #2276
+    (provided && !(providerNull && altProvided), true.B),
+    (altProvided && providerNull, true.B),
     (!provided, basePred)
+
   )) // TODO: reintroduce BIM
   s2_tageTarget := Mux1H(Seq(
-    (provided && !providerNull, providerInfo.target),
+    // (provided && !providerNull, providerInfo.target),
+    // #2276
+    (provided && !(providerNull && altProvided), providerInfo.target), 
     (altProvided && providerNull, altProviderInfo.target),
-    (!provided, baseTarget)
+    (!provided|| providerNull && !altProvided, baseTarget)
   ))
   s2_finalAltPred := Mux(altProvided, altProviderInfo.ctr(ITTageCtrBits-1), basePred)
   s2_provided       := provided
