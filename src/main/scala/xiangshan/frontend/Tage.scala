@@ -143,8 +143,11 @@ trait TBTParams extends HasXSParameter with TageParams {
 @chiselName
 class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with TBTParams{
   val io = IO(new Bundle {
-    val s0_fire = Input(Bool())
-    val s0_pc   = Input(UInt(VAddrBits.W))
+    //#2410
+    // val s0_fire = Input(Bool())
+    // val s0_pc   = Input(UInt(VAddrBits.W))
+    //#2410
+    val req = Flipped(DecoupledIO(UInt(VAddrBits.W))) // s0_pc
     val s1_cnt     = Output(Vec(numBr,UInt(2.W)))
     val update_mask = Input(Vec(TageBanks, Bool()))
     val update_pc = Input(UInt(VAddrBits.W))
@@ -171,13 +174,22 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
   resetRow := resetRow + doing_reset
   when (resetRow === (BtSize-1).U) { doing_reset := false.B }
 
-  val s0_idx = bimAddr.getIdx(io.s0_pc)
-  bt.io.r.req.valid := io.s0_fire
+  //#2410
+  io.req.ready := !doing_reset
+  // val s0_idx = bimAddr.getIdx(io.s0_pc)
+  // bt.io.r.req.valid := io.s0_fire
+  val s0_pc = io.req.bits
+  val s0_fire = io.req.valid
+  val s0_idx = bimAddr.getIdx(s0_pc)
+  bt.io.r.req.valid := s0_fire
   bt.io.r.req.bits.setIdx := s0_idx
-
+  
   val s1_read = bt.io.r.resp.data
   val s1_idx = RegEnable(s0_idx, io.s0_fire)
-
+  
+  //#2410
+  // val s1_idx = RegEnable(s0_idx, io.s0_fire)
+  val s1_idx = RegEnable(s0_idx, s0_fire)
 
   val per_br_ctr = VecInit((0 until numBr).map(i => Mux1H(UIntToOH(get_phy_br_idx(s1_idx, i), numBr), s1_read)))
   io.s1_cnt := per_br_ctr
@@ -415,9 +427,21 @@ class TageTable
     )
   }
 
+  //#2410
+  // Power-on reset
+  val powerOnResetState = RegInit(true.B)
+  when(us.io.r.req.ready && table_banks.map(_.io.r.req.ready).reduce(_ && _)) {
+    // When all the SRAM first reach ready state, we consider power-on reset is done
+    powerOnResetState := false.B
+  }
+  // Do not use table banks io.r.req.ready directly
+  // All the us & table_banks are single port SRAM, ready := !wen
+  // We do not want write request block the whole BPU pipeline
+  io.req.ready := !powerOnResetState
+    
 
   val bank_conflict = (0 until nBanks).map(b => table_banks(b).io.w.req.valid && s0_bank_req_1h(b)).reduce(_||_)
-  io.req.ready := true.B
+  // io.req.ready := true.B //#2410
   // io.req.ready := !(io.update.mask && not_silent_update)
   // io.req.ready := !bank_conflict
   XSPerfAccumulate(f"tage_table_bank_conflict", bank_conflict)
@@ -571,8 +595,11 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     }
   }
   val bt = Module (new TageBTable(parentName = parentName + "bttable_"))
-  bt.io.s0_fire := io.s0_fire(1)
-  bt.io.s0_pc   := s0_pc_dup(4)
+  // bt.io.s0_fire := io.s0_fire(1)
+  // bt.io.s0_pc   := s0_pc_dup(1)
+  //#2410
+  bt.io.req.valid := io.s0_fire(1)
+  bt.io.req.bits := s0_pc_dup(1)
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     Some(Module(new MBISTPipeline(2,s"${parentName}_mbistPipe")))
@@ -580,7 +607,9 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     None
   }
 
-  val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit((1 << (TickWidth-1)).U(TickWidth.W)))
+  // #2462
+  // val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit((1 << (TickWidth-1)).U(TickWidth.W)))
+  val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit(((1 << TickWidth) - 1).U(TickWidth.W)))
   val bankTickCtrs = Seq.fill(numBr)(RegInit(0.U(TickWidth.W)))
   // val useAltOnNaCtrs = RegInit(
   //   VecInit(Seq.fill(numBr)(
@@ -709,20 +738,23 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
       )
     
     resp_meta.allocates(i) := RegEnable(allocatableSlots, io.s2_fire(1))
-
+    s1_altUsed(i)       := !provided || providerInfo.use_alt_on_unconf
     val s1_bimCtr = bt.io.s1_cnt(i)
     s1_tageTakens(i) := 
-      Mux(!provided || providerInfo.use_alt_on_unconf,
+      Mux(s1_altUsed(i) ,
         s1_bimCtr(1),
         providerInfo.resp.ctr(TageCtrBits-1)
       )
-    s1_altUsed(i)       := !provided || providerInfo.use_alt_on_unconf
+
     s1_finalAltPreds(i) := s1_bimCtr(1)
     s1_basecnts(i)      := s1_bimCtr
     s1_useAltOnNa(i)    := providerInfo.use_alt_on_unconf
 
     resp_meta.altUsed(i)    := RegEnable(s2_altUsed(i), io.s2_fire(1))
-    resp_meta.altDiffers(i) := RegEnable(s2_finalAltPreds(i) =/= s2_tageTakens_dup(0)(i), io.s2_fire(1))
+      // #2462
+    // resp_meta.altDiffers(i) := RegEnable(s2_finalAltPreds(i) =/= s2_tageTakens_dup(0)(i), io.s2_fire(1))
+    resp_meta.altDiffers(i) := RegEnable(
+      s2_finalAltPreds(i) =/= s2_providerResps(i).ctr(TageCtrBits - 1), io.s2_fire(1)) // alt != provider
     resp_meta.takens(i)     := RegEnable(s2_tageTakens_dup(0)(i), io.s2_fire(1))
     resp_meta.basecnts(i)   := RegEnable(s2_basecnts(i), io.s2_fire(1))
 
@@ -881,7 +913,10 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   bt.io.update_takens := RegNext(bUpdateTakens)
 
   // all should be ready for req
-  io.s1_ready := tables.map(_.io.req.ready).reduce(_&&_)
+  // io.s1_ready := tables.map(_.io.req.ready).reduce(_&&_)
+  //#2410
+  io.s1_ready := tables.map(_.io.req.ready).reduce(_ && _) && bt.io.req.ready
+  
   XSPerfAccumulate(f"tage_write_blocks_read", !io.s1_ready)
 
   def pred_perf(name: String, cnt: UInt)   = XSPerfAccumulate(s"${name}_at_pred", cnt)
