@@ -12,7 +12,7 @@ class LSQExceptionInfo (implicit p: Parameters)  extends DCacheBundle{
   val eVec = ExceptionVec()
   val robIdx = new RobPtr
   val vaddr = UInt(VAddrBits.W)
-  val uopIdx = UInt(log2Ceil(VLEN + 1).W)
+  val segIdx = UInt(log2Ceil(VLEN + 1).W)
 }
 
 class ExceptionSelector(inNum:Int)(implicit p: Parameters) extends XSModule {
@@ -24,7 +24,7 @@ class ExceptionSelector(inNum:Int)(implicit p: Parameters) extends XSModule {
   private def GetOldest(in0: Valid[LSQExceptionInfo], in1: Valid[LSQExceptionInfo]):Valid[LSQExceptionInfo] = {
     val res = Wire(Valid(new LSQExceptionInfo))
     res.valid := in0.valid | in1.valid
-    val in0IsOlder = (in0.bits.robIdx < in1.bits.robIdx) || (in0.bits.robIdx === in1.bits.robIdx && in0.bits.uopIdx < in1.bits.uopIdx)
+    val in0IsOlder = (in0.bits.robIdx < in1.bits.robIdx) || (in0.bits.robIdx === in1.bits.robIdx && in0.bits.segIdx < in1.bits.segIdx)
     val sel = Cat(in1.valid, in0.valid)
     when(sel === 1.U) {
       res.bits := in0.bits
@@ -46,6 +46,7 @@ class LSQExceptionGen(wbInNum:Int, fuCfg:FuConfig)(implicit p: Parameters) exten
     val in = Input(Vec(wbInNum, Valid(new LSQExceptionInfo)))
     val out = Output(Valid(new LSQExceptionInfo))
     val mmioUpdate = Input(Valid(new LSQExceptionInfo))
+    val clean = Input(Bool())
     val redirect = Input(Valid(new Redirect))
   })
   private val exceptionInfo = RegInit(0.U.asTypeOf(Valid(new LSQExceptionInfo())))
@@ -68,7 +69,7 @@ class LSQExceptionGen(wbInNum:Int, fuCfg:FuConfig)(implicit p: Parameters) exten
     exceptionInfo := io.mmioUpdate
   }.elsewhen(selector.io.out.valid) {
     exceptionInfo := selector.io.out
-  }.elsewhen(io.redirect.valid && exceptionInfo.valid && exceptionInfo.bits.robIdx.needFlush(io.redirect)) {
+  }.elsewhen(io.redirect.valid && exceptionInfo.valid && exceptionInfo.bits.robIdx.needFlush(io.redirect) || io.clean) {
     exceptionInfo.valid := false.B
   }
   io.out := exceptionInfo

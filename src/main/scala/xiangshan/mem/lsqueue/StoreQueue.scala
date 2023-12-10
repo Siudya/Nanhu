@@ -266,10 +266,10 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   exceptionGen.io.redirect := io.brqRedirect
   private val exceptionInfo = exceptionGen.io.out
   exceptionGen.io.in.zipWithIndex.foreach({case (d,i) =>
-    val validCond = io.storeIn(i).valid && !io.storeIn(i).bits.miss && !io.storeIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
+    val validCond = io.storeIn(i).valid && !io.storeIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
     d.bits.robIdx := RegEnable(io.storeIn(i).bits.uop.robIdx, validCond)
     d.bits.vaddr := RegEnable(io.storeIn(i).bits.vaddr, validCond)
-    d.bits.uopIdx := RegEnable(io.storeIn(i).bits.uop.segIdx, validCond)
+    d.bits.segIdx := RegEnable(io.storeIn(i).bits.uop.segIdx, validCond)
     d.bits.eVec := io.storeInRe(i).uop.cf.exceptionVec
     d.valid := RegNext(validCond, false.B)
   })
@@ -280,7 +280,9 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   exceptionGen.io.mmioUpdate.bits.eVec := mmioEvec
   exceptionGen.io.mmioUpdate.bits.robIdx := io.rob
   exceptionGen.io.mmioUpdate.bits.vaddr := io.uncache.req.bits.addr
-  exceptionGen.io.mmioUpdate.bits.uopIdx := 0.U
+  exceptionGen.io.mmioUpdate.bits.segIdx := uop(deqPtr).segIdx
+
+  exceptionGen.io.clean := false.B
 
   io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 
@@ -548,9 +550,10 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
   // (4) writeback to ROB (and other units): mark as writebacked
   val defaultEVec = Wire(ExceptionVec())
   defaultEVec.foreach(_ := false.B)
+  val excptHit = exceptionInfo.valid && deqUop.robIdx === exceptionInfo.bits.robIdx && deqUop.segIdx === exceptionInfo.bits.segIdx
   io.mmioStout.valid := (mmio_state === s_wb_mmio)
   io.mmioStout.bits.uop := deqUop
-  io.mmioStout.bits.uop.cf.exceptionVec := Mux(exceptionInfo.valid && deqUop.robIdx === exceptionInfo.bits.robIdx, exceptionInfo.bits.eVec, defaultEVec)
+  io.mmioStout.bits.uop.cf.exceptionVec := Mux(excptHit, exceptionInfo.bits.eVec, defaultEVec)
   io.mmioStout.bits.uop.sqIdx := deqPtrExt(0)
   io.mmioStout.bits.data := dataModule.io.rdata(0).data // dataModule.io.rdata.read(deqPtr)
   io.mmioStout.bits.redirectValid := false.B

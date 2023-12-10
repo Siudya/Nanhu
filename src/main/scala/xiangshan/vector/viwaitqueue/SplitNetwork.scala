@@ -114,8 +114,6 @@ class SplitUop(splitNum:Int)(implicit p: Parameters) extends XSModule {
 
   private val ctrl = io.in.bits.ctrl
   private val vctrl = io.in.bits.vctrl
-  private val un = io.in.bits.uopNum
-  when(io.in.valid && vctrl.isLs) { assert(PopCount(un) === 1.U)}
 
   private def GenAddend(et:UInt, widenOrNarrow:Bool, idx:UInt):UInt = {
     val res = Wire(UInt(3.W))

@@ -521,9 +521,10 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     // Int load writeback will finish (if not blocked) in one cycle
     val defaultEVec = Wire(ExceptionVec())
     defaultEVec.foreach(_ := false.B)
+    val excptCond = exceptionInfo.valid && seluop.robIdx === exceptionInfo.bits.robIdx && seluop.segIdx === exceptionInfo.bits.segIdx
     io.ldout(i) := DontCare
     io.ldout(i).bits.uop := seluop
-    io.ldout(i).bits.uop.cf.exceptionVec := Mux(exceptionInfo.valid && seluop.robIdx === exceptionInfo.bits.robIdx, exceptionInfo.bits.eVec, defaultEVec)
+    io.ldout(i).bits.uop.cf.exceptionVec := Mux(excptCond, exceptionInfo.bits.eVec, defaultEVec)
     io.ldout(i).bits.uop.lqIdx := loadWbSel(i).asTypeOf(new LqPtr)
     io.ldout(i).bits.data := rdataPartialLoad // not used
     io.ldout(i).bits.redirectValid := false.B
@@ -973,11 +974,13 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   // no inst will be commited 1 cycle before tval update
   exceptionGen.io.in.zipWithIndex.foreach({ case (d, i) =>
     val validCond = io.loadIn(i).valid && !io.loadIn(i).bits.uop.robIdx.needFlush(io.brqRedirect)
+    val writebackCond = !io.loadIn(i).bits.miss && !io.loadIn(i).bits.mmio
+    val ffIgnoreCond = io.loadIn(i).bits.uop.vctrl.ff && io.loadIn(i).bits.uop.segIdx =/= 0.U && writebackCond
     d.bits.robIdx := RegEnable(io.loadIn(i).bits.uop.robIdx, validCond)
     d.bits.vaddr := RegEnable(io.loadIn(i).bits.vaddr, validCond)
     d.bits.eVec := RegEnable(io.loadIn(i).bits.uop.cf.exceptionVec, validCond)
-    d.bits.uopIdx := RegEnable(io.loadIn(i).bits.uop.segIdx, validCond)
-    d.valid := RegNext(validCond, false.B)
+    d.bits.segIdx := RegEnable(io.loadIn(i).bits.uop.segIdx, validCond)
+    d.valid := RegNext(validCond & !ffIgnoreCond, false.B)
   })
   val mmioEvec = Wire(ExceptionVec())
   mmioEvec.foreach(_ := false.B)
@@ -986,7 +989,15 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   exceptionGen.io.mmioUpdate.bits.eVec := mmioEvec
   exceptionGen.io.mmioUpdate.bits.robIdx := io.robHead
   exceptionGen.io.mmioUpdate.bits.vaddr := dataModule.io.uncache.rdata.paddr
-  exceptionGen.io.mmioUpdate.bits.uopIdx := 0.U
+  exceptionGen.io.mmioUpdate.bits.segIdx := uop(deqPtr).segIdx
+
+  private val ffCleanConds = io.ldout.map(lo => {
+    val wbCond = lo.fire && exceptionInfo.valid
+    val excptHitCond = lo.bits.uop.segIdx === exceptionInfo.bits.segIdx && lo.bits.uop.robIdx === exceptionInfo.bits.robIdx
+    val ffIgnoreCond = lo.bits.uop.vctrl.ff && lo.bits.uop.segIdx =/= 0.U
+    wbCond && excptHitCond && ffIgnoreCond
+  })
+  exceptionGen.io.clean := ffCleanConds.reduce(_ || _)
 
   io.exceptionAddr.vaddr := exceptionInfo.bits.vaddr
 
