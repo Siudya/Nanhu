@@ -601,7 +601,8 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
 
   // #2462
   // val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit((1 << (TickWidth-1)).U(TickWidth.W)))
-  val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit(((1 << TickWidth) - 1).U(TickWidth.W)))  val bankTickCtrs = Seq.fill(numBr)(RegInit(0.U(TickWidth.W)))
+  val bankTickCtrDistanceToTops = Seq.fill(numBr)(RegInit(((1 << TickWidth) - 1).U(TickWidth.W)))  
+  val bankTickCtrs = Seq.fill(numBr)(RegInit(0.U(TickWidth.W)))
   val useAltOnNaCtrs = RegInit(
     VecInit(Seq.fill(numBr)(
       VecInit(Seq.fill(NUM_USE_ALT_ON_NA)((1 << (USE_ALT_ON_NA_WIDTH-1)).U(USE_ALT_ON_NA_WIDTH.W)))
@@ -730,14 +731,14 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
     
     resp_meta.allocates(i) := RegEnable(allocatableSlots, io.s2_fire(1))
 
-    val s1_bimCtr = bt.io.s1_cnt(i)
     s1_altUsed(i)       := !provided || providerInfo.use_alt_on_unconf
     val s1_bimCtr = bt.io.s1_cnt(i)
     s1_tageTakens(i) := 
       Mux(s1_altUsed(i) ,
         s1_bimCtr(1),
         providerInfo.resp.ctr(TageCtrBits-1)
-      )    s1_finalAltPreds(i) := s1_bimCtr(1)
+      )    
+    s1_finalAltPreds(i) := s1_bimCtr(1)
     s1_basecnts(i)      := s1_bimCtr
     s1_useAltOnNa(i)    := providerInfo.use_alt_on_unconf
 
@@ -906,7 +907,9 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   // all should be ready for req
   // io.s1_ready := tables.map(_.io.req.ready).reduce(_&&_)
   //#2410
-  io.s1_ready := tables.map(_.io.req.ready).reduce(_ && _) && bt.io.req.ready  XSPerfAccumulate(f"tage_write_blocks_read", !io.s1_ready)
+  io.s1_ready := tables.map(_.io.req.ready).reduce(_ && _) && bt.io.req.ready  
+  
+  XSPerfAccumulate(f"tage_write_blocks_read", !io.s1_ready)
 
   def pred_perf(name: String, cnt: UInt)   = XSPerfAccumulate(s"${name}_at_pred", cnt)
   def commit_perf(name: String, cnt: UInt) = XSPerfAccumulate(s"${name}_at_commit", cnt)

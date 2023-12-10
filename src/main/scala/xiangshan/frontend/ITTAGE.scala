@@ -488,6 +488,7 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
     (provided && !(providerNull && altProvided), providerInfo.target), 
     (altProvided && providerNull, altProviderInfo.target),
     (!provided|| providerNull && !altProvided, baseTarget)
+  ))
   s2_finalAltPred := Mux(altProvided, altProviderInfo.ctr(ITTageCtrBits-1), basePred)
   s2_provided       := provided
   s2_provider       := providerInfo.tableIdx
