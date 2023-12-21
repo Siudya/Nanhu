@@ -235,7 +235,7 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
     }  
   }
 
-  io.read.ready := !io.write.valid && tagArrays.map(_.io.r.req.ready).reduce(_&&_)
+  io.read.ready := !io.write.valid && !io.fencei.start && tagArrays.map(_.io.r.req.ready).reduce(_&&_)
 
   //Parity Decode
   val read_metas = Wire(Vec(2,Vec(nWays,new ICacheMetadata())))
@@ -602,6 +602,7 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
   missUnit.io.prefetch_req <> prefetchPipe.io.toMissUnit.enqReq
   missUnit.io.hartId       := io.hartId
+  missUnit.io.fencei       := io.fencei.start
   prefetchPipe.io.fromMSHR <> missUnit.io.prefetch_check
 
 

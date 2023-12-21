@@ -81,6 +81,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
     val victimInfor    =  Output(new ICacheVictimInfor())
 
     val toPrefetch    = ValidIO(UInt(PAddrBits.W))
+    val fencei      = Input(Bool())
 
   })
 
@@ -107,6 +108,11 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   io.victimInfor.vidx  := req_idx
 
   val (_, _, refill_done, refill_address_inc) = edge.addr_inc(io.mem_grant)
+
+  val needflush_r = RegInit(false.B)
+  when (state === s_idle) { needflush_r := false.B }
+  when (state =/= s_idle && io.fencei) { needflush_r := true.B }
+  val needflush = needflush_r | io.fencei
 
   //cacheline register
   val readBeatCnt = Reg(UInt(log2Up(refillCycles).W))
@@ -170,7 +176,7 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
     }
 
     is(s_write_back) {
-      state := Mux(io.meta_write.fire && io.data_write.fire, s_wait_resp, s_write_back)
+      state := Mux(io.meta_write.fire && io.data_write.fire || needflush, s_wait_resp, s_write_back)
       state_dup.map(_ := Mux(io.meta_write.fire && io.data_write.fire, s_wait_resp, s_write_back))
     }
 
@@ -198,10 +204,10 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   //resp to ifu
   io.resp.valid := state === s_wait_resp
 
-  io.meta_write.valid := (state === s_write_back)
+  io.meta_write.valid := (state === s_write_back) && !needflush
   io.meta_write.bits.generate(tag = req_tag, idx = req_idx, waymask = req_waymask, bankIdx = req_idx(0))
 
-  io.data_write.valid := (state === s_write_back)
+  io.data_write.valid := (state === s_write_back) && !needflush
   val dataWriteEn = Wire(Vec(4, Bool()))
   dataWriteEn.zipWithIndex.map{ case(wen,i) => 
     wen := state_dup(i) === s_write_back
@@ -232,6 +238,8 @@ class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMiss
 
     val meta_write  = DecoupledIO(new ICacheMetaWriteBundle)
     val data_write  = DecoupledIO(new ICacheDataWriteBundle)
+
+    val fencei      = Input(Bool())
 
     val victimInfor = Vec(PortNumber, Output(new ICacheVictimInfor()))
 
@@ -270,6 +278,7 @@ class ICacheMissUnit(edge: TLEdgeOut)(implicit p: Parameters) extends ICacheMiss
     }
 
     io.resp(i) <> entry.io.resp
+    entry.io.fencei := io.fencei
 
     io.victimInfor(i) := entry.io.victimInfor
   //  io.prefetch_check(i) <> entry.io.toPrefetch
