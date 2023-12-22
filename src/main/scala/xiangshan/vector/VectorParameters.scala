@@ -32,9 +32,9 @@ case class VectorParameters (
     //vector instr rename
     vRenameWidth: Int       = 4,
     vCommitWidth: Int       = 4,
-    vPhyRegsNum: Int        = 64,
-    vWaitQueueNum: Int      = 24,
-    vVtypeRegsNum: Int      = 12,
+    vPhyRegsNum: Int        = 48,
+    vWaitQueueNum: Int      = 16,
+    vVtypeRegsNum: Int      = 8,
     //dispatch
     vDispatchQueueMem: Int      = 12,
     vDispatchQueuePermu: Int    = 12,
@@ -45,7 +45,7 @@ case class VectorParameters (
     vRsOIQDepth: Int    = 8,
     vPRsDepth: Int      = 4,
     //merge
-    vMergeBufferDepth: Int = 32,
+    vMergeBufferDepth: Int = 24,
     vMergeWbWdith: Int = 2
 ) {
     val vLen: Int = 128 //maybe 64、256、512...

@@ -187,7 +187,7 @@ trait HaveAXI4MemPort {
     TLToAXI4() :=
     TLSourceShrinker(64) :=
     TLWidthWidget(L3OuterBusWidth / 8) :=
-    TLBuffer.chainNode(2) :=
+    TLBuffer.chainNode(10) :=
     mem_xbar
 
   val memory = InModuleBody {
@@ -231,7 +231,7 @@ trait HaveAXI4PeripheralPort { this: BaseSoC =>
     AXI4UserYanker() :=
     AXI4Deinterleaver(8) :=
     TLToAXI4() :=
-    TLBuffer.chainNode(3) :=
+    TLBuffer.chainNode(10) :=
     peripheralXbar
 
   val peripheral = InModuleBody {
