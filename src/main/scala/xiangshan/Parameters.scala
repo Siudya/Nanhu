@@ -126,21 +126,21 @@ case class XSCoreParameters
 
       (preds, ras.io.out)
     }),
-  IBufSize: Int = 48,
+  IBufSize: Int = 32,
   DecodeWidth: Int = 4,
   RenameWidth: Int = 4,
   CommitWidth: Int = 6,
   FtqSize: Int = 64,
   EnableLoadFastWakeUp: Boolean = true, // NOTE: not supported now, make it false
-  NRPhyRegs: Int = 128,
-  LoadQueueSize: Int = 80,
+  NRPhyRegs: Int = 64,
+  LoadQueueSize: Int = 64,
   LoadQueueNWriteBanks: Int = 8,
-  StoreQueueSize: Int = 64,
+  StoreQueueSize: Int = 48,
   StoreQueueNWriteBanks: Int = 8,
-  RobSize: Int = 192,
-  intRsDepth:Int = 32,
-  fpRsDepth:Int = 32,
-  memRsDepth:Int = 48,
+  RobSize: Int = 96,
+  intRsDepth:Int = 16,
+  fpRsDepth:Int = 16,
+  memRsDepth:Int = 24,
   rsBankNum:Int = 4,
   exuParameters: ExuParameters = ExuParameters(),
   // TODO: replace Coupled L2
@@ -187,7 +187,7 @@ case class XSCoreParameters
   ),
   ldtlbParameters: TLBParameters = TLBParameters(
     name = "ldtlb",
-    normalNSets = 128,
+    normalNSets = 64,
     normalNWays = 1,
     normalAssociative = "sa",
     normalReplacer = Some("setplru"),
@@ -199,7 +199,7 @@ case class XSCoreParameters
   ),
   sttlbParameters: TLBParameters = TLBParameters(
     name = "sttlb",
-    normalNSets = 128,
+    normalNSets = 64,
     normalNWays = 1,
     normalAssociative = "sa",
     normalReplacer = Some("setplru"),
