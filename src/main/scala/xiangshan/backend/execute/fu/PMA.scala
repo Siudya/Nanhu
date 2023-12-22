@@ -96,65 +96,53 @@ trait MMPMAMethod extends PMAConst with PMAMethod with PMPReadWriteMethodBare {
 trait PMAMethod extends PMAConst {
   /**
    * from  CPU
-   * BASE            TOP             Size   Description     Attribute
-   * 0x00_0000_0000  0x00_0FFF_FFFF         Reserved
-   * 0x00_1000_0000  0x00_1FFF_FFFF  256MB  QSPI Flash      RX
-   * 0x00_2000_0000  0x00_2FFF_FFFF         Reserved
-   * 0x00_3000_0000  0x00_3000_FFFF  64KB   GPU(V550)       RW
-   * 0x00_3001_0000  0x00_3001_FFFF  64KB   G71             RW
-   * 0x00_3002_0000  0x00_3003_FFFF         Reserved
-   * 0x00_3004_0000  0x00_3004_FFFF  64KB   DMA             RW
-   * 0x00_3005_0000  0x00_3005_FFFF  64KB   SDMMC           RW
-   * 0x00_3006_0000  0x00_3015_FFFF  1MB    USB             RW
-   * 0x00_3016_0000  0x00_3025_FFFF  1MB    DATA_CPU_BRIDGE RW
-   * 0x00_3026_0000  0x00_30FF_FFFF         Reserved
-   * 0x00_3100_0000  0x00_3100_FFFF  64KB   QSPI            RW
-   * 0x00_3101_0000  0x00_3101_FFFF  64KB   GMAC            RW
-   * 0x00_3102_0000  0x00_3102_FFFF  64KB   HDMI            RW
-   * 0x00_3103_0000  0x00_3103_FFFF  64KB   HDMI_PHY        RW
-   * 0x00_3104_0000  0x00_3105_FFFF  128KB  DP              RW
-   * 0x00_3106_0000  0x00_3106_FFFF  64KB   DDR0            RW
-   * 0x00_3107_0000  0x00_3107_FFFF  64KB   DDR0_PHY        RW
-   * 0x00_3108_0000  0x00_3108_FFFF  64KB   DDR1            RW
-   * 0x00_3109_0000  0x00_3109_FFFF  64KB   DDR1_PHY        RW
-   * 0x00_310A_0000  0x00_310A_FFFF  64KB   IIS             RW
-   * 0x00_310B_0000  0x00_310B_FFFF  64KB   UART0           RW
-   * 0x00_310C_0000  0x00_310C_FFFF  64KB   UART1           RW
-   * 0x00_310D_0000  0x00_310D_FFFF  64KB   UART2           RW
-   * 0x00_310E_0000  0x00_310E_FFFF  64KB   IIC0            RW
-   * 0x00_310F_0000  0x00_310F_FFFF  64KB   IIC1            RW
-   * 0x00_3110_0000  0x00_3110_FFFF  64KB   IIC2            RW
-   * 0x00_3111_0000  0x00_3111_FFFF  64KB   GPIO            RW
-   * 0x00_3112_0000  0x00_3112_FFFF  64KB   CRU             RW
-   * 0x00_3113_0000  0x00_3113_FFFF  64KB   WDT             RW
-   * 0x00_3114_0000  0x00_3114_FFFF  64KB   USB2_PHY0       RW
-   * 0x00_3115_0000  0x00_3115_FFFF  64KB   USB2_PHY1       RW
-   * 0x00_3116_0000  0x00_3116_FFFF  64KB   USB2_PHY2       RW
-   * 0x00_3117_0000  0x00_3117_FFFF  64KB   USB2_PHY3       RW
-   * 0x00_3118_0000  0x00_3118_FFFF  64KB   USB3_PHY0       RW
-   * 0x00_3119_0000  0x00_3119_FFFF  64KB   USB3_PHY1       RW
-   * 0x00_311a_0000  0x00_311a_FFFF  64KB   USB3_PHY2       RW
-   * 0x00_311b_0000  0x00_311b_FFFF  64KB   USB3_PHY3       RW
-   * 0x00_311c_0000  0x00_311c_FFFF  64KB   PCIE0_CFG       RW
-   * 0x00_311d_0000  0x00_311d_FFFF  64KB   PCIE1_CFG       RW
-   * 0x00_311e_0000  0x00_311e_FFFF  64KB   PCIE2_CFG       RW
-   * 0x00_311f_0000  0x00_311f_FFFF  64KB   PCIE3_CFG       RW
-   * 0x00_3120_0000  0x00_3120_FFFF  64KB   SYSCFG          RW
-   * 0x00_3121_0000  0x00_3130_FFFF  1MB    DATA_CPU_BRIDGE RW
-   * 0x00_3131_0000  0x00_37FF_FFFF         Reserved
-   * 0x00_3800_0000  0x00_3800_FFFF  64KB   CLINT (In cpu)  RW
-   * 0x00_3801_0000  0x00_3801_FFFF         Reserved
-   * 0x00_3802_0000  0x00_3802_0FFF  4KB    Debug (In cpu)  RW
-   * 0x00_3802_1000  0x00_38FF_FFFF         Reserved
-   * 0x00_3900_0000  0x00_3900_0FFF  4KB    CacheCtrl       RW
-   * 0x00_3900_1000  0x00_3900_1FFF  4KB    Core Reset      RW
-   * 0x00_3900_2000  0x00_3BFF_FFFF         Reserved
-   * 0x00_3C00_0000  0x00_3FFF_FFFF         PLIC (In cpu)   RW
-   * 0x00_4000_0000  0x00_4FFF_FFFF  256MB  PCIe0           RW
-   * 0x00_5000_0000  0x00_5FFF_FFFF  256MB  PCIe1           RW
-   * 0x00_6000_0000  0x00_6FFF_FFFF  256MB  PCIe2           RW
-   * 0x00_7000_0000  0x00_7FFF_FFFF  256MB  PCIe3           RW
-   * 0x00_8000_0000  0x1F_FFFF_FFFF  126GB  DDR             RWXIDSA
+   * BASE            TOP             Size   Description       Attribute
+   * 0x000_0000_0000 0x000_0001_FFFF 128KB  RC_ROM            RW
+   * 0x000_0002_0000 0x000_0003_FFFF 128KB  XS_ROM            RX
+   * 0x000_0004_0000 0x000_0004_0FFF 4KB    GPIO              RW
+   * 0x000_0005_0000 0x000_0005_0FFF 4KB    UART0             RW
+   * 0x000_0005_1000 0x000_0005_1FFF 4KB    UART1             RW
+   * 0x000_0006_0000 0x000_0006_0FFF 4KB    I2C_MASTER_0      RW
+   * 0x000_0006_1000 0x000_0006_1FFF 4KB    I2C_MASTER_1      RW
+   * 0x000_0007_0000 0x000_0007_03FF 1KB    timer_riscv       RW
+   * 0x000_0007_1000 0x000_0007_13FF 1KB    timer0-timer7     RW
+   * 0x000_0008_0000 0x000_0008_0FFF 4KB    wdt               RW
+   * 0x000_0008_1000 0x000_0008_1FFF 4KB    ssi_master qspi_1 RW
+   * 0x000_0008_2000 0x000_0008_2FFF 4KB    ssi_master ospi   RW
+   * 0x000_0009_0000 0x000_0408_FFFF 64MB   ssi_master qspi_0 RWX
+   * 0x000_0410_1000 0x000_0410_1FFF 4KB    peri1_cru         RW
+   * 0x000_0410_2000 0x000_0410_2FFF 4KB    soc_cru           RW
+   * 0x000_0410_3000 0x000_0410_3FFF 4KB    io_cfg            RW
+   * 0x000_0410_4000 0x000_0410_4FFF 4KB    core_cru          RW
+   * 0x000_0410_5000 0x000_0410_5FFF 4KB    pwr_ctrl          RW
+   * 0x000_0411_0000 0x000_0411_FFFF 64KB   dma_cfg           RW
+   * 0x000_0412_0000 0x000_0412_03FF 1KB    pvt sensor        RW
+   * 0x000_0412_4000 0x000_0412_4FFF 4KB    pcie_cru          RW
+   * 0x000_0412_5000 0x000_0412_5FFF 4KB    ddr_cru           RW
+   * 0x000_0420_0000 0x000_042F_FFFF 1MB    RC_cfg            RW
+   * 0x000_0500_0000 0x000_05FF_FFFF 16MB   pcie_cfg          RW
+   * 0x000_0640_0000 0x000_067F_FFFF 4MB    iommu_dma_cfg     RW
+   * 0x000_0680_0000 0x000_06CF_FFFF 4MB    iommu_pcie_cfg    RW
+   * 0x000_0700_0000 0x000_07FF_FFFF 16MB   ddr_phy_cfg       RW
+   * 0x000_0800_0000 0x000_0800_FFFF 64KB   ddr_ctrl_cfg      RW
+   * 0x000_3800_0000 0x000_3800_FFFF 64KB   xs_clint          RW
+   * 0x000_3801_0000 0x000_3801_FFFF 64KB   xs_beu            RW
+   * 0x000_3802_0000 0x000_3802_0FFF 4KB    xs_debugmodule    RW
+   * 0x000_3900_0000 0x000_3900_0FFF 4KB    xs_l3cachectrl    RW
+   * 0x000_3C00_0000 0x000_3FFF_FFFF 64MB   xs_plic           RW
+   * 0x000_4000_0000 0x000_5FFF_FFFF 512MB  PCIE_X8           RW
+   * 0x000_6000_0000 0x000_7FFF_FFFF 512MB  PCIE_X4           RW
+   * 0x000_8000_0000 0x000_9FFF_FFFF 512MB  PCIE_X2           RW
+   * 0x000_A000_0000 0x000_BFFF_FFFF 512MB  PCIE_X2           RW
+   * 0x000_C000_0000 0x000_FFFF_FFFF 1GB    PCIE_X4           RW
+   * 0x001_0000_0000 0x001_7FFF_FFFF 2GB    PCIE_X8           RW
+   * 0x001_8000_0000 0x001_BFFF_FFFF 1GB    PCIE_X2           RW
+   * 0x001_C000_0000 0x001_FFFF_FFFF 1GB    PCIE_X2           RW
+   * 0x002_0000_0000 0x008_FFFF_FFFF 28GB   PCIE_X8           RW
+   * 0x009_0000_0000 0x00D_FFFF_FFFF 20GB   PCIE_X4           RW
+   * 0x00E_0000_0000 0x00E_FFFF_FFFF 4GB    PCIE_X2           RW
+   * 0x00F_0000_0000 0x00F_FFFF_FFFF 4GB    PCIE_X2           RW
+   * 0x010_0000_0000 0x01F_FFFF_FFFF 64GB   DDR               RWXIDSA
    */
 
   def pma_init() : (Vec[UInt], Vec[UInt], Vec[UInt]) = {
@@ -189,21 +177,21 @@ trait PMAMethod extends PMAConst {
       mask_list.append(genMask(addr, a))
     }
 
-    addPMA(0x480000000L, c = true, atomic = true, a = 1, x = true, w = true, r = true)
-    addPMA(0x80000000L, a = 1, w = true, r = true)
+    addPMA(0x0L, 0x2000000000L, c = true, atomic = true, a = 3, x = true, w = true, r = true)
+    addPMA(0x1FFF800000L, a = 1, c = true, atomic = true, w = true, r = true, x = true)
+    addPMA(0x1000000000L, a = 1, w = true, r = true)
     addPMA(0x3b300000L, a = 1, x = true, r = true)
     addPMA(0x3b1f0000L, a = 1, w = true, r = true)
-    addPMA(0x3b000000L, a = 1)
-    addPMA(0x39002000L, a = 1, w = true, r = true)
-    addPMA(0x39000000L, a = 1)
-    addPMA(0x38021000L, a = 1, w = true, r = true, x = true)
-    addPMA(0x38020000L, a = 1)
-    addPMA(0x38010000L, a = 1, w = true, r = true)
-    addPMA(0x38000000L, a = 1)
-    addPMA(0x31310000L, a = 1, w = true, r = true)
-    addPMA(0x30000000L, a = 1)
-    addPMA(0x20000000L, a = 1, w = true, x = true, r = true)
-    addPMA(0x10000000L, a = 1)
+    addPMA(0x0039000000L, a = 1)
+    addPMA(0x0038021000L, a = 1, w = true, r = true, x = true)
+    addPMA(0x0038020000L, a = 1, w = true, r = true)
+    addPMA(0x0037000000L, a = 1)
+    addPMA(0x000A800000L, a = 1, w = true, r = true)
+    addPMA(0x0004200000L, a = 1)
+    addPMA(0x0004126000L, a = 1, w = true, r = true, x = true)
+    addPMA(0x0000090000L, a = 1)
+    addPMA(0x0000082000L, a = 1, w = true, r = true)
+    addPMA(0x0000040000L, a = 1, r = true, x = true)
     addPMA(0)
     while (cfg_list.length < NumPMA) {
       addPMA(0)
