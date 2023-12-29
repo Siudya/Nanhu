@@ -35,6 +35,7 @@ import chisel3.util.BitPat.bitPatToUInt
 import xiangshan.backend.execute.fu.alu.ALUOpType
 import xiangshan.backend.execute.fu.csr.CSROpType
 import xiangshan.backend.execute.fu.fpu.FPUCtrlSignals
+import xiangshan.cache.MSHRStatus
 import xiangshan.frontend.Ftq_Redirect_SRAMEntry
 import xiangshan.frontend.AllAheadFoldedHistoryOldestBits
 import xs.utils.DataChanged
@@ -678,3 +679,13 @@ class MatchTriggerIO(implicit p: Parameters) extends XSBundle {
   val tdata2 = Output(UInt(64.W))
 }
 
+class DCacheDbgIO (implicit p: Parameters) extends XSBundle {
+  val pendingMSHRNum = Output(UInt(log2Ceil(dcacheParameters.nMissEntries).W))
+  val pendingProbeNum = Output(UInt(log2Ceil(dcacheParameters.nProbeEntries).W))
+  val pendingReleaseNum = Output(UInt(log2Ceil(dcacheParameters.nReleaseEntries).W))
+  val missEntryStatusVec = Vec(dcacheParameters.nMissEntries, ValidIO(new MSHRStatus))
+}
+
+class CoreDbgIO (implicit p: Parameters) extends XSBundle {
+  val dcache = new DCacheDbgIO
+}

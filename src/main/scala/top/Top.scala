@@ -151,6 +151,10 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       val debug_reset = Output(Bool())
       val riscv_halt = Output(Vec(NumCores, Bool()))
       val riscv_rst_vec = Input(Vec(NumCores, UInt(soc.PAddrBits.W)))
+      val debugCores = Vec(NumCores, new CoreDbgIO()(p.alterPartial({
+        case XSCoreParamsKey => tiles.head
+      })))
+      val debugL2s = Vec(NumCores, chiselTypeOf(core_with_l2.head.module.io.debugL2))
     })
 
     val scan_mode = IO(Input(Bool()))
@@ -194,6 +198,8 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       core.module.io.dfx_reset := dfx_reset
       core.module.io.reset_vector := io.riscv_rst_vec(i)
       io.riscv_halt(i) := core.module.io.cpu_halt
+      io.debugCores(i) := core.module.io.debugCore
+      io.debugL2s(i) := core.module.io.debugL2
     }
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)
 

@@ -89,6 +89,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     val perfEvents = Input(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
     val beu_errors = Output(new XSL1BusErrors())
     val dfx_reset = Input(new DFTResetSignals())
+    val debug = new CoreDbgIO
   })
 
   println(s"FPGAPlatform:${env.FPGAPlatform} EnableDebug:${env.EnableDebug}")
@@ -100,6 +101,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   private val ptw_to_l2_buffer = outer.ptw_to_l2_buffer.module
   private val csrioIn = exuBlock.io.csrio
   private val fenceio = exuBlock.io.fenceio
+
+  io.debug.dcache := RegNext(exuBlock.io.debug)
   //TODO:
   fenceio.sbuffer.sbIsEmpty := DontCare
   csrioIn.memExceptionVAddr := DontCare

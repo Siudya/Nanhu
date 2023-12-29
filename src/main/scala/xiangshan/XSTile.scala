@@ -168,6 +168,8 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
     val reset_vector = Input(UInt(PAddrBits.W))
     val cpu_halt = Output(Bool())
     val dfx_reset = Input(new DFTResetSignals())
+    val debugCore = new CoreDbgIO
+    val debugL2 = chiselTypeOf(outer.l2cache.get.module.io.fpga_dbg)
   })
   val ireset = reset
   dontTouch(io.hartId)
@@ -179,6 +181,8 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
   outer.core.module.io.dfx_reset := io.dfx_reset
   outer.l2cache.foreach(_.module.io.dfx_reset := io.dfx_reset)
   io.cpu_halt := outer.core.module.io.cpu_halt
+  io.debugCore := RegNext(outer.core.module.io.debug)
+  io.debugL2 := RegNext(outer.l2cache.get.module.io.fpga_dbg)
   
   if(outer.l2cache.isDefined){
     require(outer.core.module.io.perfEvents.length == outer.l2cache.get.module.io_perf.length)

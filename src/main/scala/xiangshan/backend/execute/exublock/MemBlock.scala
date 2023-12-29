@@ -284,6 +284,7 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
 
     val lsqVecDeqCnt = Output(new LsqVecDeqIO)
     val lqDeq = Output(UInt(log2Up(CommitWidth + 1).W))
+    val debug = new DCacheDbgIO()
   })
   io.lsqVecDeqCnt := DontCare
 
@@ -353,6 +354,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   // TODO: fast load wakeup
   val lsq     = Module(new LsqWrappper)
   val sbuffer = Module(new Sbuffer)
+
+  io.debug := RegNext(dcache.io.debug)
 
   io.lqDeq := lsq.io.lqDeq
   // if you wants to stress test dcache store, use FakeSbuffer
