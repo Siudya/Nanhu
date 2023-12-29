@@ -72,6 +72,7 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
     val cpu_halt = Output(Bool())
     val wfi_enable = Input(Bool())
     val wbFromMergeBuffer = Vec(VectorMergeWbWidth, Flipped(ValidIO(new ExuOutput)))
+    val debug = new RobDbgIO
   })
 
   val wbWithFFlag = writebackIn.filter(wb => wb._1.writeFFlags)
@@ -914,6 +915,10 @@ class RobImp(outer: Rob)(implicit p: Parameters) extends LazyModuleImp(outer)
   io.csr.perfinfo.retiredInstr := retireCounter
   io.robFull := !allowEnqueue
 
+  io.debug.deqPtr := deqPtr
+  io.debug.enqPtr := enqPtr
+  io.debug.isVector := io.commits.info.head.isVector
+  io.debug.headInstFuType := debug_microOp(deqPtr.value).ctrl.fuType
   /**
    * debug info
    */

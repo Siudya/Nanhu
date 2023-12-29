@@ -118,6 +118,7 @@ class LoadQueue(implicit p: Parameters) extends XSModule
     val lqCancelCnt = Output(UInt(log2Up(LoadQueueSize + 1).W))
     val trigger = Vec(LoadPipelineWidth, new LqTriggerIO)
     val lqDeq = Output(UInt(log2Up(CommitWidth + 1).W))
+    val debug = new LqDbgIO
   })
 
   println("LoadQueue: size:" + LoadQueueSize)
@@ -173,6 +174,9 @@ class LoadQueue(implicit p: Parameters) extends XSModule
   val release2cycle_valid = RegNext(io.release.valid)
   val release2cycle_paddr = RegEnable(io.release.bits.paddr, io.release.valid)
   val release2cycle_paddr_dup_lsu = RegEnable(io.release.bits.paddr, io.release.valid)
+
+  io.debug.enqPtr := enqPtrExt.head
+  io.debug.deqPtr := deqPtrExt
 
   /**
     * Enqueue at dispatch

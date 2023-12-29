@@ -68,7 +68,7 @@ ARG_PREFIX =
 endif
 
 # emu for the release version
-RELEASE_ARGS = --fpga-platform --enable-difftest $(ARG_PREFIX)
+RELEASE_ARGS = --fpga-platform $(ARG_PREFIX)
 DEBUG_ARGS   = --enable-difftest $(ARG_PREFIX)
 
 ifeq ($(RELEASE),1)

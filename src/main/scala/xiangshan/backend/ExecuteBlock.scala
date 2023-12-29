@@ -27,7 +27,7 @@ import regfile.{PcMem, PcWritePort, RegFileTop}
 import system.HasSoCParameter
 import utils.{HPerfMonitor, HasPerfEvents, PerfEvent}
 import xiangshan.backend.execute.exu.FenceIO
-import xiangshan.{CommitType, DistributedCSRUpdateReq, ExuInput, ExuOutput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect, XSCoreParamsKey}
+import xiangshan.{CommitType, DistributedCSRUpdateReq, ExuInput, ExuOutput, HasXSParameter, L1CacheErrorInfo, MblkDbgIO, MemPredUpdateReq, MicroOp, Redirect, XSCoreParamsKey}
 import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemBlock}
 import xiangshan.backend.execute.fu.csr.CSRConst.ModeM
 import xiangshan.backend.execute.fu.csr.CSRFileIO
@@ -136,6 +136,7 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
     val debug_int_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
     val debug_fp_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
     val debug_vec_rat = Input(Vec(32, UInt(PhyRegIdxWidth.W)))
+    val debug = new MblkDbgIO
   })
   private val intRs = outer.integerReservationStation.module
   private val fpRs = outer.floatingReservationStation.module
@@ -148,6 +149,8 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
   private val memBlk = outer.memoryBlock.module
   private val vecBlk = outer.vectorBlock.module
   private val vpBlk = outer.vectorPermutationBlock.module
+
+  io.debug := memBlk.io.debug
 
   private val rf = outer.regFile.module
   private val vrf = outer.vRegFile.module

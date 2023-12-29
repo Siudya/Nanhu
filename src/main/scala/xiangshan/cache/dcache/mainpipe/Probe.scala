@@ -133,6 +133,7 @@ class ProbeQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule w
     val pipe_req  = DecoupledIO(new MainPipeReq)
     val lrsc_locked_block = Input(Valid(UInt()))
     val update_resv_set = Input(Bool())
+    val validEntires = Output(UInt(log2Ceil(cfg.nProbeEntries).W))
   })
 
   val pipe_req_arb = Module(new Arbiter(new MainPipeReq, cfg.nProbeEntries))
@@ -141,6 +142,7 @@ class ProbeQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule w
   val primary_ready  = Wire(Vec(cfg.nProbeEntries, Bool()))
   val allocate = primary_ready.asUInt.orR
   val alloc_idx = PriorityEncoder(primary_ready)
+  io.validEntires := PopCount(~Cat(primary_ready))
 
   // translate to inner req
   val req = Wire(new ProbeReq)

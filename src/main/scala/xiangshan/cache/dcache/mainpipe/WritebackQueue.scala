@@ -553,6 +553,7 @@ class WritebackQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModu
 
     val miss_req = Flipped(Valid(UInt()))
     val block_miss_req = Output(Bool())
+    val validEntires = Output(UInt(log2Ceil(cfg.nReleaseEntries).W))
   })
 
   require(cfg.nReleaseEntries > cfg.nMissEntries)
@@ -565,6 +566,7 @@ class WritebackQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModu
   // When there are empty entries, merge or allocate a new entry.
   // When there is no empty entry, reject it even if it can be merged.
   io.req.ready := accept
+  io.validEntires := PopCount(~Cat(primary_ready_vec))
 
   // assign default values to output signals
   io.mem_release.valid := false.B

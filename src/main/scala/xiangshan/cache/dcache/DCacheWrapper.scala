@@ -425,6 +425,7 @@ class DCacheIO(implicit p: Parameters) extends DCacheBundle {
   val csr = new L1CacheToCsrIO
   val error = new L1CacheErrorInfo
   val mshrFull = Output(Bool())
+  val debug = new DCacheDbgIO
 }
 
 
@@ -481,6 +482,10 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val missQueue  = Module(new MissQueue(edge))
   val probeQueue = Module(new ProbeQueue(edge))
   val wb         = Module(new WritebackQueue(edge))
+
+  io.debug.pendingMSHRNum := RegNext(missQueue.io.validEntires)
+  io.debug.pendingProbeNum := RegNext(probeQueue.io.validEntires)
+  io.debug.pendingReleaseNum := RegNext(wb.io.validEntires)
 
   //load req s0
 //  require(io.lsu.load.length == 2)

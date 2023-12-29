@@ -678,3 +678,45 @@ class MatchTriggerIO(implicit p: Parameters) extends XSBundle {
   val tdata2 = Output(UInt(64.W))
 }
 
+class RobDbgIO (implicit p: Parameters) extends XSBundle {
+  val enqPtr = Output(new RobPtr)
+  val deqPtr = Output(new RobPtr)
+  val headInstFuType = Output(FuType())
+  val isVector = Output(Bool())
+}
+
+class DCacheDbgIO (implicit p: Parameters) extends XSBundle {
+  val pendingMSHRNum = Output(UInt(log2Ceil(dcacheParameters.nMissEntries).W))
+  val pendingProbeNum = Output(UInt(log2Ceil(dcacheParameters.nProbeEntries).W))
+  val pendingReleaseNum = Output(UInt(log2Ceil(dcacheParameters.nReleaseEntries).W))
+}
+
+class LqDbgIO (implicit p: Parameters) extends XSBundle {
+  val enqPtr = Output(new LqPtr)
+  val deqPtr = Output(new LqPtr)
+}
+
+class SqDbgIO (implicit p: Parameters) extends XSBundle {
+  val enqPtr = Output(new SqPtr)
+  val deqPtr = Output(new SqPtr)
+}
+
+class SbDbgIO (implicit p: Parameters) extends XSBundle {
+  val empty = Output(Bool())
+}
+
+class LsqDbgIO (implicit p: Parameters) extends XSBundle {
+  val lq = new LqDbgIO
+  val sq = new SqDbgIO
+}
+
+class MblkDbgIO (implicit p: Parameters) extends XSBundle {
+  val lsq = new LsqDbgIO
+  val sb = new SbDbgIO
+  val dcache = new DCacheDbgIO
+}
+
+class CoreDbgIO (implicit p: Parameters) extends XSBundle {
+  val mblk = new MblkDbgIO
+  val rob = new RobDbgIO
+}

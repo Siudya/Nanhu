@@ -586,11 +586,13 @@ class MissQueue(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
       val tag = UInt(tagBits.W) // paddr
     }))
     val l2_pf_store_only = Input(Bool())
+    val validEntires = Output(UInt(log2Ceil(cfg.nMissEntries).W))
   })
   
   // 128KBL1: FIXME: provide vaddr for l2
 
   val entries = Seq.fill(cfg.nMissEntries)(Module(new MissEntry(edge)))
+  io.validEntires := PopCount(Cat(entries.map(!_.io.primary_ready)))
 
   val req_data_gen = io.req.bits.toMissReqStoreData()
   val req_data_buffer = RegEnable(req_data_gen, io.req.valid)

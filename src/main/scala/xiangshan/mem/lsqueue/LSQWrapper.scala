@@ -99,10 +99,14 @@ class LsqWrappper(implicit p: Parameters) extends XSModule with HasDCacheParamet
     val trigger = Vec(LoadPipelineWidth, new LqTriggerIO)
     val lqDeq = Output(UInt(log2Up(CommitWidth + 1).W))
     val storeAddrIn = Vec(StorePipelineWidth, Flipped(Decoupled(new ExuOutput)))  // store addr
+    val debug = new LsqDbgIO
   })
 
   val loadQueue = Module(new LoadQueue)
   val storeQueue = Module(new StoreQueue)
+
+  io.debug.lq := loadQueue.io.debug
+  io.debug.sq := storeQueue.io.debug
 
   storeQueue.io.hartId := io.hartId
 
