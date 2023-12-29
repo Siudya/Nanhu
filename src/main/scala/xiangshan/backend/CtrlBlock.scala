@@ -100,6 +100,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
     val debug_int_rat = Vec(32, Output(UInt(PhyRegIdxWidth.W)))
     val debug_fp_rat = Vec(32, Output(UInt(PhyRegIdxWidth.W)))
     val debug_vec_rat = Output(Vec(32, UInt(VIPhyRegIdxWidth.W)))
+    val debug = new RobDbgIO
 
     val lsqVecDeqCnt = Input(new LsqVecDeqIO)
     val vecFaultOnlyFirst = Output(ValidIO(new ExuOutput))
@@ -455,6 +456,7 @@ class CtrlBlockImp(outer: CtrlBlock)(implicit p: Parameters) extends LazyModuleI
 
   // rob to mem block
   io.robio.lsq <> rob.io.lsq
+  io.debug := rob.io.debug
 
   io.perfInfo.ctrlInfo.robFull := RegNext(rob.io.robFull)
   io.perfInfo.ctrlInfo.intdqFull := RegNext(intDq.io.dqFull)

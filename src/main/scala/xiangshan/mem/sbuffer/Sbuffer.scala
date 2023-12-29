@@ -217,6 +217,7 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
     val sqempty = Input(Bool())
     val flush = Flipped(new SbufferFlushBundle)
     val csrCtrl = Flipped(new CustomCSRCtrlIO)
+    val debug = new SbDbgIO
   })
 
   val dataModule = Module(new SbufferData)
@@ -517,6 +518,8 @@ class Sbuffer(implicit p: Parameters) extends DCacheModule with HasSbufferConst 
   val ValidCount = PopCount(validMask)
   val do_eviction = RegNext(ActiveCount >= threshold || ActiveCount === (StoreBufferSize - 1).U || ValidCount === (StoreBufferSize).U, init = false.B)
   require((StoreBufferThreshold + 1) <= StoreBufferSize)
+
+  io.debug.empty := io.flush.empty
 
   XSDebug(p"ActiveCount[$ActiveCount]\n")
   io.flush.empty := RegNext(empty && io.sqempty)

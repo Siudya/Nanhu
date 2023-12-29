@@ -91,6 +91,7 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
     val sqFull = Output(Bool())
     val sqCancelCnt = Output(UInt(log2Up(StoreQueueSize + 1).W))
     val sqDeq = Output(UInt(2.W))
+    val debug = new SqDbgIO
   })
   println("StoreQueue: size:" + StoreQueueSize)
 
@@ -173,6 +174,9 @@ class StoreQueue(implicit p: Parameters) extends XSModule with HasPerfLogging
       rdataPtrExt
     )
   ))
+
+  io.debug.enqPtr := enqPtrExt.head
+  io.debug.deqPtr := deqPtrExt.head
 
   // deqPtrExtNext traces which inst is about to leave store queue
   //
