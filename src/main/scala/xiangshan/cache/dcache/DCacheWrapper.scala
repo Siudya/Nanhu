@@ -486,6 +486,7 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   io.debug.pendingMSHRNum := RegNext(missQueue.io.validEntires)
   io.debug.pendingProbeNum := RegNext(probeQueue.io.validEntires)
   io.debug.pendingReleaseNum := RegNext(wb.io.validEntires)
+  io.debug.missEntryStatusVec := RegNext(missQueue.io.miss_entry_status_vec)
 
   //load req s0
 //  require(io.lsu.load.length == 2)
