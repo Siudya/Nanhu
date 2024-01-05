@@ -112,18 +112,7 @@ class MSHRStatus(implicit p: Parameters) extends DCacheBundle {
   val addr = UInt(PAddrBits.W)
   val vaddr = UInt(VAddrBits.W)
 
-  val s_acquire = Bool()
-  val s_grantack = Bool()
-  val s_replace_req = Bool()
-  val s_refill = Bool()
-  val s_mainpipe_req = Bool()
-  val s_write_storedata = Bool()
-
-  val w_grantfirst = Bool()
-  val w_grantlast = Bool()
-  val w_replace_resp = Bool()
-  val w_refill_resp = Bool()
-  val w_mainpipe_resp = Bool()
+  val state = UInt(11.W)
 
   val a_valid = Bool()
   val a_ready = Bool()
@@ -203,18 +192,8 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
   io.miss_entry_status.addr := req.addr
   io.miss_entry_status.vaddr := req.vaddr
 
-  io.miss_entry_status.s_acquire := s_acquire
-  io.miss_entry_status.s_grantack := s_grantack
-  io.miss_entry_status.s_replace_req := s_replace_req
-  io.miss_entry_status.s_refill := s_refill
-  io.miss_entry_status.s_mainpipe_req := s_mainpipe_req
-  io.miss_entry_status.s_write_storedata := s_write_storedata
-
-  io.miss_entry_status.w_grantfirst := w_grantfirst
-  io.miss_entry_status.w_grantlast := w_grantlast
-  io.miss_entry_status.w_replace_resp := w_replace_resp
-  io.miss_entry_status.w_refill_resp := w_refill_resp
-  io.miss_entry_status.w_mainpipe_resp := w_mainpipe_resp
+  io.miss_entry_status.state := Cat(s_acquire, s_grantack, s_replace_req, s_refill, s_mainpipe_req, s_write_storedata,
+    w_grantfirst, w_grantlast, w_replace_resp, w_refill_resp, w_mainpipe_resp)
 
   io.miss_entry_status.a_valid := io.mem_acquire.valid
   io.miss_entry_status.a_ready := io.mem_acquire.ready
