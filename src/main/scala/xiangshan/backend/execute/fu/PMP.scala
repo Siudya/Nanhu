@@ -20,13 +20,13 @@ package xiangshan.backend.execute.fu
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
-
 import chisel3.util._
 import xiangshan._
+import xiangshan.backend.execute.fu.csr.CSRConst.ModeS
 import xiangshan.backend.execute.fu.csr.HasCSRConst
 import xiangshan.cache.mmu.TlbCmd
 import xs.utils.MaskedRegMap.WritableMask
-import xs.utils.{MaskedRegMap, OneHot, ParallelPriorityMux, MaskData}
+import xs.utils.{MaskData, MaskedRegMap, OneHot, ParallelPriorityMux}
 
 trait PMPConst extends HasPMParameters {
   val PMPOffBits = 2 // minimal 4bytes
@@ -416,12 +416,13 @@ trait PMPCheckMethod extends PMPConst {
     size: UInt,
     pmpEntries: Vec[PMPEntry],
     mode: UInt,
+    transMode: UInt,
     lgMaxSize: Int
   ) = {
     val num = pmpEntries.size
     require(num == NumPMP)
 
-    val passThrough = if (pmpEntries.isEmpty) true.B else (mode > 1.U)
+    val passThrough = if (pmpEntries.isEmpty) true.B else (mode > ModeS || (mode === ModeS && transMode === 0.U))
     val pmpDefault = WireInit(0.U.asTypeOf(new PMPEntry()))
     pmpDefault.cfg.r := passThrough
     pmpDefault.cfg.w := passThrough
@@ -459,10 +460,12 @@ trait PMPCheckMethod extends PMPConst {
 
 class PMPCheckerEnv(implicit p: Parameters) extends PMPBundle {
   val mode = UInt(2.W)
+  val transMode = UInt(4.W)
   val pmp = Vec(NumPMP, new PMPEntry())
   val pma = Vec(NumPMA, new PMPEntry())
 
-  def apply(mode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry]): Unit = {
+  def apply(mode: UInt, transMode:UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry]): Unit = {
+    this.transMode := transMode
     this.mode := mode
     this.pmp := pmp
     this.pma := pma
@@ -474,8 +477,8 @@ class PMPCheckIO(lgMaxSize: Int)(implicit p: Parameters) extends PMPBundle {
   val req = Flipped(Valid(new PMPReqBundle(lgMaxSize))) // usage: assign the valid to fire signal
   val resp = new PMPRespBundle()
 
-  def apply(mode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], req: Valid[PMPReqBundle]) = {
-    check_env.apply(mode, pmp, pma)
+  def apply(mode: UInt, transMode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], req: Valid[PMPReqBundle]) = {
+    check_env.apply(mode, transMode, pmp, pma)
     this.req := req
     resp
   }
@@ -485,8 +488,8 @@ class PMPCheckIO(lgMaxSize: Int)(implicit p: Parameters) extends PMPBundle {
     this.req.bits.apply(addr)
   }
 
-  def apply(mode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], valid: Bool, addr: UInt) = {
-    check_env.apply(mode, pmp, pma)
+  def apply(mode: UInt, transMode: UInt,  pmp: Vec[PMPEntry], pma: Vec[PMPEntry], valid: Bool, addr: UInt) = {
+    check_env.apply(mode, transMode, pmp, pma)
     req_apply(valid, addr)
     resp
   }
@@ -497,8 +500,8 @@ class PMPCheckv2IO(lgMaxSize: Int)(implicit p: Parameters) extends PMPBundle {
   val req = Flipped(Valid(new PMPReqBundle(lgMaxSize))) // usage: assign the valid to fire signal
   val resp = Output(new PMPConfig())
 
-  def apply(mode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], req: Valid[PMPReqBundle]) = {
-    check_env.apply(mode, pmp, pma)
+  def apply(mode: UInt, transMode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], req: Valid[PMPReqBundle]) = {
+    check_env.apply(mode, transMode, pmp, pma)
     this.req := req
     resp
   }
@@ -508,8 +511,8 @@ class PMPCheckv2IO(lgMaxSize: Int)(implicit p: Parameters) extends PMPBundle {
     this.req.bits.apply(addr)
   }
 
-  def apply(mode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], valid: Bool, addr: UInt) = {
-    check_env.apply(mode, pmp, pma)
+  def apply(mode: UInt, transMode: UInt, pmp: Vec[PMPEntry], pma: Vec[PMPEntry], valid: Bool, addr: UInt) = {
+    check_env.apply(mode, transMode, pmp, pma)
     req_apply(valid, addr)
     resp
   }
@@ -531,7 +534,7 @@ class PMPChecker
 
   val req = io.req.bits
 
-  val res_pmp = pmp_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pmp, io.check_env.mode, lgMaxSize)
+  val res_pmp = pmp_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pmp, io.check_env.mode, io.check_env.transMode, lgMaxSize)
   val res_pma = pma_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pma, io.check_env.mode, lgMaxSize)
 
   val resp_pmp = pmp_check(req.cmd, res_pmp.cfg)
@@ -561,7 +564,7 @@ class PMPCheckerv2
 
   val req = io.req.bits
 
-  val res_pmp = pmp_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pmp, io.check_env.mode, lgMaxSize)
+  val res_pmp = pmp_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pmp, io.check_env.mode, io.check_env.transMode, lgMaxSize)
   val res_pma = pma_match_res(leaveHitMux, io.req.valid)(req.addr, req.size, io.check_env.pma, io.check_env.mode, lgMaxSize)
 
   val resp = and(res_pmp, res_pma)

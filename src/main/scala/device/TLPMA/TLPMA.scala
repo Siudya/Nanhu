@@ -48,7 +48,7 @@ class TLPMA(implicit p: Parameters) extends LazyModule with PMAConst with MMPMAM
         mmpma.sameCycle/* pmaParam.sameCycle*/,
         false)).io
     ))
-    pma_check.map(_.check_env.apply(mmpma.lgMaxSize.U, pma/*placeHolder*/, pma))
+    pma_check.foreach(_.check_env.apply(mmpma.lgMaxSize.U, 0.U, pma/*placeHolder*/, pma))
     for (i <- 0 until mmpma.num) {
       pma_check(i).req_apply(req(i).valid, req(i).bits.addr)
       resp(i) := pma_check(i).resp
