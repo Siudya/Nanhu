@@ -932,11 +932,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // The time limit may always be 0, in which case WFI always causes
   // an illegal instruction exception in less-privileged modes when TW=1.
   val illegalWFI = valid && isWFI && priviledgeMode < ModeM && mstatusStruct.tw === 1.U
+  val illegalWFI_ii = valid && isWFI && priviledgeMode === ModeU
 
   // Illegal priviledged instruction check
   val isIllegalAddr = valid && CSROpType.needAccess(func) && MaskedRegMap.isIllegalAddr(mapping, addr)
   val isIllegalAccess = !permitted
-  val isIllegalPrivOp = illegalMret || illegalSret || illegalSModeSret || illegalWFI
+  val isIllegalPrivOp = illegalMret || illegalSret || illegalSModeSret || illegalWFI || illegalWFI_ii
 
   // expose several csr bits for tlb
   tlbBundle.priv.mxr   := mstatusStruct.mxr.asBool
