@@ -27,7 +27,7 @@ import xiangshan._
 import xiangshan.backend.decode.ImmUnion
 import xiangshan.backend.issue.SelectPolicy
 import xiangshan.backend.rob.RobPtr
-import xiangshan.frontend.Ftq_RF_Components
+import xiangshan.frontend.{BrType, Ftq_RF_Components}
 import xs.utils.{SignExt, XORFold}
 import xs.utils.perf.HasPerfLogging
 
@@ -89,7 +89,16 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
   private val s2_redirectBitsReg = RegEnable(s1_redirectSel.bits, s1_redirectValid)
   private val s2_redirectIdxOHReg = RegEnable(s1_redirectIdxOH, s1_redirectValid)
   private val s2_jmpTargetReg = RegEnable(s1_target, s1_redirectValid)
-  private val s2_uopReg = RegEnable(s1_exuOutSel.bits.uop, s1_redirectValid)
+  private val s2_uopReg = Wire(new MicroOp)
+  s2_uopReg := RegEnable(s1_exuOutSel.bits.uop, s1_redirectValid)
+  when(s2_redirectValidReg && s2_redirectBitsReg.isException) {
+    s2_uopReg.cf.pd.valid := false.B
+    s2_uopReg.cf.pd.isRVC := false.B
+    s2_uopReg.cf.pd.brType := BrType.notCFI
+    s2_uopReg.cf.pd.isCall := false.B
+    s2_uopReg.cf.pd.isRet := false.B
+    s2_uopReg.ctrl.imm := 0.U
+  }
 
   private val s2_redirectValid = s2_redirectValidReg && !s2_redirectBitsReg.robIdx.needFlush(io.redirectIn)
 
