@@ -422,7 +422,7 @@ trait PMPCheckMethod extends PMPConst {
     val num = pmpEntries.size
     require(num == NumPMP)
 
-    val passThrough = if (pmpEntries.isEmpty) true.B else (mode > ModeS || (mode === ModeS && transMode === 0.U))
+    val passThrough = if (pmpEntries.isEmpty) true.B else (mode > ModeS || transMode === 0.U)
     val pmpDefault = WireInit(0.U.asTypeOf(new PMPEntry()))
     pmpDefault.cfg.r := passThrough
     pmpDefault.cfg.w := passThrough
