@@ -97,9 +97,13 @@ class VSetFu(implicit p: Parameters) extends XSModule with HasXSParameter {
     avl := io.in.bits.src(0)
   }
 
-  private def GenVtype(in:UInt):VtypeStruct = {
+  private def GenVtype(in: UInt, isReg: Boolean):VtypeStruct = {
     val res = Wire(new VtypeStruct)
-    res.vill := in(2, 0) === 4.U || in(5).asBool
+    if(isReg) {
+      res.vill := in(2, 0) === 4.U || in(5).asBool || in(XLEN-1)
+    } else {
+      res.vill := in(2, 0) === 4.U || in(5).asBool
+    }
     res.reserved := 0.U
     res.vma := Mux(res.vill, 0.U, in(7))
     res.vta := Mux(res.vill, 0.U, in(6))
@@ -107,9 +111,9 @@ class VSetFu(implicit p: Parameters) extends XSModule with HasXSParameter {
     res.vlmul := Mux(res.vill, 0.U, in(2, 0))
     res
   }
-  private val iiVtype = GenVtype(zimm_ii)
-  private val riVtype = GenVtype(zimm_i)
-  private val rrVtype = GenVtype(io.in.bits.src(1))
+  private val iiVtype = GenVtype(zimm_ii, false)
+  private val riVtype = GenVtype(zimm_i, false)
+  private val rrVtype = GenVtype(io.in.bits.src(1), true)
   private val vtype = MuxCase(0.U.asTypeOf(new VtypeStruct), Seq(
     (opType === CSROpType.vsetivli) -> iiVtype,
     (opType === CSROpType.vsetvli) -> riVtype,
