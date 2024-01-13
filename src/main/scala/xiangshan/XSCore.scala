@@ -138,6 +138,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   ctrlBlock.io.vcsrToRename.vlRead.readEn := RegNext(csrioIn.vcsr.vtype.vlRead.readEn, false.B)
   csrioIn.vcsr.vtype.vtypeRead.data := Pipe(ctrlBlock.io.vcsrToRename.vtypeRead.data, 2)
   csrioIn.vcsr.vtype.vlRead.data := Pipe(ctrlBlock.io.vcsrToRename.vlRead.data, 2)
+  csrioIn.vcsr.vtype.vlUpdate := Pipe(ctrlBlock.io.vcsrToRename.vlUpdate)
   ctrlBlock.io.vcsrToRename.vtypeWbToRename := Pipe(csrioIn.vcsr.vtype.vtypeWbToRename)
   
   ctrlBlock.io.lqCancelCnt := exuBlock.io.lqCancelCnt

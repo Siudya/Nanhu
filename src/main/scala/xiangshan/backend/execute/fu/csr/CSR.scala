@@ -607,6 +607,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val vsetFu = Module(new VSetFu)
   vsetFu.io.in.valid := io.in.valid
   vsetFu.io.in.bits := io.in.bits
+  vsetFu.io.vlOld := csrio.vcsr.vtype.vlUpdate.bits
   csrio.vcsr.vtype.vtypeWbToRename.bits.vtype := vsetFu.io.vtypeNew
   csrio.vcsr.vtype.vtypeWbToRename.bits.vl := vsetFu.io.vlNew
   csrio.vcsr.vtype.vtypeWbToRename.bits.vtypeRegIdx := io.in.bits.uop.vtypeRegIdx

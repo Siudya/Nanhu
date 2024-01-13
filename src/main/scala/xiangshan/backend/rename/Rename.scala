@@ -59,6 +59,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with Ha
     val vcsrio  = Flipped(new VCSRWithVtypeRenameIO)
 
     val vlUpdate = Input(Valid(UInt(log2Ceil(VLEN + 1).W)))
+    val dispatchIn = Vec(RenameWidth, Input(Valid(new RobPtr)))
   })
 
   // create free list and rat
@@ -69,6 +70,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with Ha
   vtyperename.io.redirect := io.redirect
   vtyperename.io.robCommits := io.robCommits
   vtyperename.io.vlUpdate := io.vlUpdate
+  vtyperename.io.dispatchIn := io.dispatchIn
   io.toVCtl := vtyperename.io.toVCtl
   // decide if given instruction needs allocating a new physical register (CfCtrl: from decode; RobCommitInfo: from rob)
   def needDestReg[T <: CfCtrl](fp: Boolean, x: T): Bool = {

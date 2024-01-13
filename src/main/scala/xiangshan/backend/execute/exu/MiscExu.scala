@@ -129,6 +129,7 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   csr.csrio.vcsr.robWb.vstart := io.csrio.vcsr.robWb.vstart
   io.csrio.vcsr.vtype.vtypeRead.readEn := RegNext(csr.csrio.vcsr.vtype.vtypeRead.readEn, false.B)
   io.csrio.vcsr.vtype.vlRead.readEn := RegNext(csr.csrio.vcsr.vtype.vlRead.readEn, false.B)
+  csr.csrio.vcsr.vtype.vlUpdate := Pipe(io.csrio.vcsr.vtype.vlUpdate)
   io.csrio.tlb := DelayN(csr.csrio.tlb, 2)
   io.csrio.customCtrl := DelayN(csr.csrio.customCtrl, 2)
   csr.csrio.exception := Pipe(io.csrio.exception)

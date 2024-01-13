@@ -33,13 +33,11 @@ class VTypeEntry(implicit p: Parameters) extends VectorBaseBundle {
   val info = new VICsrInfo()
   val robIdx = new RobPtr
   val writebacked = Bool()
-  val pdest = UInt(PhyRegIdxWidth.W)
+  val robEnqueued = Bool()
 }
 
 class VtpToVCtl(implicit p: Parameters) extends VectorBaseBundle {
   val psrc = Vec(3, UInt(PhyRegIdxWidth.W))
-  val pdest = UInt(PhyRegIdxWidth.W)
-  val old_pdest = UInt(PhyRegIdxWidth.W)
   val robIdx = new RobPtr
   val vcsrInfo = new VICsrInfo()
   val vtypeRdy = Bool()
@@ -58,6 +56,7 @@ class VTypeRenameTable(size:Int)(implicit p: Parameters) extends XSModule{
       val data = Output(new VTypeEntry)
     })
     val vlUpdate = Input(Valid(UInt(log2Ceil(VLEN + 1).W)))
+    val dispatchIn = Vec(RenameWidth, Input(Valid(new RobPtr)))
     val redirect = Input(Valid(new Redirect))
     val flushVec = Output(UInt(size.W))
   })
@@ -84,6 +83,11 @@ class VTypeRenameTable(size:Int)(implicit p: Parameters) extends XSModule{
     }.elsewhen(io.vlUpdate.valid && io.vlUpdate.bits =/= 0.U){
       entry.info.vl := io.vlUpdate.bits
     }
+
+    val dpInfoHit = io.dispatchIn.map(w => w.valid && w.bits === entry.robIdx).reduce(_ || _)
+    when(dpInfoHit) {
+      entry.robEnqueued := true.B
+    }
   }
 
   for(r <- io.r){
@@ -91,7 +95,7 @@ class VTypeRenameTable(size:Int)(implicit p: Parameters) extends XSModule{
     r.data := Mux1H(rVec, table)
   }
 
-  io.flushVec := Cat(table.map(_.robIdx.needFlush(io.redirect)).reverse)
+  io.flushVec := Cat(table.map(e => e.robIdx.needFlush(io.redirect) || !e.robEnqueued).reverse)
 }
 
 class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircularQueuePtrHelper {
@@ -106,6 +110,7 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
     val toVCtl = Output(Vec(RenameWidth, new VtpToVCtl))
     val vcsr  = Flipped(new VCSRWithVtypeRenameIO)
     val vlUpdate = Input(Valid(UInt(log2Ceil(VLEN + 1).W)))
+    val dispatchIn = Vec(RenameWidth, Input(Valid(new RobPtr)))
   })
 
   private val enqPtrInit = Wire(new VtypePtr)
@@ -151,9 +156,9 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   table.io.w.last.data.writebacked := true.B
   table.io.w.last.data.robIdx := DontCare
   table.io.w.last.addr := io.vcsr.vtypeWbToRename.bits.vtypeRegIdx
-  table.io.w.last.data.pdest := DontCare
 
   table.io.vlUpdate := io.vlUpdate
+  table.io.dispatchIn := io.dispatchIn
 
   private val enqAddrEnqSeq = Wire(Vec(RenameWidth, new VtypePtr))
   private val vtypeEnqSeq = Wire(Vec(RenameWidth, new VTypeEntry))
@@ -169,8 +174,7 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   table.io.r(0).addr := (enqPtr - 1.U).value
   private val oldVType = WireInit(table.io.r(0).data)
 
-  val firstVtypeRename = PriorityMux(io.needAlloc, io.in)
-  io.canAccept := allocNum <= emptyEntriesNumReg && !io.redirect.valid && ~(!oldVType.writebacked && io.needAlloc.reduce(_||_) && NeedOldVl(firstVtypeRename.bits))
+  io.canAccept := allocNum <= emptyEntriesNumReg && !io.redirect.valid
 
   table.io.r(1).addr := deqPtr.value
   private val actualVl = Cat(Seq(
@@ -190,33 +194,29 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   io.vcsr.vtypeRead.data.valid := io.vcsr.vtypeRead.readEn
   io.vcsr.vtypeRead.data.bits := actualVtype
   io.vcsr.vtypeRead.data.valid := io.vcsr.vtypeRead.readEn
-
-  io.vcsr.debug_vl := actualVl
   io.vcsr.debug_vtype := actualVtype
+  io.vcsr.debug_vl := actualVl
 
 
   /** ********************************************************************************************
    * 1.vsetivli
    * 2.vsetvli with src0 === x0 and dest =/= x0
-   * 3.vsetvl with src0 === x0 and dest =/= x0
-   * 4.vsetvli and vsetvl, with src0 === x0 and dest === x0, oldVl has been writebacked
-   * 5.vsetvli and vsetvl, with src0 === x0 and dest === x0, oldVl has not been writebacked
-   * 6.other vsetvl and vsetvli
+   * 3.need old vl
+   * 4.other vsetvl and vsetvli
    *
    * 1: fuOpType === vsetivli
-   * 2 and 3: (fuOpType === vsetvli || fuOpType === vsetvl) && imm(19, 11).andR
-   * 4: (fuOpType === vsetvli || fuOpType === vsetvl) && imm(19) && !(imm(18, 11).andR), avl is in imm(18, 11)
-   * 5 and 6: (fuOpType === vsetvli || fuOpType === vsetvl) && !imm(19), avl is in src0
+   * 2: fuOpType === vsetvl && imm(19, 11).andR
+   * 3: (fuOpType === vsetvli || fuOpType === vsetvl) && imm(19) && !imm(19, 11).andR
    *
-   * 1, 2 should bypass to waitqueue; 3, 4, 5, 6 should wait for writeback from csr.
+   * 1, 2 should bypass to waitqueue; 3, 4 should wait for writeback from csr.
    * ******************************************************************************************* */
 
   private def GenVType(in:MicroOp):VTypeEntry = {
     val res = Wire(new VTypeEntry())
     res := DontCare
     res.writebacked := false.B
+    res.robEnqueued := false.B
     res.robIdx := in.robIdx
-    res.pdest := in.pdest
     when(in.ctrl.fuOpType === CSROpType.vsetivli) {
       res.info.vma := in.ctrl.imm(12)
       res.info.vta := in.ctrl.imm(11)
@@ -246,20 +246,14 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
     enqAddrEnqSeq(idx) := enqPtr + enqAddrDeltas(idx)
     if(idx == 0){
       vtypeEnqSeq(idx) := Mux(s, newVType, oldVType)
-      when(s && newVType.pdest === 0.U) {
-        vtypeEnqSeq(idx).pdest := oldVType.pdest
-      }
     } else {
       vtypeEnqSeq(idx) := Mux(s, newVType, vtypeEnqSeq(idx - 1))
-      when(s && newVType.pdest === 0.U) {
-        vtypeEnqSeq(idx).pdest := vtypeEnqSeq(idx - 1).pdest
-      }
     }
   })
 
 
   private val uop = WireInit(io.in)
-  private def NeedOldVl(in:MicroOp):Bool = {
+  private def NeedOldVl(in: MicroOp): Bool = {
     in.ctrl.lsrc(0) === 0.U && in.ctrl.ldest === 0.U && in.ctrl.fuOpType =/= CSROpType.vsetivli
   }
   private def SetToMax(in:MicroOp):Bool = {
@@ -269,37 +263,10 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
   for((u, i) <- uop.zipWithIndex) {
     val setToMax = SetToMax(u.bits)
     val needOldVl = NeedOldVl(u.bits)
-    if(i == 0){
-      when(needOldVl){
-        when(!oldVType.writebacked){
-          u.bits.psrc(0) := oldVType.pdest
-        }.otherwise{
-          u.bits.ctrl.imm := Cat(1.U(1.W), oldVType.info.vl, io.in(i).bits.ctrl.imm(10, 0))
-        }
-      }.elsewhen(setToMax){
-        u.bits.ctrl.imm := Cat(~(0.U(9.W)), io.in(i).bits.ctrl.imm(10, 0))
-      }
-    } else {
-      val bypassSel = Wire(Vec(i, Bool()))
-      io.needAlloc.take(i).zip(uop.take(i)).zipWithIndex.foreach {
-        case ((v, in), i) => {
-          bypassSel(i) := v && !NeedOldVl(in.bits) && in.bits.pdest =/= 0.U
-        }
-      }
-      val bypassPdest = io.in.take(i).map(_.bits.pdest).reverse
-      val pdest = PriorityMux(bypassSel.reverse, bypassPdest)
-      val bypassHit = bypassSel.reduce(_|_)
-      when(needOldVl){
-        when(bypassHit){
-          u.bits.psrc(0) := pdest
-        }.elsewhen(!oldVType.writebacked){
-          u.bits.psrc(0) := oldVType.pdest
-        }.otherwise{
-          u.bits.ctrl.imm := Cat(1.U(1.W), oldVType.info.vl, io.in(i).bits.ctrl.imm(10, 0))
-        }
-      }.elsewhen(setToMax) {
-        u.bits.ctrl.imm := Cat(~(0.U(9.W)), io.in(i).bits.ctrl.imm(10, 0))
-      }
+    when(setToMax){
+      u.bits.ctrl.imm := Cat(~(0.U(9.W)), io.in(i).bits.ctrl.imm(10, 0))
+    }.elsewhen(needOldVl) {
+      u.bits.ctrl.imm := Cat(1.U(1.W), 0.U(8.W), io.in(i).bits.ctrl.imm(10, 0))
     }
   }
 
@@ -325,6 +292,8 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
     deqPtr := deqPtr + comNumReg
     flushHeadPtr := flushHeadPtr + comNumReg
   }
+  io.vcsr.vlUpdate.valid := RegNext(comValidReg, true.B)
+  io.vcsr.vlUpdate.bits := actualVl
 
   private val actualFlushNum = Mux(io.redirect.valid, flushNum, 0.U)
   private val actualComNum = Mux(comValidReg, comNumReg, 0.U)
@@ -332,8 +301,6 @@ class VtypeRename(implicit p: Parameters) extends VectorBaseModule with HasCircu
 
   for (i <- 0 until RenameWidth) {
     io.toVCtl(i).psrc := DontCare
-    io.toVCtl(i).pdest := DontCare
-    io.toVCtl(i).old_pdest := DontCare
     io.toVCtl(i).robIdx := DontCare
     io.toVCtl(i).vcsrInfo := vtypeEnqSeq(i).info
     io.toVCtl(i).vtypeRdy := vtypeEnqSeq(i).writebacked
