@@ -285,7 +285,7 @@ class VIWaitQueueArray(implicit p: Parameters) extends XSModule with HasVectorPa
   })
   private val array = Reg(Vec(size, new VIWakeQueueEntry))
 
-  io.flushMask := Cat(array.map(_.uop.robIdx.needFlush(io.redirect)).reverse)
+  io.flushMask := Cat(array.map(e => e.uop.robIdx.needFlush(io.redirect) || !e.robEnqueued).reverse)
 
   private val updateNetworkSeq = Seq.fill(size)(Module(new VIWakeQueueEntryUpdateNetwork))
 
