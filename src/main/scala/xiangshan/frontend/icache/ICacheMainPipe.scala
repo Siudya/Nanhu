@@ -90,6 +90,7 @@ class ICachePerfInfo(implicit p: Parameters) extends ICacheBundle{
 
 class ICacheMainPipeInterface(implicit p: Parameters) extends ICacheBundle {
   /*** internal interface ***/
+  val flush       = Input(Bool())
   val metaArray   = new ICacheMetaReqBundle
   val dataArray   = new ICacheDataReqBundle
   val mshr        = Vec(PortNumber, new ICacheMSHRBundle)
@@ -281,7 +282,7 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule with HasPerfLo
     tlb_slot.has_latch_resp := false.B
   }
 
-  s0_can_go      := !missSwitchBit && s1_ready && sram_ready
+  s0_can_go      := !missSwitchBit && s1_ready && sram_ready && (!io.flush)
   s0_slot_fire   := tlb_slot.valid && (tlb_all_resp || tlb_slot.has_latch_resp) && s0_can_go
   s0_fetch_fire  := s0_valid && !tlb_slot.valid && s0_can_go
   s0_fire        := s0_slot_fire || s0_fetch_fire
@@ -302,7 +303,7 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule with HasPerfLo
   /** s1 control */
   val tlbRespAllValid = WireInit(false.B)
 
-  val s1_valid = generatePipeControl(lastFire = s0_fire, thisFire = s1_fire, thisFlush = tlb_miss_flush, lastFlush = false.B)
+  val s1_valid = generatePipeControl(lastFire = s0_fire, thisFire = s1_fire, thisFlush = (tlb_miss_flush || io.flush), lastFlush = false.B)
 
   val s1_req_vaddr   = RegEnable( s0_final_vaddr,    s0_fire)
   val s1_req_vsetIdx = RegEnable( s0_final_vsetIdx, s0_fire)
@@ -316,7 +317,7 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule with HasPerfLo
   val s1_tlb_latch_resp_af = RegEnable( tlb_slot.tlb_resp_af, s0_fire)
 
   s1_ready := s2_ready && tlbRespAllValid  || !s1_valid
-  s1_fire  := s1_valid && tlbRespAllValid && s2_ready && !tlb_miss_flush
+  s1_fire  := s1_valid && tlbRespAllValid && s2_ready && !tlb_miss_flush && !io.flush
 
   fromITLB.map(_.ready := true.B)
 
@@ -757,7 +758,7 @@ class ICacheMainPipe(implicit p: Parameters) extends ICacheModule with HasPerfLo
       /*** Only the first cycle to check whether meet the secondary miss ***/
       when(missStateQueue(j)(i) === m_wait_sec_miss){
         /*** The seondary req has been fix by this slot and another also hit || the secondary req for other cacheline and hit ***/
-        when((slot_slove(i) && s2_fire) || (!slot_slove(i) && s2_fire) ) {
+        when(s2_fire) {
           missStateQueue(j)(i)     := m_invalid
         }
         /*** The seondary req has been fix by this slot but another miss/f3 not ready || the seondary req for other cacheline and miss ***/
