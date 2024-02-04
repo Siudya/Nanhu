@@ -137,7 +137,7 @@ trait HaveSlaveAXI4Port {
   private val error_xbar = TLXbar()
 
   l3_xbar :=
-    TLBuffer() :=
+    TLBuffer.chainNode(40) :=
     AXI2TL(16, 16, soc.hasMbist, soc.hasShareBus) :=
     AXI4Buffer() :=
     AXI2TLFragmenter() :=
@@ -187,7 +187,7 @@ trait HaveAXI4MemPort {
     TLToAXI4() :=
     TLSourceShrinker(64) :=
     TLWidthWidget(L3OuterBusWidth / 8) :=
-    TLBuffer.chainNode(2) :=
+    TLBuffer.chainNode(40) :=
     mem_xbar
 
   val memory = InModuleBody {
@@ -231,7 +231,7 @@ trait HaveAXI4PeripheralPort { this: BaseSoC =>
     AXI4UserYanker() :=
     AXI4Deinterleaver(8) :=
     TLToAXI4() :=
-    TLBuffer.chainNode(3) :=
+    TLBuffer.chainNode(80) :=
     peripheralXbar
 
   val peripheral = InModuleBody {
