@@ -307,7 +307,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
 class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCParameter {
   // ROT
   val tlrot_intr = 17
-  private val intSourceNode = IntSourceNode(IntSourcePortSimple(NrExtIntr, ports = 1, sources = 1))
+  private val intSourceNode = IntSourceNode(IntSourcePortSimple(NrExtIntr + tlrot_intr, ports = 1, sources = 1))
   private val managerBuffer = LazyModule(new TLBuffer)
   val plic = LazyModule(new TLPLIC(PLICParams(baseAddress = 0x3c000000L), 8))
   val clint = LazyModule(new CLINT(CLINTParams(0x38000000L), 8))
@@ -360,7 +360,7 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
 
     // sync external interrupts
     withReset(rst_sync) {
-      require(intSourceNode.out.head._1.length == ext_intrs.getWidth )
+      require(intSourceNode.out.head._1.length == ext_intrs.getWidth + tlrot_intr)
       for ((plic_in, interrupt) <- intSourceNode.out.head._1.zip(ext_intrs.asBools)) {
         val ext_intr_sync = RegInit(0.U(3.W))
         ext_intr_sync := Cat(ext_intr_sync(1, 0), interrupt)
