@@ -20,6 +20,7 @@ import org.chipsalliance.cde.config.{Field, Parameters}
 import chisel3._
 import chisel3.util._
 import device.{DebugModule, DebugModuleIO, TLPMA, TLPMAIO}
+import device_rot.{ROT_rstmgr, TLROT_blackbox}
 import freechips.rocketchip.devices.tilelink.{CLINT, CLINTParams, DevNullParams, PLICParams, TLError, TLPLIC}
 import freechips.rocketchip.diplomacy.{AddressSet, IdRange, InModuleBody, LazyModule, LazyModuleImp, MemoryDevice, RegionType, SimpleDevice, TransferSizes}
 import freechips.rocketchip.interrupts.{IntSourceNode, IntSourcePortSimple}
@@ -304,6 +305,8 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
 }
 
 class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCParameter {
+  // ROT
+  val tlrot_intr = 17
   private val intSourceNode = IntSourceNode(IntSourcePortSimple(NrExtIntr, ports = 1, sources = 1))
   private val managerBuffer = LazyModule(new TLBuffer)
   val plic = LazyModule(new TLPLIC(PLICParams(baseAddress = 0x3c000000L), 8))
@@ -326,6 +329,14 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
 
   plic.intnode := intSourceNode
 
+  // ROT
+  // val rot_rstmgr = LazyModule(new ROT_rstmgr)
+  // rot_rstmgr.node :*= managerBuffer.node
+  
+  // val tlrot = LazyModule(new TLROT_blackbox)
+  // tlrot.node := TLFragmenter(4, 8) := TLWidthWidget(8) :*= managerBuffer.node
+  // tlrot.node_rom :*= managerBuffer.node
+
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
     val debug_module_io: DebugModuleIO = IO(new DebugModuleIO(NumCores))
@@ -342,14 +353,23 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     clint.module.reset := rst_sync
     managerBuffer.module.reset := rst_sync
 
+    // tlrot.module.io_rot.clock := clock
+    // val rst_ctrl = rst_sync.asBool | rot_rstmgr.module.io.ctrl
+    // tlrot.module.io_rot.reset := rst_ctrl
+    // ROMInitEn := tlrot.module.io_rot.ROMInitEn
+
     // sync external interrupts
     withReset(rst_sync) {
-      require(intSourceNode.out.head._1.length == ext_intrs.getWidth)
+      require(intSourceNode.out.head._1.length == ext_intrs.getWidth )
       for ((plic_in, interrupt) <- intSourceNode.out.head._1.zip(ext_intrs.asBools)) {
         val ext_intr_sync = RegInit(0.U(3.W))
         ext_intr_sync := Cat(ext_intr_sync(1, 0), interrupt)
         plic_in := ext_intr_sync(2)
       }
+
+      // for ((plic_in, interrupt) <- intSourceNode.out.head._1.drop(ext_intrs.getWidth).zip(tlrot.module.io_rot.intr)) {
+      //   plic_in := interrupt
+      // }
 
       val rtcTick = RegInit(0.U(3.W))
       rtcTick := Cat(rtcTick(1, 0), rtc_clock)
