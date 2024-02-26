@@ -20,7 +20,7 @@
 package xiangshan.backend.execute.exublock
 
 import org.chipsalliance.cde.config.Parameters
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import xiangshan.backend.execute.exu.ExuConfig
 import xiangshan.backend.execute.exucx.{ExuComplexParam, ExuComplexWritebackNode}
 import freechips.rocketchip.diplomacy.{AdapterNode, RenderedEdge, SimpleNodeImp, SinkNode, ValName}

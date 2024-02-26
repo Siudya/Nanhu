@@ -19,7 +19,7 @@
  ****************************************************************************************/
 package xiangshan.backend.execute.exu
 import org.chipsalliance.cde.config.Parameters
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.util._
 import freechips.rocketchip.diplomacy._
 import xiangshan.ExuOutput

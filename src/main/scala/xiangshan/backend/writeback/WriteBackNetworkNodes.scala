@@ -21,7 +21,7 @@ package xiangshan.backend.writeback
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy._
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import chisel3.util._
 import xiangshan.ExuOutput
 import xiangshan.backend.execute.exu.{ExuConfig, ExuType}

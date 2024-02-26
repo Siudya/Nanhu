@@ -16,7 +16,7 @@ package darecreek.exu.vfu.fp
   * See the Mulan PSL v2 for more details.
   * ************************************************************************************* */
 
-import chisel3.experimental.ChiselEnum
+import chisel3.ChiselEnum
 import chisel3.util._
 import chisel3._
 import org.chipsalliance.cde.config._

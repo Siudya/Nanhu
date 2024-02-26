@@ -219,8 +219,8 @@ class VFRecDataModule(implicit val p: Parameters) extends VFPUPipelineModule {
 
 object RsqrtLookup {
   def apply(exp0: Bool, sig:UInt) = {
-    val even = MuxLookup(sig, 0.U, table(0))
-    val odd = MuxLookup(sig, 0.U, table(1))
+    val even = MuxLookup(sig, 0.U)(table(0))
+    val odd = MuxLookup(sig, 0.U)(table(1))
     Mux(exp0, odd, even)
   }
   val table = Seq(
@@ -364,7 +364,7 @@ object RsqrtLookup {
 object RecLookup {
   def apply(sig:UInt) = {
     require(sig.getWidth == 7)
-    MuxLookup(sig, 0.U, table)
+    MuxLookup(sig, 0.U)(table)
   }
   val table = Seq(
     0.U(7.W) -> 127.U(7.W),

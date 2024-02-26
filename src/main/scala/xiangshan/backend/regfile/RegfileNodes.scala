@@ -22,7 +22,7 @@ package xiangshan.backend.regfile
 import org.chipsalliance.cde.config.Parameters
 import freechips.rocketchip.diplomacy.{MixedNexusNode, _}
 import chisel3._
-import chisel3.internal.sourceinfo.SourceInfo
+import chisel3.experimental.SourceInfo
 import xiangshan.backend.execute.exucx.ExuComplexParam
 import xiangshan.backend.issue.{IssueBundle, RsParam}
 

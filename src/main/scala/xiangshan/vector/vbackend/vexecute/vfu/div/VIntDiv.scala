@@ -44,7 +44,7 @@ class VIntSRT16TimeplexDivider(implicit p: Parameters) extends Module {
     busy := false.B
   }
   io.in.ready := !busy
-  val uopsTotal = MuxLookup(vsew, 0.U, Seq(
+  val uopsTotal = MuxLookup(vsew, 0.U)(Seq(
     0.U -> 8.U,
     1.U -> 4.U,
     2.U -> 2.U,
