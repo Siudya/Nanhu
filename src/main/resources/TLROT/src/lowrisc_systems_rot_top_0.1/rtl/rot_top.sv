@@ -146,6 +146,12 @@ module rot_top #(
   tlul_pkg::tl_d2h_t       sm3_tl_rsp;
   tlul_pkg::tl_h2d_t       sm4_tl_req;
   tlul_pkg::tl_d2h_t       sm4_tl_rsp;
+  tlul_pkg::tl_h2d_t       rs_encode_tl_req;
+  tlul_pkg::tl_d2h_t       rs_encode_tl_rsp;
+  tlul_pkg::tl_h2d_t       rs_decode_tl_req;
+  tlul_pkg::tl_d2h_t       rs_decode_tl_rsp;
+  tlul_pkg::tl_h2d_t       puf_tl_req;
+  tlul_pkg::tl_d2h_t       puf_tl_rsp;
 
 
   // Alert list
@@ -611,6 +617,37 @@ module rot_top #(
       .rst_ni (rst_ni)
   );
 
+  rs_encode u_rs_encode (
+
+      // Inter-module signals
+      .tl_i(rs_encode_tl_req),
+      .tl_o(rs_encode_tl_rsp),
+
+      // Clock and reset connections
+      .clk_i (clk_i),
+      .rst_ni (rst_ni)
+  );
+  rs_decode u_rs_decode (
+
+      // Inter-module signals
+      .tl_i(rs_decode_tl_req),
+      .tl_o(rs_decode_tl_rsp),
+
+      // Clock and reset connections
+      .clk_i (clk_i),
+      .rst_ni (rst_ni)
+  );
+  puf u_puf (
+
+      // Inter-module signals
+      .tl_i(puf_tl_req),
+      .tl_o(puf_tl_rsp),
+
+      // Clock and reset connections
+      .clk_i (clk_i),
+      .rst_ni (rst_ni)
+  );
+
   xbar_main_rot u_xbar_main (
     .clk_i,
     .rst_ni,
@@ -661,7 +698,19 @@ module rot_top #(
 
     // port: tl_sm4
     .tl_sm4_o(sm4_tl_req),
-    .tl_sm4_i(sm4_tl_rsp)
+    .tl_sm4_i(sm4_tl_rsp),
+
+     // port: tl_rs_encode
+    .tl_rs_encode_o(rs_encode_tl_req),
+    .tl_rs_encode_i(rs_encode_tl_rsp),
+
+    // port: tl_rs_decode
+    .tl_rs_decode_o(rs_decode_tl_req),
+    .tl_rs_decode_i(rs_decode_tl_rsp),
+
+    // port: tl_puf
+    .tl_puf_o(puf_tl_req),
+    .tl_puf_i(puf_tl_rsp)
 
   );
     

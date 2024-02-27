@@ -20,6 +20,7 @@
 // -CFLAGS -I../src/main/resources/TLROT/src/lowrisc_dv_verilator_memutil_dpi_scrambled_0/cpp
 +incdir+../src/main/resources/TLROT/src/lowrisc_ip_sm3_1.0/rtl
 // -CFLAGS -I../src/lowrisc_ip_sm3_1.0/rtl
++incdir+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl
 ../src/main/resources/TLROT/src/lowrisc_lint_common_0.1/tools/verilator/common.vlt
 ../src/main/resources/TLROT/src/lowrisc_lint_comportable_0.1/tools/verilator/comportable.vlt
 ../src/main/resources/TLROT/src/lowrisc_prim_assert_0.1/lint/prim_assert.vlt
@@ -414,6 +415,36 @@
 ../src/main/resources/TLROT/src/lowrisc_ip_sm4_1.0/rtl/sm4_top.sv
 ../src/main/resources/TLROT/src/lowrisc_ip_sm4_1.0/rtl/transform_for_encdec.sv
 ../src/main/resources/TLROT/src/lowrisc_ip_sm4_1.0/rtl/transform_for_key_exp.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/berlekamp.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/chien-search.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/data-rom.sv
+//../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/decode.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/inverse.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_code_1.0/rtl/syndrome.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/AP0BP1.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/Comp.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/Counter.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/PUF128.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/PUF1bit.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/PUF_core.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/PUFDec128.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/PUFMux128.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/puf_reg_pkg.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/puf_reg_top.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/puf.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/rng_puf.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/Timer.sv
+../src/main/resources/TLROT/src/zgc_ip_puf_1.0/rtl/Vote.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_decode_1.0/rtl/decode.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_decode_1.0/rtl/rs_decode_reg_pkg.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_decode_1.0/rtl/rs_decode_reg_top.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_decode_1.0/rtl/rs_decode.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_decode_1.0/rtl/rs_decode_wrapper.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_encode_1.0/rtl/encode.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_encode_1.0/rtl/rs_encode_reg_pkg.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_encode_1.0/rtl/rs_encode_reg_top.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_encode_1.0/rtl/rs_encode.sv
+../src/main/resources/TLROT/src/zgc_ip_rs_encode_1.0/rtl/rs_encode_wrapper.sv
 //  ../src/main/resources/TLROT/src/lowrisc_dv_rot_top_verilator_sim_0.1/tb_rot_top.sv
 // --top-module tb_rot_top
 // --exe
