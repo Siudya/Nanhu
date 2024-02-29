@@ -42,8 +42,9 @@ package hmac_pkg;
     32'h 90be_fffa, 32'h a450_6ceb, 32'h bef9_a3f7, 32'h c671_78f2
   };
 
-  function automatic sha_word_t conv_endian( input sha_word_t v, input logic swap);
-    sha_word_t conv_data = {<<8{v}};
+  function automatic sha_word_t conv_endian( input logic [31:0] v, input logic swap);
+    logic [31:0] conv_data = {<<8{v}};
+    // sha_word_t conv_data = {v[7:0], v[15:8], v[23:16], v[31:24]};
     conv_endian = (swap) ? conv_data : v ;
   endfunction : conv_endian
 

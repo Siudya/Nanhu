@@ -11,7 +11,7 @@ module rot_top #(
   // parameters for keymgr
   parameter bit KeymgrKmacEnMasking = 1,
   // parameters for rom_ctrl
-  parameter RomCtrlBootRomInitFile = "/nfs/home/zhangdongrong/thinclient_drives/tmp/test_rom2/opentitan_ROT/hw/ip/rom_ctrl/util/mem64/test.vmem",
+  parameter RomCtrlBootRomInitFile = "/nfs/home/zhangdongrong/Desktop/Nanhu-V3/src/main/resources/TLROT/test.vmem",
   parameter bit SecRomCtrlDisableScrambling = 1'b0,
   // parameters for csrng
   parameter aes_pkg::sbox_impl_e CsrngSBoxImpl = aes_pkg::SBoxImplCanright,

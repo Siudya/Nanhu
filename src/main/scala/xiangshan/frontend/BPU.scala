@@ -224,6 +224,7 @@ class PredictorIO(implicit p: Parameters) extends XSBundle {
   val ftq_to_bpu = Flipped(new FtqToBpuIO())
   val ctrl = Input(new BPUCtrl)
   val reset_vector = Input(UInt(PAddrBits.W))
+  val ROMInitEn = Input(Bool())
 }
 
 
@@ -249,7 +250,9 @@ class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends X
   s0_pc_reg_dup.zip(s0_pc_dup).foreach({case(a, b) =>
     when(reset.asBool){
       a := io.reset_vector.asTypeOf(UInt(VAddrBits.W))
-    }.otherwise{
+    // }.otherwise{
+    // zdr
+    }.elsewhen(io.ROMInitEn){
       a := b
     }
   })
@@ -340,20 +343,23 @@ class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends X
 
   s1_components_ready_dup.map(_ := predictors.io.s1_ready)
   for (s1_ready & s1_fire & s1_valid <- s1_ready_dup zip s1_fire_dup zip s1_valid_dup)
-    s1_ready := s1_fire || !s1_valid
+    // s1_ready := s1_fire || !s1_valid
+    s1_ready := io.ROMInitEn & (s1_fire || !s1_valid)
   for (s0_fire & s1_components_ready & s1_ready <- s0_fire_dup zip s1_components_ready_dup zip s1_ready_dup)
     s0_fire := s1_components_ready && s1_ready
   predictors.io.s0_fire := s0_fire_dup
 
   s2_components_ready_dup.map(_ := predictors.io.s2_ready)
   for (s2_ready & s2_fire & s2_valid <- s2_ready_dup zip s2_fire_dup zip s2_valid_dup)
-    s2_ready := s2_fire || !s2_valid
+    // s2_ready := s2_fire || !s2_valid
+    s2_ready := io.ROMInitEn & ( s2_fire || !s2_valid)
   for (s1_fire & s2_components_ready & s2_ready & s1_valid <- s1_fire_dup zip s2_components_ready_dup zip s2_ready_dup zip s1_valid_dup)
     s1_fire := s1_valid && s2_components_ready && s2_ready && io.bpu_to_ftq.resp.ready
 
   s3_components_ready_dup.map(_ := predictors.io.s3_ready)
   for (s3_ready & s3_fire & s3_valid <- s3_ready_dup zip s3_fire_dup zip s3_valid_dup)
-    s3_ready := s3_fire || !s3_valid
+    // s3_ready := s3_fire || !s3_valid
+    s3_ready := io.ROMInitEn & (s3_fire || !s3_valid)
   for (s2_fire & s3_components_ready & s3_ready & s2_valid <- s2_fire_dup zip s3_components_ready_dup zip s3_ready_dup zip s2_valid_dup)
     s2_fire := s2_valid && s3_components_ready && s3_ready
 
@@ -743,9 +749,11 @@ class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends X
   (ghv_write_datas zip ghvBitWriteGens).map{case (wd, d) => wd := d()}
   for (i <- 0 until HistoryLength) {
     ghv_wens(i) := Seq(s1_ghv_wens, s2_ghv_wens, s3_ghv_wens, redirect_ghv_wens).map(_(i).reduce(_||_)).reduce(_||_)
+    when (io.ROMInitEn) {
     when (ghv_wens(i)) {
       ghv(i) := ghv_write_datas(i)
     }
+  }
   }
 
   XSError(isBefore(redirect_dup(0).cfiUpdate.histPtr, s3_ghist_ptr_dup(0)) && do_redirect_dup(0).valid,

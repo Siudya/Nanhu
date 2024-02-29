@@ -463,9 +463,23 @@ module prim_lfsr #(
     endfunction : lrotcol
 
     // reverses a matrix column
-    function automatic matrix_col_t revcol(matrix_col_t col);
+    function automatic matrix_col_t revcol(logic [NumSboxes-1:0][LfsrIdxDw-1:0] col);
       return {<<LfsrIdxDw{col}};
     endfunction : revcol
+
+    // Reverses a matrix column
+    //zdr
+    // function automatic matrix_col_t revcol(matrix_col_t col);
+    //   matrix_col_t reversed_col;
+    //   // Iterate over each row
+    //   for (int row = 0; row < NumSboxes; row++) begin
+    //     // Iterate over each bit within the row and reverse the bits
+    //     for (int j = 0; j < LfsrIdxDw; j++) begin
+    //       reversed_col[row][j] = col[row][LfsrIdxDw-1-j];
+    //     end
+    //   end
+    //   return reversed_col;
+    // endfunction : revcol
 
     always_comb begin : p_rotrev
       matrix_rotrev_indices[0] = matrix_indices[0];

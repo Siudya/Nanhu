@@ -269,6 +269,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   val ext_intrs = IO(Input(UInt(outer.NrExtIntr.W)))
   val dfx_reset = IO(Input(new DFTResetSignals()))
   val rtc_clock = IO(Input(Bool()))
+  val ROMInitEn = IO(Output(Bool()))
 
   val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
   val dft = if (p(SoCParamsKey).hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
@@ -302,6 +303,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   outer.periCx.module.reset := ResetGen(3, Some(dfx_reset))
   outer.periCx.module.dfx_reset := dfx_reset
   outer.periCx.module.rtc_clock := rtc_clock
+  ROMInitEn := outer.periCx.module.ROMInitEn
 }
 
 class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCParameter {
@@ -330,12 +332,12 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
   plic.intnode := intSourceNode
 
   // ROT
-  // val rot_rstmgr = LazyModule(new ROT_rstmgr)
-  // rot_rstmgr.node :*= managerBuffer.node
+  val rot_rstmgr = LazyModule(new ROT_rstmgr)
+  rot_rstmgr.node :*= managerBuffer.node
   
-  // val tlrot = LazyModule(new TLROT_blackbox)
-  // tlrot.node := TLFragmenter(4, 8) := TLWidthWidget(8) :*= managerBuffer.node
-  // tlrot.node_rom :*= managerBuffer.node
+  val tlrot = LazyModule(new TLROT_blackbox)
+  tlrot.node := TLFragmenter(4, 8) := TLWidthWidget(8) :*= managerBuffer.node
+  tlrot.node_rom :*= managerBuffer.node
 
   lazy val module = new Impl
   class Impl extends LazyModuleImp(this) {
@@ -343,6 +345,7 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     val ext_intrs: UInt = IO(Input(UInt(NrExtIntr.W)))
     val dfx_reset = IO(Input(new DFTResetSignals()))
     val rtc_clock = IO(Input(Bool()))
+    val ROMInitEn = IO(Output(Bool()))
     private val rst_sync = ResetGen(2, Some(dfx_reset))
     debugModule.module.io <> debug_module_io
     debugModule.module.io.clock := clock.asBool
@@ -353,10 +356,10 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     clint.module.reset := rst_sync
     managerBuffer.module.reset := rst_sync
 
-    // tlrot.module.io_rot.clock := clock
-    // val rst_ctrl = rst_sync.asBool | rot_rstmgr.module.io.ctrl
-    // tlrot.module.io_rot.reset := rst_ctrl
-    // ROMInitEn := tlrot.module.io_rot.ROMInitEn
+    tlrot.module.io_rot.clock := clock
+    val rst_ctrl = rst_sync.asBool | rot_rstmgr.module.io.ctrl
+    tlrot.module.io_rot.reset := rst_ctrl
+    ROMInitEn := tlrot.module.io_rot.ROMInitEn
 
     // sync external interrupts
     withReset(rst_sync) {
@@ -367,9 +370,9 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
         plic_in := ext_intr_sync(2)
       }
 
-      // for ((plic_in, interrupt) <- intSourceNode.out.head._1.drop(ext_intrs.getWidth).zip(tlrot.module.io_rot.intr)) {
-      //   plic_in := interrupt
-      // }
+      for ((plic_in, interrupt) <- intSourceNode.out.head._1.drop(ext_intrs.getWidth).zip(tlrot.module.io_rot.intr)) {
+        plic_in := interrupt
+      }
 
       val rtcTick = RegInit(0.U(3.W))
       rtcTick := Cat(rtcTick(1, 0), rtc_clock)
