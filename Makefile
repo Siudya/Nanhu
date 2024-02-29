@@ -169,10 +169,10 @@ idea:
 	mill -i mill.idea.GenIdea/idea
 
 # verilator simulation
-emu:
+emu: sim-verilog
 	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) WITH_DRAMSIM3=$(WITH_DRAMSIM3)
 
-emu_rtl:
+emu_rtl: sim-verilog
 	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) WITH_DRAMSIM3=$(WITH_DRAMSIM3) SIMDIR=1 EMU_TRACE=1 EMU_THREADS=16 REF=Spike
 
 RANDOM = $(shell echo $$RANDOM)
@@ -188,10 +188,10 @@ emu_rtl-run:
 	cd sim/emu/$(RUN_BIN) && (./emu $(EMU_RUN_OPTS) 2> assert.log | tee sim.log)
 
 # vcs simulation
-simv:
+simv: sim-verilog
 	$(MAKE) -C ./difftest simv SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) CONSIDER_FSDB=$(CONSIDER_FSDB) VCS=1 REF=Spike
 
-simv-run:
+simv-run: sim-verilog
 	$(shell if [ ! -e $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN) ];then mkdir -p $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN); fi)
 	touch sim/rtl/$(RUN_BIN)/sim.log
 	$(shell if [ -e $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN)/simv ];then rm -f $(ABS_WORK_DIR)/sim/rtl/$(RUN_BIN)/simv; fi)
