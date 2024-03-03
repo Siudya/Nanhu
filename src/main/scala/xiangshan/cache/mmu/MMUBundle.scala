@@ -751,6 +751,7 @@ class PtwIO(implicit p: Parameters) extends PtwBundle {
     val tlb = Input(new TlbCsrBundle)
     val distribute_csr = Flipped(new DistributedCSRIO)
     val prefercache = Input(Bool())
+    val spmp_enable = Input(Bool())
   }
 }
 

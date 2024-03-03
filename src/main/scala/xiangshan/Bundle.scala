@@ -531,6 +531,8 @@ class CustomCSRCtrlIO(implicit p: Parameters) extends XSBundle {
     val fp = Output(Bool())
     val vec = Output(Bool())
   }
+  // SPMP
+  val spmp_enable = Output(Bool())
 }
 
 class DistributedCSRIO(implicit p: Parameters) extends XSBundle {

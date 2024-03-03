@@ -99,7 +99,14 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   pmp_req_vec(3) <> ifu.io.pmp.req
 
   for (i <- pmp_check.indices) {
-    pmp_check(i).apply(tlbCsr.priv.imode, tlbCsr.satp.mode, pmp.io.pmp, pmp.io.pma, pmp_req_vec(i))
+    pmp_check(i).apply( tlbCsr.priv.imode, 
+                        tlbCsr.satp.mode, 
+                        pmp.io.pmp, 
+                        pmp.io.pma, 
+                        pmp_req_vec(i),
+                        pmp.io.spmp, 
+                        tlbCsr.priv.sum, 
+                        csrCtrl.spmp_enable)
   }
   icache.io.pmp(0).resp <> pmp_check(0).resp
   icache.io.pmp(1).resp <> pmp_check(1).resp

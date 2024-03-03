@@ -210,6 +210,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   ptw.io.csr.tlb <> csrioIn.tlb
   ptw.io.csr.distribute_csr <> csrioIn.customCtrl.distribute_csr
   ptw.io.csr.prefercache <> csrioIn.customCtrl.ptw_prefercache_enable
+  ptw.io.csr.spmp_enable <> csrioIn.customCtrl.spmp_enable
 
   // if l2 prefetcher use stream prefetch, it should be placed in XSCore
   io.l2_pf_enable := csrioIn.customCtrl.l2_pf_enable

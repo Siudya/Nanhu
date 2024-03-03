@@ -523,7 +523,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   ))
   val tlbcsr_pmp = tlbcsr_dup.drop(2).map(RegNext(_))
   for (((p,d),i) <- (pmp_check zip dtlb_pmps).zipWithIndex) {
-    p.apply(tlbcsr_pmp(i).priv.dmode, tlbcsr_pmp(i).satp.mode, pmp.io.pmp, pmp.io.pma, d)
+    p.apply(tlbcsr_pmp(i).priv.dmode, tlbcsr_pmp(i).satp.mode, pmp.io.pmp, pmp.io.pma, d,
+            pmp.io.spmp, tlbcsr_pmp(i).priv.sum, csrCtrl.spmp_enable)
     require(p.req.bits.size.getWidth == d.bits.size.getWidth)
   }
   val pmp_check_ptw = Module(new PMPCheckerv2(lgMaxSize = 3, sameCycle = false, leaveHitMux = true))
@@ -531,7 +532,8 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     ModeS,
     8.U,
     pmp.io.pmp, pmp.io.pma, io.ptw.resp.valid,
-    Cat(io.ptw.resp.bits.data.entry.ppn, 0.U(12.W)).asUInt
+    Cat(io.ptw.resp.bits.data.entry.ppn, 0.U(12.W)).asUInt,
+    pmp.io.spmp, tlbcsr_pmp.last.priv.sum, csrCtrl.spmp_enable
   )
   dtlb.foreach(_.ptw_replenish := pmp_check_ptw.io.resp)
 
