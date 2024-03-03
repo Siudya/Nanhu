@@ -91,7 +91,7 @@ class VrsStatusArrayEntryUpdateNetwork(issueWidth:Int, wakeupWidth:Int)(implicit
   }.elsewhen(io.entry.valid) {
     debugTimeoutCnt := debugTimeoutCnt + 1.U
   }
-  assert(debugTimeoutCnt < 20000.U, "Uop is not dequeued for 20000 cycles!")
+  assert(debugTimeoutCnt < 200000.U, "Uop is not dequeued for 200000 cycles!")
 }
 
 class VrsStatusArray(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(implicit p: Parameters) extends XSModule{

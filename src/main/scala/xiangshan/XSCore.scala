@@ -89,6 +89,7 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
     val perfEvents = Input(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
     val beu_errors = Output(new XSL1BusErrors())
     val dfx_reset = Input(new DFTResetSignals())
+    val ROMInitEn = Input(Bool())
   })
 
   println(s"FPGAPlatform:${env.FPGAPlatform} EnableDebug:${env.EnableDebug}")
@@ -111,6 +112,8 @@ class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
   exuBlock.io.dfx_reset := io.dfx_reset
   exuBlock.io.hartId := io.hartId
   frontend.io.reset_vector := io.reset_vector
+  //zdr: ROM init enable
+  frontend.io.ROMInitEn := io.ROMInitEn
 
   io.beu_errors := DontCare
   io.beu_errors.icache := frontend.io.error.toL1BusErrorUnitInfo()
