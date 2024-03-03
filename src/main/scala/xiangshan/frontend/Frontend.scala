@@ -64,6 +64,7 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
         val bpWrong = Output(UInt(XLEN.W))
       }
     }
+    val ROMInitEn = Input(Bool())
   })
   //fence.i signals bundle not used, tie to default value
   //io.fencei.done := true.B
@@ -87,6 +88,8 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   // bpu ctrl
   bpu.io.ctrl := csrCtrl.bp_ctrl
   bpu.io.reset_vector := io.reset_vector
+  //zdr ROM init enable
+  bpu.io.ROMInitEn := io.ROMInitEn
 
 // pmp
   val pmp = Module(new PMP())
