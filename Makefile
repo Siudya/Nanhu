@@ -112,6 +112,13 @@ endif
 verilog: $(TOP_V)
 
 $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
+ifeq ($(ROT),1)
+	@sed -i 's/\(soc\.Bootrom_disable\s*:=\s*\).*\.B/\1false.B/' src/test/scala/top/SimTop.scala
+	@echo "Run in Bootrom enable mode"
+else
+	@sed -i 's/\(soc\.Bootrom_disable\s*:=\s*\).*\.B/\1true.B/' src/test/scala/top/SimTop.scala
+	@echo "Run in Bootrom disable mode"
+endif
 	mkdir -p $(@D)
 	@echo "\n[mill] Generating Verilog files..." > $(@D)/time.log
 	@date -R | tee -a $(@D)/time.log
@@ -170,7 +177,7 @@ idea:
 
 # verilator simulation
 emu: sim-verilog
-	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) WITH_DRAMSIM3=$(WITH_DRAMSIM3)
+	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) WITH_DRAMSIM3=$(WITH_DRAMSIM3) EMU_THREADS=32
 
 emu_rtl: sim-verilog
 	$(MAKE) -C ./difftest emu SIM_TOP=SimTop DESIGN_DIR=$(NOOP_HOME) NUM_CORES=$(NUM_CORES) WITH_DRAMSIM3=$(WITH_DRAMSIM3) SIMDIR=1 EMU_TRACE=1 EMU_THREADS=16 REF=Spike
