@@ -117,6 +117,9 @@ class TLROT_top extends BlackBox with HasBlackBoxResource {
     val d_bits_denied_rom = Output(Bool())
     val d_ready_rom = Input(Bool())
 
+    val key0 = Input(UInt(256.W))
+    val key_valid = Input(Bool())
+
     val intr_hmac_hmac_done_o = Output(Bool())
     val intr_hmac_fifo_empty_o = Output(Bool())  
     val intr_hmac_hmac_err_o = Output(Bool())
@@ -211,6 +214,8 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
       val reset = Input(Bool())
       val intr = Output(Vec(17,Bool()))
       val ROMInitEn = Output(Bool())
+      val key0 = Input(UInt(256.W))
+      val key_valid = Input(Bool())
       // val intr = Output(new interruptIO)
 
       // val intr_hmac_hmac_done_o = Output(Bool()) 
@@ -329,6 +334,9 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
     tlrot.io.clk_i := io_rot.clock
     io_rot.ROMInitEn := tlrot.io.ROMInitEn
 
+    tlrot.io.key0 := io_rot.key0
+    tlrot.io.key_valid := io_rot.key_valid
+
     // val rst_wire = Wire(Reset())
     // rst_wire := io_rot.reset
     // tlrot.io.rst_ni := rst_wire
@@ -336,40 +344,3 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
   }
 }
 
-// class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
-
-//   val mem = SyncReadMem(0x1000, UInt(32.W))
-
-//   val node = TLManagerNode(Seq(TLSlavePortParameters.v1(
-//     Seq(TLSlaveParameters.v1(
-//       address = Seq(AddressSet(0x3b000000L, 0xffff)),
-//       resources = mem)),
-//       beatBytes =8  
-//   )))
-
-//   lazy val module = new LazyModuleImp(this) {
-
-//     val io_rot = IO(new Bundle { 
-//       val clock = Input(Clock())
-//       val reset = Input(AsyncReset())
-//   })
-
-//     val (in, edge) = node.in(0)
-//     dontTouch(in)
-    
-//     val tlrot = Module(new TLROT_top) // 黑盒模块
-
-//     // 连接黑盒和内存
-//     tlrot.io.clk_i := io_rot.clock
-//     tlrot.io.rst_ni := io_rot.reset
-
-//     tlrot.io.tl_i <> mem.read
-//     mem.write <> tlrot.io.tl_o
-
-//     // 连接外部TL和内存 
-//     in._1 <> mem.read
-//     mem.write <> in._1
-
-//   }
-
-// }

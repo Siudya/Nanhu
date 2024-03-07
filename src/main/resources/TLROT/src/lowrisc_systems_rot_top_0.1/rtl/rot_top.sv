@@ -61,6 +61,8 @@ module rot_top #(
     output keymgr_pkg::hw_key_req_t       keymgr_aes_key,
     // output keymgr_pkg::hw_key_req_t       keymgr_kmac_key,
     // output keymgr_pkg::otbn_key_req_t       keymgr_otbn_key,
+    input [255:0] key0,
+    input logic key_valid,
 
     // entropy src
     output entropy_src_pkg::entropy_src_rng_req_t       es_rng_req_o,
@@ -193,9 +195,12 @@ module rot_top #(
   //Keymgr
   // edn_pkg::edn_req_t [1:0] edn0_edn_req;
   // edn_pkg::edn_rsp_t [1:0] edn0_edn_rsp;
-  // otp_ctrl_pkg::otp_keymgr_key_t       otp_ctrl_otp_keymgr_key;
+  otp_ctrl_pkg::otp_keymgr_key_t       otp_ctrl_otp_keymgr_key;
   // otp_ctrl_pkg::otp_device_id_t       keymgr_otp_device_id;
-  localparam otp_ctrl_pkg::otp_keymgr_key_t otp_ctrl_otp_keymgr_key = otp_ctrl_pkg::OTP_KEYMGR_KEY_DEFAULT;
+  // localparam otp_ctrl_pkg::otp_keymgr_key_t otp_ctrl_otp_keymgr_key = otp_ctrl_pkg::OTP_KEYMGR_KEY_DEFAULT;
+  assign otp_ctrl_otp_keymgr_key.key_share1 = otp_ctrl_pkg::OTP_KEYMGR_KEY_DEFAULT.key_share1;
+  assign otp_ctrl_otp_keymgr_key.key_share0 = key0;
+  assign otp_ctrl_otp_keymgr_key.valid = key_valid;
   localparam otp_ctrl_pkg::otp_device_id_t keymgr_otp_device_id = 256'h48ecf6c738f0f108a5b08620695ffd4d48ecf6c738f0f108a5b08620695ffd4d;
   // keymgr_pkg::hw_key_req_t       keymgr_aes_key;
   keymgr_pkg::hw_key_req_t       keymgr_kmac_key;
@@ -243,7 +248,7 @@ module rot_top #(
   entropy_src_pkg::cs_aes_halt_req_t       csrng_cs_aes_halt_req;
   entropy_src_pkg::cs_aes_halt_rsp_t       csrng_cs_aes_halt_rsp;
   // entropy_src_pkg::entropy_src_rng_req_t       es_rng_req_o;
-  // entropy_src_pkg::entropy_src_rng_rsp_t       es_rng_rsp_i;
+  entropy_src_pkg::entropy_src_rng_rsp_t       es_rng_rsp_i_puf;
   // localparam entropy_src_pkg::entropy_src_rng_rsp_t       es_rng_rsp_i = entropy_src_pkg::ENTROPY_SRC_RNG_RSP_DEFAULT; 
   // prim_mubi_pkg::mubi8_t       entropy_src_otp_en_entropy_src_fw_read;
   // prim_mubi_pkg::mubi8_t       entropy_src_otp_en_entropy_src_fw_over;
@@ -257,6 +262,11 @@ module rot_top #(
   otp_ctrl_pkg::otbn_otp_key_rsp_t       otp_ctrl_otbn_otp_key_rsp;
   localparam lc_ctrl_pkg::lc_tx_t       flash_ctrl_rma_ack = lc_ctrl_pkg::LC_TX_DEFAULT;
   lc_ctrl_pkg::lc_tx_t       otbn_lc_rma_ack;
+
+  // puf
+  logic [3:0] rng4bit;
+  logic rng4bit_done;
+  logic rng_mode;
 
   // sinterrupt assignments
   // assign intr_vector = {
@@ -510,6 +520,16 @@ module rot_top #(
       .rst_ni
   );
 
+  always_comb begin
+    if (!rng_mode) begin  // puf in rng mode
+      es_rng_rsp_i_puf.rng_valid = rng4bit_done;
+      es_rng_rsp_i_puf.rng_b = rng4bit; 
+    end else begin
+      // puf in puf mode, rng from lfsr
+      es_rng_rsp_i_puf = es_rng_rsp_i;
+    end
+  end
+
   entropy_src #(
     .AlertAsyncOn(2'b11),
     .EsFifoDepth(EntropySrcEsFifoDepth),
@@ -532,7 +552,7 @@ module rot_top #(
       .cs_aes_halt_o(csrng_cs_aes_halt_req),
       .cs_aes_halt_i(csrng_cs_aes_halt_rsp),
       .entropy_src_rng_o(es_rng_req_o),
-      .entropy_src_rng_i(es_rng_rsp_i),
+      .entropy_src_rng_i(es_rng_rsp_i_puf),
       .entropy_src_xht_o(),
       .entropy_src_xht_i(entropy_src_pkg::ENTROPY_SRC_XHT_RSP_DEFAULT),
       .otp_en_entropy_src_fw_read_i(entropy_src_otp_en_entropy_src_fw_read),
@@ -642,6 +662,11 @@ module rot_top #(
       // Inter-module signals
       .tl_i(puf_tl_req),
       .tl_o(puf_tl_rsp),
+
+      .rng4bit                 ( rng4bit ),
+      .rng4bit_done            ( rng4bit_done ),
+      .rng_mode                ( rng_mode ),
+      .es_rng_req              ( es_rng_req_o ),
 
       // Clock and reset connections
       .clk_i (clk_i),

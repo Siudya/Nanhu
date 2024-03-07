@@ -5,6 +5,12 @@ module puf
 (
   input  logic                                      clk_i,
   input  logic                                      rst_ni,
+
+  output [3:0] rng4bit,
+  output rng4bit_done,
+  output rng_mode,
+  input es_rng_req,
+
   // Bus interface
   input  tlul_pkg::tl_h2d_t                         tl_i,
   output tlul_pkg::tl_d2h_t                         tl_o
@@ -42,7 +48,11 @@ PUF_core  u_PUF_core (
     .response_re             ( {hw2reg.response[7].de,hw2reg.response[6].de,hw2reg.response[5].de,hw2reg.response[4].de,hw2reg.response[3].de,hw2reg.response[2].de,hw2reg.response[1].de,hw2reg.response[0].de} ),
     .response_done_2bit_re   ( hw2reg.state_signals.response_done_2bit.de ),
     .response_done_2bit      ( hw2reg.state_signals.response_done_2bit.d ),
-    .response2bit            (  )//暂时无用
+    .response2bit            (  ),//暂时无用
+    .rng4bit                 ( rng4bit ),
+    .rng4bit_done            ( rng4bit_done ),
+    .rng_mode                ( rng_mode ),
+    .es_rng_req              ( es_rng_req )
 );
 
 endmodule

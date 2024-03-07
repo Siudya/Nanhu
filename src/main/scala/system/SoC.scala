@@ -358,6 +358,8 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
 
     tlrot.module.io_rot.clock := clock
     val rst_ctrl = rst_sync.asBool | rot_rstmgr.module.io.ctrl
+    tlrot.module.io_rot.key0 := rot_rstmgr.module.io.key
+    tlrot.module.io_rot.key_valid := rot_rstmgr.module.io.key_valid
     tlrot.module.io_rot.reset := rst_ctrl
     ROMInitEn := tlrot.module.io_rot.ROMInitEn
 
