@@ -46,6 +46,9 @@ module TLROT_top (
     output [63:0]  d_bits_data_rom,
     output         d_bits_denied_rom,
 
+    input [255:0] key0,
+    input logic key_valid,
+
     output logic intr_hmac_hmac_done_o,
     output logic intr_hmac_fifo_empty_o,
     output logic intr_hmac_hmac_err_o,
@@ -167,6 +170,9 @@ rot_top u_rot_top (
     .es_rng_req_o(es_rng_req_o),
     .es_rng_rsp_i(es_rng_rsp_i),
     .es_rng_fips_o(es_rng_fips_o),
+
+    .key0(key0),
+    .key_valid(key_valid),
 
     .intr_hmac_hmac_done_o(intr_hmac_hmac_done_o),
     .intr_hmac_fifo_empty_o(intr_hmac_fifo_empty_o),  
