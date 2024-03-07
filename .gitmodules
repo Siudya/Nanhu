@@ -25,3 +25,6 @@
 	path = coupledL2
 	url = https://github.com/cyril0124/CoupledL2
 	branch = chisel5
+[submodule "src/main/resources/TLROT"]
+	path = src/main/resources/TLROT
+	url = https://github.com/PENGLAI-ZGC-TEE/TLROT.git
