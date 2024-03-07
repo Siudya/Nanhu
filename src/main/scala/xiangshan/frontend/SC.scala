@@ -87,18 +87,23 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:Str
     None
   }
 
+  // def getIdx(hist: UInt, pc: UInt) = {
+  //   (compute_folded_ghist(hist, log2Ceil(nRows)) ^ (pc >> instOffsetBits))(log2Ceil(nRows)-1,0)
+  // }
+
+
   val idxFhInfo = (histLen, min(log2Ceil(nRows), histLen))
 
   def getFoldedHistoryInfo = Set(idxFhInfo).filter(_._1 > 0)
 
-  def getIdx(pc: UInt, allFh: AllFoldedHistories) = {
+  def getIdx(pc: UInt, allFh: AllFoldedHistories): UInt = {
     if (histLen > 0) {
       val idx_fh = allFh.getHistWithInfo(idxFhInfo).foldedHist
       // require(idx_fh.getWidth == log2Ceil(nRows))
-      ((pc >> instOffsetBits) ^ idx_fh)(log2Ceil(nRows)-1,0)
+      ((pc >> instOffsetBits).asUInt ^ idx_fh)(log2Ceil(nRows) - 1, 0)
     }
     else {
-      (pc >> instOffsetBits)(log2Ceil(nRows)-1,0)
+      (pc >> instOffsetBits)(log2Ceil(nRows) - 1, 0)
     }
   }
 
@@ -153,22 +158,21 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int, parentName:Str
   wrbypasses.io.write_data := update_wdata_packed
   wrbypasses.io.write_way_mask.foreach(_ := updateWayMask)
 
-
   val u = io.update
   XSDebug(io.req.valid,
     p"scTableReq: pc=0x${Hexadecimal(io.req.bits.pc)}, " +
-    p"s0_idx=${s0_idx}\n")
+      p"s0_idx=${s0_idx}\n")
   XSDebug(RegNext(io.req.valid),
     p"scTableResp: s1_idx=${s1_idx}," +
-    p"ctr:${io.resp.ctrs}\n")
+      p"ctr:${io.resp.ctrs}\n")
   XSDebug(io.update.mask,
     p"update Table: pc:${Hexadecimal(u.pc)}, " +
-    p"tageTakens:${u.tagePreds}, taken:${u.takens}, oldCtr:${u.oldCtrs}\n")
+      p"tageTakens:${u.tagePreds}, taken:${u.takens}, oldCtr:${u.oldCtrs}\n")
 }
 
 class SCThreshold(val ctrBits: Int = 6)(implicit p: Parameters) extends SCBundle {
   val ctr = UInt(ctrBits.W)
-  def satPos(ctr: UInt = this.ctr) = ctr === ((1.U << ctrBits).asUInt - 1.U)
+  def satPos(ctr: UInt = this.ctr) = ctr === ((1.U << ctrBits) - 1.U)
   def satNeg(ctr: UInt = this.ctr) = ctr === 0.U
   def neutralVal = (1 << (ctrBits - 1)).U
   val thres = UInt(8.W)
@@ -179,8 +183,8 @@ class SCThreshold(val ctrBits: Int = 6)(implicit p: Parameters) extends SCBundle
     val res = Wire(new SCThreshold(this.ctrBits))
     val newCtr = satUpdate(this.ctr, this.ctrBits, cause)
     val newThres = Mux(res.satPos(newCtr) && this.thres <= maxThres, this.thres + 2.U,
-                      Mux(res.satNeg(newCtr) && this.thres >= minThres, this.thres - 2.U,
-                      this.thres))
+      Mux(res.satNeg(newCtr) && this.thres >= minThres, this.thres - 2.U,
+        this.thres))
     res.thres := newThres
     res.ctr := Mux(res.satPos(newCtr) || res.satNeg(newCtr), res.neutralVal, newCtr)
     // XSDebug(true.B, p"scThres Update: cause${cause} newCtr ${newCtr} newThres ${newThres}\n")
@@ -197,16 +201,16 @@ object SCThreshold {
   }
 }
 
-  // SCNRows: Int = 512,
-  // SCNTables: Int = 4,
-  // SCCtrBits: Int = 6,
-  // SCHistLens: Seq[Int] = Seq(0, 4, 10, 16),
+// SCNRows: Int = 512,
+// SCNTables: Int = 4,
+// SCCtrBits: Int = 6,
+// SCHistLens: Seq[Int] = Seq(0, 4, 10, 16),
 trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
   val update_on_mispred, update_on_unconf = WireInit(0.U.asTypeOf(Bool()))
   var sc_fh_info = Set[FoldedHistoryInfo]()
   if (EnableSC) {
     val scTables = SCTableInfos.zipWithIndex.map {
-      case ((nRows, ctrBits, histLen),idx) =>
+      case ((nRows, ctrBits, histLen),idx) => {
         val t = Module(new SCTable(nRows/TageBanks, ctrBits, histLen, parentName = this.parentName + s"scTable${idx}_"))
         val req = t.io.req
         req.valid := io.s0_fire(dupForTageSC)
@@ -215,6 +219,7 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
         req.bits.ghist := DontCare
         if (!EnableSC) {t.io.update := DontCare}
         t
+      }
     }
     sc_fh_info = scTables.map(_.getFoldedHistoryInfo).reduce(_++_).toSet
 
@@ -229,7 +234,7 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
       val signedThres = threshold.zext
       val totalSum = scSum +& tagePvdr
       (scSum >  signedThres - tagePvdr) && pos(totalSum) ||
-      (scSum < -signedThres - tagePvdr) && neg(totalSum)
+        (scSum < -signedThres - tagePvdr) && neg(totalSum)
     }
     val updateThresholds = (useThresholds << 3).asUInt +& 21.U
 
@@ -257,9 +262,8 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
     // for tage ctrs, (2*(ctr-4)+1)*8
     def getPvdrCentered(ctr: UInt): SInt = Cat(ctr ^ (1 << (TageCtrBits-1)).U, 1.U(1.W), 0.U(3.W)).asSInt
 
-    val scMeta = resp_meta.scMeta.get
+    val scMeta = tageMeta.scMeta.get
     scMeta := DontCare
-
     // do summation in s2
     val s1_scTableSums = VecInit(
       (0 to 1) map { i =>
@@ -267,27 +271,27 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
       }
     )
     val s2_scTableSums = RegEnable(s1_scTableSums, io.s1_fire(dupForTageSC))
-    val s2_tagePrvdCtrCentered = getPvdrCentered(RegEnable(s1_providerResps.ctr, io.s1_fire(dupForTageSC)))
+    val s2_tagePrvdCtrCentered = getPvdrCentered(RegEnable(s1Resp.ctr, io.s1_fire(dupForTageSC)))
     val s2_totalSums = s2_scTableSums.map(_ +& s2_tagePrvdCtrCentered)
     val s2_sumAboveThresholds = VecInit((0 to 1).map(i => aboveThreshold(s2_scTableSums(i), s2_tagePrvdCtrCentered, useThresholds)))
     val s2_scPreds = VecInit(s2_totalSums.map(_ >= 0.S))
 
     val s2_scResps = VecInit(RegEnable(s1_scResps, io.s1_fire(dupForTageSC)).map(_.ctrs))
-    val s2_scCtrs = VecInit(s2_scResps.map(_(s2_tageTakens_dup(dupForTageSC).asUInt)))
-    val s2_chooseBit = s2_tageTakens_dup(dupForTageSC)
+    val s2_scCtrs = VecInit(s2_scResps.map(_(s2PredTaken.asUInt)))
+    val s2_chooseBit = s2PredTaken
 
     val s2_pred =
-      Mux(s2_provideds && s2_sumAboveThresholds(s2_chooseBit),
+      Mux(s2Provide && s2_sumAboveThresholds(s2_chooseBit),
         s2_scPreds(s2_chooseBit),
-        s2_tageTakens_dup(dupForTageSC)
+        s2PredTaken
       )
 
-    scMeta.tageTakens := RegEnable(s2_tageTakens_dup(dupForTageSC), io.s2_fire(dupForTageSC))
-    scMeta.scUsed     := RegEnable(s2_provideds, io.s2_fire(dupForTageSC))
+    scMeta.tageTakens := RegEnable(s2PredTaken, io.s2_fire(dupForTageSC))
+    scMeta.scUsed     := RegEnable(s2Provide, io.s2_fire(dupForTageSC))
     scMeta.scPreds    := RegEnable(s2_scPreds(s2_chooseBit), io.s2_fire(dupForTageSC))
     scMeta.ctrs       := RegEnable(s2_scCtrs, io.s2_fire(dupForTageSC))
 
-    when (s2_provideds) {
+    when (s2Provide) {
       s2_sc_used := true.B
       s2_unconf := !s2_sumAboveThresholds(s2_chooseBit)
       s2_conf := s2_sumAboveThresholds(s2_chooseBit)
@@ -295,9 +299,9 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
       XSDebug(p"---------tage_bank provided so that sc used---------\n")
       when (s2_sumAboveThresholds(s2_chooseBit)) {
         val pred = s2_scPreds(s2_chooseBit)
-        val debug_pc = Cat(debug_pc_s2, 0.U, 0.U(instOffsetBits.W))
-        s2_agree := s2_tageTakens_dup(dupForTageSC) === pred
-        s2_disagree := s2_tageTakens_dup(dupForTageSC) =/= pred
+        val debug_pc = Cat(s2DebugPC, 0.U, 0.U(instOffsetBits.W))
+        s2_agree := s2PredTaken === pred
+        s2_disagree := s2PredTaken =/= pred
         // fit to always-taken condition
         // io.out.s2.fullPred.br_taken(w) := pred
         XSDebug(p"pc(${Hexadecimal(debug_pc)}) SC(${0.U}) overriden pred to ${pred}\n")
@@ -307,18 +311,18 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
     val s3_pred_dup = io.s2_fire.map(f => RegEnable(s2_pred, f))
     val sc_enable_dup = RegNext(dup(io.ctrl.sc_enable))
     for (sc_enable & fp & s3_pred <-
-      sc_enable_dup zip io.out.s3.fullPred zip s3_pred_dup) {
-        when (sc_enable) {
-          fp.br_taken := s3_pred
-        }
-        dontTouch(sc_enable)
+           sc_enable_dup zip io.out.s3.fullPred zip s3_pred_dup) {
+      when (sc_enable) {
+        fp.br_taken := s3_pred
+      }
+      dontTouch(sc_enable)
     }
 
     val updateTageMeta = updateMeta
-    when (updateValids && updateSCMeta.scUsed) {
+    when (updateBrJmpValid && updateSCMeta.scUsed) {
       val scPred = updateSCMeta.scPreds
       val tagePred = updateSCMeta.tageTakens
-      val taken = update.br_taken
+      val taken = updateIn.br_taken
       val scOldCtrs = updateSCMeta.ctrs
       val pvdrCtr = updateTageMeta.providerResps.ctr
       val sum = ParallelSingedExpandingAdd(scOldCtrs.map(getCentered)) +& getPvdrCentered(pvdrCtr)
@@ -347,30 +351,28 @@ trait HasSC extends HasSCParameter with HasPerfEvents { this: Tage =>
       when (scPred =/= taken || !sumAboveThreshold) {
         scUpdateMask.foreach(_ := true.B)
         XSDebug(sum < 0.S,
-          p"scUpdate: bank(0), scPred(${scPred}), tagePred(${tagePred}), " +
-          p"scSum(-$sumAbs), mispred: sc(${scPred =/= taken}), tage(${updateMisPreds})\n"
+          p"scUpdate: bank(${0}), scPred(${scPred}), tagePred(${tagePred}), " +
+            p"scSum(-$sumAbs), mispred: sc(${scPred =/= taken}), tage(${updateMispred})\n"
         )
         XSDebug(sum >= 0.S,
-          p"scUpdate: bank(0), scPred(${scPred}), tagePred(${tagePred}), " +
-          p"scSum(+$sumAbs), mispred: sc(${scPred =/= taken}), tage(${updateMisPreds})\n"
+          p"scUpdate: bank(${0}), scPred(${scPred}), tagePred(${tagePred}), " +
+            p"scSum(+$sumAbs), mispred: sc(${scPred =/= taken}), tage(${updateMispred})\n"
         )
-        XSDebug(p"bank(0), update: sc: ${updateSCMeta}\n")
+        XSDebug(p"bank(${0}), update: sc: ${updateSCMeta}\n")
         update_on_mispred := scPred =/= taken
         update_on_unconf := scPred === taken
       }
     }
-    
-    
+
 
     for (i <- 0 until SCNTables) {
       scTables(i).io.update.mask := RegNext(scUpdateMask(i))
-      scTables(i).io.update.tagePreds := RegEnable(scUpdateTagePreds, false.B, updateValids)
-      scTables(i).io.update.takens    := RegEnable(scUpdateTakens, false.B, updateValids)
-      scTables(i).io.update.oldCtrs   := RegEnable(scUpdateOldCtrs(i), 0.S, updateValids)
-      scTables(i).io.update.pc := RegEnable(update.pc, 0.U, updateValids)
-      scTables(i).io.update.foldedHist := RegEnable(updateFHist, 0.U.asTypeOf(updateFHist), updateValids)
+      scTables(i).io.update.tagePreds := RegEnable(scUpdateTagePreds, false.B, updateBrJmpValid)
+      scTables(i).io.update.takens    := RegEnable(scUpdateTakens, false.B, updateBrJmpValid)
+      scTables(i).io.update.oldCtrs   := RegEnable(scUpdateOldCtrs(i), 0.S, updateBrJmpValid)
+      scTables(i).io.update.pc := RegEnable(updateIn.pc, 0.U, updateBrJmpValid)
+      scTables(i).io.update.foldedHist := RegEnable(updateGHhis, 0.U.asTypeOf(updateGHhis), updateBrJmpValid)
     }
-    
 
     tage_perf("sc_conf", PopCount(s2_conf), PopCount(update_conf))
     tage_perf("sc_unconf", PopCount(s2_unconf), PopCount(update_unconf))
