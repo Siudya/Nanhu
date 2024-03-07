@@ -73,7 +73,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       }
     }
 
-    bindManagers(misc.l3_banked_xbar.asInstanceOf[TLNexusNode])
+    bindManagers(misc.l3_xbar.asInstanceOf[TLNexusNode])
     bindManagers(misc.peripheralXbar.asInstanceOf[TLNexusNode])
   }
 
@@ -117,7 +117,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 
   l3cacheOpt match {
     case Some(l3) =>
-      misc.l3_out :*= l3.node :*= TLBuffer.chainNode(2) :*= misc.l3_banked_xbar
+      misc.l3_out :*= l3.node :*= TLBuffer.chainNode(2) :*= misc.l3_xbar
     case None =>
   }
 

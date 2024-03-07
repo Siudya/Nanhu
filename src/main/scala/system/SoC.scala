@@ -91,7 +91,7 @@ abstract class BaseSoC()(implicit p: Parameters) extends LazyModule with HasSoCP
   val PAddrBits = p(SoCParamsKey).PAddrBits
   val bankedNode = BankBinder(L3NBanks, L3BlockSize)
   val peripheralXbar = TLXbar()
-  val l3_banked_xbar = TLXbar()
+  val l3_xbar = TLXbar()
 }
 
 // We adapt the following three traits from rocket-chip.
@@ -238,7 +238,7 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   val periCx: MiscPeriComplex = LazyModule(new MiscPeriComplex)
   periCx.sinkNode :*= periSourceNode :*= peripheralXbar
 
-  l3_in :*= TLEdgeBuffer(_ => true, Some("L3_in_buffer")) :*= l3_banked_xbar
+  l3_in :*= TLEdgeBuffer(_ => true, Some("L3_in_buffer")) :*= l3_xbar
   bankedNode :*= TLLogger("MEM_L3", !debugOpts.FPGAPlatform) :*= l3_mem_pmu :*= l3_out
 
   if(soc.L3CacheParamsOpt.isEmpty){
@@ -250,7 +250,7 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   }
 
   for ((core_out, i) <- core_to_l3_ports.zipWithIndex){
-    l3_banked_xbar :=*
+    l3_xbar :=*
       TLLogger(s"L3_L2_$i", !debugOpts.FPGAPlatform) :=*
       TLBuffer.chainNode(2) :=
       core_out
