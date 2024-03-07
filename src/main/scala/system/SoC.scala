@@ -91,45 +91,44 @@ abstract class BaseSoC()(implicit p: Parameters) extends LazyModule with HasSoCP
   val PAddrBits = p(SoCParamsKey).PAddrBits
   val bankedNode = BankBinder(L3NBanks, L3BlockSize)
   val peripheralXbar = TLXbar()
-  val l3_xbar = TLXbar()
   val l3_banked_xbar = TLXbar()
 }
 
 // We adapt the following three traits from rocket-chip.
 // Source: rocket-chip/src/main/scala/subsystem/Ports.scala
-trait HaveSlaveAXI4Port {
-  this: BaseSoC =>
-
-  val idBits = 12
-
-  val l3FrontendAXI4Node = AXI4MasterNode(Seq(AXI4MasterPortParameters(
-    Seq(AXI4MasterParameters(
-      name = "dma",
-      id = IdRange(0, 1 << idBits)
-    ))
-  )))
-  private val errorDevice = LazyModule(new TLError(
-    params = DevNullParams(
-      address = Seq(AddressSet(0x0, 0x7fffffffL)),
-      maxAtomic = 8,
-      maxTransfer = 64),
-    beatBytes = L3InnerBusWidth / 8
-  ))
-  private val error_xbar = TLXbar()
-
-  l3_xbar :=
-    TLBuffer() :=
-    AXI2TL(16, 16, soc.hasMbist, soc.hasShareBus) :=
-    AXI4Buffer() :=
-    AXI2TLFragmenter() :=
-    AXI4Buffer() :=
-    l3FrontendAXI4Node
-  errorDevice.node := l3_xbar
-
-  val dma = InModuleBody {
-    l3FrontendAXI4Node.makeIOs()
-  }
-}
+//trait HaveSlaveAXI4Port {
+//  this: BaseSoC =>
+//
+//  val idBits = 12
+//
+//  val l3FrontendAXI4Node = AXI4MasterNode(Seq(AXI4MasterPortParameters(
+//    Seq(AXI4MasterParameters(
+//      name = "dma",
+//      id = IdRange(0, 1 << idBits)
+//    ))
+//  )))
+//  private val errorDevice = LazyModule(new TLError(
+//    params = DevNullParams(
+//      address = Seq(AddressSet(0x0, 0xfffffffffL)),
+//      maxAtomic = 8,
+//      maxTransfer = 64),
+//    beatBytes = L3InnerBusWidth / 8
+//  ))
+//  private val error_xbar = TLXbar()
+//
+//  l3_xbar :=
+//    TLBuffer() :=
+//    AXI2TL(16, 16, soc.hasMbist, soc.hasShareBus) :=
+//    AXI4Buffer() :=
+//    AXI2TLFragmenter() :=
+//    AXI4Buffer() :=
+//    l3FrontendAXI4Node
+//  errorDevice.node := l3_xbar
+//
+//  val dma = InModuleBody {
+//    l3FrontendAXI4Node.makeIOs()
+//  }
+//}
 
 trait HaveAXI4MemPort {
   this: BaseSoC =>
@@ -226,7 +225,7 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   with HaveAXI4MemPort
   with HaveAXI4PeripheralPort
   with PMAConst
-  with HaveSlaveAXI4Port
+//  with HaveSlaveAXI4Port
 {
   val peripheral_ports = Array.fill(NumCores) { TLTempNode() }
   val core_to_l3_ports = Array.fill(NumCores) { TLTempNode() }
@@ -238,9 +237,6 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   private val periSourceNode = TLRationalCrossingSource()
   val periCx: MiscPeriComplex = LazyModule(new MiscPeriComplex)
   periCx.sinkNode :*= periSourceNode :*= peripheralXbar
-  periCx.sbSourceNode.foreach { sb2tl =>
-    l3_xbar :=* TLRationalCrossingSink(SlowToFast) :=* sb2tl
-  }
 
   l3_in :*= TLEdgeBuffer(_ => true, Some("L3_in_buffer")) :*= l3_banked_xbar
   bankedNode :*= TLLogger("MEM_L3", !debugOpts.FPGAPlatform) :*= l3_mem_pmu :*= l3_out
@@ -259,7 +255,6 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
       TLBuffer.chainNode(2) :=
       core_out
   }
-  l3_banked_xbar := TLBuffer.chainNode(2) := l3_xbar
 
   lazy val module = new SoCMiscImp(this)
 }

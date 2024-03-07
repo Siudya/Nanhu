@@ -50,7 +50,7 @@ class BaseConfig(n: Int, mbist:Boolean = false) extends Config((site, here, up) 
     prefetcher = Some(SMSParams()))
   }
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))
-  case DebugModuleKey => Some(XSDebugModuleParams(site(XLen)))
+  case DebugModuleKey => Some(XSDebugModuleParams(site(XLen)).copy(hasBusMaster = false))
   case JtagDTMKey => JtagDTMKey
   case MaxHartIdBits => 2
   case EnableJtag => true.B

@@ -73,7 +73,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       }
     }
 
-    bindManagers(misc.l3_xbar.asInstanceOf[TLNexusNode])
+    bindManagers(misc.l3_banked_xbar.asInstanceOf[TLNexusNode])
     bindManagers(misc.peripheralXbar.asInstanceOf[TLNexusNode])
   }
 
@@ -92,17 +92,17 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     misc.core_to_l3_ports(i) :=* core_with_l2(i).memory_port
   }
 
-  (core_with_l2.head.l2cache.get.spp_send_node, core_with_l2.last.l2cache.get.spp_send_node) match {
-    case (Some(l2_0), Some(l2_1)) => {
-      val l3pf_RecvXbar = LazyModule(new coupledL2.prefetch.PrefetchReceiverXbar(NumCores))
-      for (i <- 0 until NumCores) {
-        println(s"Connecting L2 prefecher_sender_${i} to L3!")
-        l3pf_RecvXbar.inNode(i) := core_with_l2(i).l2cache.get.spp_send_node.get
-      }
-      l3cacheOpt.get.pf_l3recv_node.map(l3Recv => l3Recv := l3pf_RecvXbar.outNode.head)
-    }
-    case (_, _) => None
-  }
+//  (core_with_l2.head.l2cache.get.spp_send_node, core_with_l2.last.l2cache.get.spp_send_node) match {
+//    case (Some(l2_0), Some(l2_1)) => {
+//      val l3pf_RecvXbar = LazyModule(new coupledL2.prefetch.PrefetchReceiverXbar(NumCores))
+//      for (i <- 0 until NumCores) {
+//        println(s"Connecting L2 prefecher_sender_${i} to L3!")
+//        l3pf_RecvXbar.inNode(i) := core_with_l2(i).l2cache.get.spp_send_node.get
+//      }
+//      l3cacheOpt.get.pf_l3recv_node.map(l3Recv => l3Recv := l3pf_RecvXbar.outNode.head)
+//    }
+//    case (_, _) => None
+//  }
 
   // val core_rst_nodes = if(l3cacheOpt.nonEmpty && l3cacheOpt.get.rst_nodes.nonEmpty){
   //   l3cacheOpt.get.rst_nodes.get
@@ -129,11 +129,11 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     FileRegisters.add("json", json)
     FileRegisters.add("plusArgs", freechips.rocketchip.util.PlusArgArtefacts.serialize_cHeader())
 
-    val dma = IO(Flipped(misc.dma.cloneType))
+//    val dma = IO(Flipped(misc.dma.cloneType))
     val peripheral = IO(misc.peripheral.cloneType)
     val memory = IO(misc.memory.cloneType)
 
-    misc.dma <> dma
+//    misc.dma <> dma
     peripheral <> misc.peripheral
     memory <> misc.memory
 
@@ -177,7 +177,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     io.debug_reset := misc.module.debug_module_io.debugIO.ndreset
 
     // input
-    dontTouch(dma)
+//    dontTouch(dma)
     dontTouch(io)
     dontTouch(peripheral)
     dontTouch(memory)
