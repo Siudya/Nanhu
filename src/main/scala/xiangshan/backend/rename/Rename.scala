@@ -301,8 +301,7 @@ class Rename(implicit p: Parameters) extends XSModule with HasPerfEvents with Ha
       io.out(i).bits.ctrl.srcType(0) := SrcType.imm
       io.out(i).bits.ctrl.imm := Imm_LUI_LOAD().immFromLuiLoad(lui_imm, ld_imm)
       val psrcWidth = uops(i).psrc.head.getWidth
-      //val lui_imm_in_imm = uops(i).ctrl.imm.getWidth - Imm_I().len //22 -12
-      val lui_imm_in_imm = Imm_U().len - Imm_I().len
+      val lui_imm_in_imm = uops(i).ctrl.imm.getWidth - Imm_I().len
       val left_lui_imm = Imm_U().len - lui_imm_in_imm
       require(2 * psrcWidth >= left_lui_imm, "cannot fused lui and load with psrc")
       io.out(i).bits.psrc(0) := lui_imm(lui_imm_in_imm + psrcWidth - 1, lui_imm_in_imm)
