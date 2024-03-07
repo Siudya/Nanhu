@@ -50,13 +50,6 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 
   val misc = LazyModule(new SoCMisc())
 
-  val l3cacheOpt = soc.L3CacheParamsOpt.map(l3param =>
-    LazyModule(new HuanCun("L3_")(new Config((_, _, _) => {
-      case HCCacheParamsKey => l3param.copy(enableTopDown = debugOpts.EnableTopDown)
-      case DebugOptionsKey => p(DebugOptionsKey)
-    })))
-  )
-
   ResourceBinding {
     val width = ResourceInt(2)
     val model = "freechips,rocketchip-unknown"
@@ -77,11 +70,6 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     bindManagers(misc.peripheralXbar.asInstanceOf[TLNexusNode])
   }
 
-  l3cacheOpt.map(_.ctlnode.map(_ := misc.peripheralXbar))
-  l3cacheOpt.map(_.intnode.map(int => {
-    misc.periCx.plic.intnode := IntBuffer() := int
-  }))
-
   for (i <- 0 until NumCores) {
     core_with_l2(i).clint_int_sink := misc.periCx.clint.intnode
     core_with_l2(i).plic_int_sink :*= misc.periCx.plic.intnode
@@ -92,34 +80,11 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     misc.core_to_l3_ports(i) :=* core_with_l2(i).memory_port
   }
 
-//  (core_with_l2.head.l2cache.get.spp_send_node, core_with_l2.last.l2cache.get.spp_send_node) match {
-//    case (Some(l2_0), Some(l2_1)) => {
-//      val l3pf_RecvXbar = LazyModule(new coupledL2.prefetch.PrefetchReceiverXbar(NumCores))
-//      for (i <- 0 until NumCores) {
-//        println(s"Connecting L2 prefecher_sender_${i} to L3!")
-//        l3pf_RecvXbar.inNode(i) := core_with_l2(i).l2cache.get.spp_send_node.get
-//      }
-//      l3cacheOpt.get.pf_l3recv_node.map(l3Recv => l3Recv := l3pf_RecvXbar.outNode.head)
-//    }
-//    case (_, _) => None
-//  }
-
-  // val core_rst_nodes = if(l3cacheOpt.nonEmpty && l3cacheOpt.get.rst_nodes.nonEmpty){
-  //   l3cacheOpt.get.rst_nodes.get
-  // } else {
-  //   core_with_l2.map(_ => BundleBridgeSource(() => Reset()))
-  // }
   val core_rst_nodes = core_with_l2.map(_ => BundleBridgeSource(() => Reset()))
 
   core_rst_nodes.zip(core_with_l2.map(_.core_reset_sink)).foreach({
     case (source, sink) => sink := source
   })
-
-  l3cacheOpt match {
-    case Some(l3) =>
-      misc.l3_out :*= l3.node :*= TLBuffer.chainNode(2) :*= misc.l3_xbar
-    case None =>
-  }
 
   lazy val module = new Impl
 
@@ -197,12 +162,6 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     }
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)
 
-    if (l3cacheOpt.isDefined) {
-      if (l3cacheOpt.get.module.dfx_reset.isDefined) {
-        l3cacheOpt.get.module.dfx_reset.get := dfx_reset
-      }
-    }
-
     misc.module.debug_module_io.resetCtrl.hartIsInReset := core_with_l2.map(_.module.ireset.asBool)
     misc.module.debug_module_io.clock := io.clock
     misc.module.debug_module_io.reset := misc.module.reset
@@ -227,24 +186,8 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     } else {
       None
     }
-    val mbistBroadCastToL3 = if (l3cacheOpt.isDefined) {
-      if (l3cacheOpt.get.module.dft.isDefined) {
-        val res = Some(Wire(new BroadCastBundle))
-        l3cacheOpt.get.module.dft.get := res.get
-        res
-      } else {
-        None
-      }
-    } else {
-      None
-    }
-    val mbistBroadCastToMisc = if (misc.module.dft.isDefined) {
-      val res = Some(Wire(new BroadCastBundle))
-      misc.module.dft.get := res.get
-      res
-    } else {
-      None
-    }
+    val mbistBroadCastToL3 = None
+    val mbistBroadCastToMisc = None
 
     class DftBundle extends Bundle {
       val ram_hold = Input(Bool())
@@ -286,36 +229,11 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 
     /** ***************************************l3 & misc Mbist Share Bus************************************** */
     withClockAndReset(io.clock.asClock, reset_sync) {
-      val miscPipeLine = if (p(SoCParamsKey).hasMbist && p(SoCParamsKey).hasShareBus) {
-        MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", true)
-      } else {
-        None
-      }
-      val miscIntf = if (p(SoCParamsKey).hasMbist && p(SoCParamsKey).hasShareBus) {
-        Some(miscPipeLine.zipWithIndex.map({ case (pip, idx) => {
-          val params = pip.nodeParams
-          val intf = Module(new MBISTInterface(
-            params = Seq(params),
-            ids = Seq(pip.childrenIds),
-            name = s"MBIST_intf_misc",
-            pipelineNum = 1
-          ))
-          intf.toPipeline.head <> pip.mbist
-          intf.mbist := DontCare
-          pip.genCSV(intf.info, s"MBIST_MISC")
-          dontTouch(intf.mbist)
-          //TODO: add mbist controller connections here
-          intf
-        }
-        }))
-      } else {
-        None
-      }
 
       // Modules are reset one by one
       // reset ----> SYNC --> {SoCMisc, L3 Cache, Cores}
       val coreResetChain: Seq[Reset] = core_with_l2.map(_.module.ireset)
-      val resetChain = Seq(misc.module.reset) ++ l3cacheOpt.map(_.module.reset) ++ coreResetChain
+      val resetChain = Seq(misc.module.reset) ++ coreResetChain
       val resetDftSigs = ResetGen.applyOneLevel(resetChain, reset_sync, !debugOpts.FPGAPlatform)
       resetDftSigs := dfx_reset
     }

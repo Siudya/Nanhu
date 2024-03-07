@@ -241,9 +241,7 @@ class SoCMisc()(implicit p: Parameters) extends BaseSoC
   l3_in :*= TLEdgeBuffer(_ => true, Some("L3_in_buffer")) :*= l3_xbar
   bankedNode :*= TLLogger("MEM_L3", !debugOpts.FPGAPlatform) :*= l3_mem_pmu :*= l3_out
 
-  if(soc.L3CacheParamsOpt.isEmpty){
-    l3_out :*= l3_in
-  }
+  l3_out :*= l3_in
 
   for(port <- peripheral_ports) {
     peripheralXbar := TLBuffer.chainNode(2, Some("L2_to_L3_peripheral_buffer")) := port
@@ -263,13 +261,6 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   val ext_intrs = IO(Input(UInt(outer.NrExtIntr.W)))
   val dfx_reset = IO(Input(new DFTResetSignals()))
   val rtc_clock = IO(Input(Bool()))
-
-  val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
-  val dft = if (p(SoCParamsKey).hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
-  if (p(SoCParamsKey).hasMbist) {
-    dft.get <> sigFromSrams.get
-    dontTouch(dft.get)
-  }
 
   private val gt_ff = RegInit(true.B)
   gt_ff := ~gt_ff
