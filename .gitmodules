@@ -1,7 +1,7 @@
 [submodule "rocket-chip"]
 	path = rocket-chip
-	url = https://github.com/DASICS-ICT/rocket-chip.git
-	branch = fdi-nh3
+	url = https://github.com/jinyue110/rocket-chip.git 
+	branch = nanhu-v3-fdi
 [submodule "difftest"]
 	path = difftest
 	url = https://github.com/PENGLAI-ZGC-TEE/difftest
