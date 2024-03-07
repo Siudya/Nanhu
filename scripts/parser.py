@@ -40,7 +40,8 @@ class VIO(object):
         return str(self) < str(other)
 
 class VModule(object):
-    module_re = re.compile(r'^\s*module\s*(\w+)\s*(#\(?|)\s*(\(.*|)\s*$')
+    # module_re = re.compile(r'^\s*module\s*(\w+)\s*(#\(?|)\s*(\(.*|)\s*$')
+    module_re = re.compile(r'^\s*module\s+(\w+)\s*(#\s*\(.+\))?\s*(import\s+\w+\s*::\*\s*;)?\s*(#\s*\()?')
     io_re = re.compile(r'^\s*(input|output)\s*(\[\s*\d+\s*:\s*\d+\s*\]|)\s*(\w+),?\s*$')
     submodule_re = re.compile(r'^\s*(\w+)\s*(#\(.*\)|)\s*(\w+)\s*\(\s*(|//.*)\s*$')
     difftest_module_re = re.compile(r'^  \w*Difftest\w+\s+\w+ \( //.*$')
