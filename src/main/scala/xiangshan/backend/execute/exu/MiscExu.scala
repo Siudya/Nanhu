@@ -89,9 +89,10 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
 
     val isCsr = finalIssueSignals.bits.uop.ctrl.fuType === FuType.csr
     val isExclusive = finalIssueSignals.bits.uop.ctrl.noSpecExec && finalIssueSignals.bits.uop.ctrl.blockBackward
+    val isFDICall = RegNext(io.fdicallSnpc.valid, false.B)
     when(m.io.in.valid){
       assert(m.io.in.ready)
-      assert(isCsr || isExclusive)
+      assert(isCsr || isExclusive || isFDICall)
     }
   })
 

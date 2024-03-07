@@ -1394,11 +1394,21 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     difftestCSR.sscratch := sscratch
     difftestCSR.mideleg := mideleg
     difftestCSR.medeleg := medeleg
-    difftestCSR.dumcfg := FDIMainCfg & FDIUMainCfgMask
-    difftestCSR.dumbound0 := FDI_umain_bound_lo
-    difftestCSR.dumbound1 := FDI_umain_bound_hi
-    difftestCSR.dmaincall := FDI_main_call_reg
-    difftestCSR.dretpc := FDI_return_pc_reg
+    difftestCSR.fdiMainCfg := FDIMainCfg & FDIUMainCfgMask
+    difftestCSR.fdiUMBoundLo := FDI_umain_bound_lo
+    difftestCSR.fdiUMBoundHi := FDI_umain_bound_hi
+    difftestCSR.fdiLibCfg := ZeroExt(VecInit(FDI_mem.map(_.cfg)).asUInt, XLEN)
+    for (i <- 0 until NumFDIMemBounds) {
+      difftestCSR.fdiLibBound(i * 2) := FDI_mem(i).boundLo
+      difftestCSR.fdiLibBound(i * 2 + 1) := FDI_mem(i).boundHi
+    }
+    difftestCSR.fdiJumpCfg := ZeroExt(VecInit(FDI_jump.map(_.cfg)).asUInt, XLEN)
+    for (i <- 0 until NumFDIJumpBounds) {
+      difftestCSR.fdiJumpBound(i * 2) := FDI_jump(i).boundLo
+      difftestCSR.fdiJumpBound(i * 2 + 1) := FDI_jump(i).boundHi
+    }
+    difftestCSR.fdiMainCall := FDI_main_call_reg
+    difftestCSR.fdiReturnPC := FDI_return_pc_reg
   }
 
   if(env.AlwaysBasicDiff || env.EnableDifftest) {
