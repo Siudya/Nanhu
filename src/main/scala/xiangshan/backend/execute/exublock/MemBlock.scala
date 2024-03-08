@@ -497,19 +497,18 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     dtlb_st.foreach(_.ptw.resp.valid := ptw_resp_v && Cat(ptw_resp_next.vector.drop(ld_tlb_ports)).orR)
   }
 
-  // FDI memory access check
-  val FDI = Module(new MemFDI())
-  FDI.io.distribute_csr <> csrCtrl.distribute_csr
+  // fdi memory access check
+  val fdi = Module(new MemFDI())
+  fdi.io.distribute_csr <> csrCtrl.distribute_csr
 
-  val FDI_checkers = VecInit(Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(
-    Module(new FDIMemChecker()).io
-  )) //TODO: general FDI check port config
+  private val fdiCheckers = Seq.fill(exuParameters.LduCnt + exuParameters.StuCnt)(Module(new FDIMemChecker()))
+  private val fdiCheckersIOs = fdiCheckers.map(_.io)
 
-  val memFDIReq  = storeUnits.map(_.io.FDIReq) ++ loadUnits.map(_.io.FDIReq)
-  val memFDIResp = storeUnits.map(_.io.FDIResp) ++ loadUnits.map(_.io.FDIResp)
+  val memFDIReq  = storeUnits.map(_.io.fdiReq) ++ loadUnits.map(_.io.fdiReq)
+  val memFDIResp = storeUnits.map(_.io.fdiResp) ++ loadUnits.map(_.io.fdiResp)
 
-  for( (dchecker,index) <- FDI_checkers.zipWithIndex){
-     dchecker.resource := FDI.io.entries
+  for( (dchecker,index) <- fdiCheckersIOs.zipWithIndex){
+     dchecker.resource := fdi.io.entries
      dchecker.req := memFDIReq(index)
      memFDIResp(index) := dchecker.resp
   }

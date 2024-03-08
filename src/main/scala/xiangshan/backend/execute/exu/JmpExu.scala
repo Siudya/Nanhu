@@ -75,5 +75,5 @@ class JmpExuImpl(outer:JmpExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
 
   io.fdicallSnpc.valid := jmp.io.in.valid && JumpOpType.jumpOpIsFDIcall((jmp.io.in.bits.uop.ctrl.fuOpType))
   io.fdicallSnpc.bits := jmp.io.out.bits.data
-  io.fdicallDistributedCSR <> jmp.fdicallDistributedCSR
+  jmp.fdicallDistributedCSR := io.fdicallDistributedCSR
 }

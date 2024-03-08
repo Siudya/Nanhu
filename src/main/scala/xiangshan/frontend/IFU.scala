@@ -76,7 +76,7 @@ class NewIFUIO(implicit p: Parameters) extends XSBundle {
   val rob_commits = Flipped(Vec(CommitWidth, Valid(new RobCommitInfo)))
   val iTLBInter       = new BlockTlbRequestIO
   val pmp             =   new ICachePMPBundle
-  val FDI          = new IFUFDIIO
+  val fdi          = new IFUFDIIO
   val mmioCommitRead  = new mmioCommitRead
   val mmioFetchPending = Output(Bool())
 }
@@ -210,12 +210,12 @@ class NewIFU(implicit p: Parameters) extends XSModule
                                   else           VecInit((0 until PredictWidth).map(i =>     Cat(0.U(1.W), f1_ftq_req.startAddr(blockOffBits-1, 2)) + i.U ))
 
   // create DASICS tags at IFU stage 1
-  io.FDI.startAddr := f1_ftq_req.startAddr
+  io.fdi.startAddr := f1_ftq_req.startAddr
   val f1_fdi_tag: Vec[Bool] = Wire(Vec(PredictWidth, Bool()))
   if (HasCExtension) {
-    f1_fdi_tag := io.FDI.notTrusted
+    f1_fdi_tag := io.fdi.notTrusted
   } else {  // not compressed, discard half of the tags
-    f1_fdi_tag.zipWithIndex.foreach { case (tag, i) => tag := io.FDI.notTrusted(i * 2) }
+    f1_fdi_tag.zipWithIndex.foreach { case (tag, i) => tag := io.fdi.notTrusted(i * 2) }
   }
 
   /**
@@ -627,7 +627,7 @@ class NewIFU(implicit p: Parameters) extends XSModule
   io.toIbuffer.bits.crossPageIPFFix := f3_crossPageFault
   io.toIbuffer.bits.triggered   := f3_triggered
   io.toIbuffer.bits.mmioFetch   := false.B
-  io.toIbuffer.bits.FDIUntrusted := f3_fdi_tag
+  io.toIbuffer.bits.fdiUntrusted := f3_fdi_tag
 
   when(f3_lastHalf.valid){
     io.toIbuffer.bits.enqEnable := checkerOutStage1.fixedRange.asUInt & f3_instr_valid.asUInt & f3_lastHalf_mask

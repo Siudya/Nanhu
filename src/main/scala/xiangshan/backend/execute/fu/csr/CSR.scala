@@ -132,7 +132,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     io.in.bits.src(0),
     io.in.bits.uop.ctrl.imm,
     io.in.bits.uop.ctrl.fuOpType,
-    io.in.bits.uop.FDIUntrusted
+    io.in.bits.uop.fdiUntrusted
   )
 
   val csrr_sc_ignoreW = (uopIn.ctrl.fuOpType === CSROpType.set || uopIn.ctrl.fuOpType === CSROpType.clr) && (uopIn.psrc(0) === 0.U)
@@ -348,24 +348,24 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val pmaMapping = pmp_gen_mapping(pma_init, NumPMA, PmacfgBase, PmaaddrBase, pma)
 
   // FDI Mapping
-  val FDIMainCfg: UInt = RegInit(UInt(XLEN.W), 0.U)
-  val FDIUMainCfgMask: UInt = "h2".U(XLEN.W)
-  val FDI_umain_bound_lo, FDI_umain_bound_hi = RegInit(UInt(XLEN.W), 0.U)
+  val fdiMainCfg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val fdiUMainCfgMask: UInt = "h2".U(XLEN.W)
+  val fdiUMainBoundLo, fdiUMainBoundHi = RegInit(UInt(XLEN.W), 0.U)
 
-  val FDI_main_call_reg: UInt = RegInit(UInt(XLEN.W), 0.U)
-  val FDI_return_pc_reg: UInt = RegInit(UInt(XLEN.W), 0.U)
-  val FDI_mem: Vec[FDIEntry] = Wire(Vec(NumFDIMemBounds, new FDIEntry()))  // just used for method parameter
-  val FDI_jump: Vec[FDIJumpEntry] = Wire(Vec(NumFDIJumpBounds, new FDIJumpEntry()))  
-  val FDIMapping: Map[Int, (UInt, UInt, UInt => UInt, UInt, UInt => UInt)] = FDIGenMemMapping(
-    mem_init = FDIMemInit, memCfgBase = FDILibCfgBase, memBoundBase = FDILibBoundBase, memEntries = FDI_mem
+  val fdiMainCallReg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val fdiReturnPcReg: UInt = RegInit(UInt(XLEN.W), 0.U)
+  val fdiMemBoundRegs: Vec[FDIEntry] = Wire(Vec(NumFDIMemBounds, new FDIEntry()))  // just used for method parameter
+  val fdiJumpBoundRegs: Vec[FDIJumpEntry] = Wire(Vec(NumFDIJumpBounds, new FDIJumpEntry()))  
+  val fdiMapping: Map[Int, (UInt, UInt, UInt => UInt, UInt, UInt => UInt)] = FDIGenMemMapping(
+    mem_init = FDIMemInit, memCfgBase = FDILibCfgBase, memBoundBase = FDILibBoundBase, memEntries = fdiMemBoundRegs
   ) ++ FDIGenJumpMapping(
-    jump_init = FDIMemInit, jumpCfgBase = FDIJmpCfgBase, jumpBoundBase = FDIJmpBoundBase, jumpEntries = FDI_jump
+    jump_init = FDIMemInit, jumpCfgBase = FDIJmpCfgBase, jumpBoundBase = FDIJmpBoundBase, jumpEntries = fdiJumpBoundRegs
   ) ++ Map(
-    MaskedRegMap(FDIUMainCfg, FDIMainCfg, wmask = FDIUMainCfgMask, rmask = FDIUMainCfgMask),
-    MaskedRegMap(FDIUMainBoundLo, FDI_umain_bound_lo),
-    MaskedRegMap(FDIUMainBoundHi, FDI_umain_bound_hi),
-    MaskedRegMap(FDIMainCall, FDI_main_call_reg),
-    MaskedRegMap(FDIReturnPc, FDI_return_pc_reg),
+    MaskedRegMap(Fdiumaincfg, fdiMainCfg, wmask = fdiUMainCfgMask, rmask = fdiUMainCfgMask),
+    MaskedRegMap(Fdiumainboundlo, fdiUMainBoundLo),
+    MaskedRegMap(Fdiumainboundhi, fdiUMainBoundHi),
+    MaskedRegMap(Fdimaincall, fdiMainCallReg),
+    MaskedRegMap(Fdireturnpc, fdiReturnPcReg),
   )
 
   val spmpSwitch = RegInit(0.U(XLEN.W))
@@ -824,7 +824,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
                 (if (HasCustomCSRCacheOp) cacheopMapping else Nil) ++ 
                 (if(hasVector) vcsrMapping else Nil) ++
                 (if (HasCustomCSRCacheOp) cacheopMapping else Nil) ++
-                (if (HasFDI) FDIMapping else Nil)
+                (if (HasFDI) fdiMapping else Nil)
 
   println("XiangShan CSR Lists")
 
@@ -840,8 +840,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     addr === Mip.U
   csrio.isPerfCnt := addrInPerfCnt && valid && func =/= CSROpType.jmp && !isVset
 
-  val addrInFDI =  (addr >= FDIUMainCfg.U) && (addr <= FDIUMainBoundHi.U) || 
-    (addr === FDIMainCall.U) || (addr === FDIReturnPc.U) ||
+  val addrInFDI =  (addr >= Fdiumaincfg.U) && (addr <= Fdiumainboundhi.U) || 
+    (addr === Fdimaincall.U) || (addr === Fdireturnpc.U) ||
     (addr >= FDILibBoundBase.U) && (addr < (FDILibBoundBase + NumFDIMemBounds * 2).U) || 
     (addr >= FDIJmpBoundBase.U) && (addr <= FDIJmpCfgBase.U) || 
     addr === FDILibCfgBase.U
@@ -1145,9 +1145,9 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val hasLoadAccessFault    = hasException && exceptionVecFromRob(loadAccessFault)
   val hasStoreAccessFault   = hasException && exceptionVecFromRob(storeAccessFault)
   val hasBreakPoint         = hasException && exceptionVecFromRob(breakPoint)
-  val hasFDIULoadFault      = hasException && exceptionVecFromRob(FDIULoadAccessFault)
-  val hasFDIUStoreFault     = hasException && exceptionVecFromRob(FDIUStoreAccessFault)
-  val hasFDIUJumpFault      = hasException && exceptionVecFromRob(FDIUJumpFault)
+  val hasFdiULoadFault      = hasException && exceptionVecFromRob(fdiULoadAccessFault)
+  val hasFfdiUStoreFault     = hasException && exceptionVecFromRob(fdiUStoreAccessFault)
+  val hasFdiUJumpFault      = hasException && exceptionVecFromRob(fdiUJumpFault)
   val hasSingleStep         = hasException && csrio.exception.bits.uop.ctrl.singleStep
   val hasTriggerFire        = hasException && csrio.exception.bits.uop.cf.trigger.canFire
   val triggerFrontendHitVec = csrio.exception.bits.uop.cf.trigger.frontendHit
@@ -1165,12 +1165,12 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
   val hasExceptionVec = csrio.exception.bits.uop.cf.exceptionVec
   val regularExceptionVec = hasExceptionVec.take(16)
-  val FDIExceptionVec = ExceptionNO.selectFDI(hasExceptionVec)
+  val fdiExceptionVec = ExceptionNO.selectFDI(hasExceptionVec)
   val regularExceptionNO = ExceptionNO.priorities.foldRight(0.U)((i: Int, sum: UInt) => Mux(hasExceptionVec(i), i.U, sum))
-  val FDIExceptionNo = ExceptionNO.FDISet.foldRight(0.U)((i: Int, sum: UInt) => Mux(FDIExceptionVec(i), (i + FDIExcOffset).U, sum))
+  val fdiExceptionNo = ExceptionNO.fdiSet.foldRight(0.U)((i: Int, sum: UInt) => Mux(fdiExceptionVec(i), (i + FDIExcOffset).U, sum))
 
   val exceptionNO = Mux(hasSingleStep || hasTriggerFire, 3.U,
-    Mux(regularExceptionVec.reduce(_||_), regularExceptionNO, FDIExceptionNo))
+    Mux(regularExceptionVec.reduce(_||_), regularExceptionNO, fdiExceptionNo))
   val causeNO = (hasIntr << (XLEN-1)).asUInt | Mux(hasIntr, intrNOReg, exceptionNO)
 
   val hasExceptionIntr = csrio.exception.valid
@@ -1209,9 +1209,9 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     hasStoreAccessFault,
     hasLoadAddrMisalign,
     hasStoreAddrMisalign,
-    hasFDIULoadFault,
-    hasFDIUStoreFault,
-    hasFDIUJumpFault
+    hasFdiULoadFault,
+    hasFfdiUStoreFault,
+    hasFdiUJumpFault
   )).asUInt.orR
   when (RegNext(RegNext(updateTval))) {
       val tval = Mux(
@@ -1394,21 +1394,21 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     difftestCSR.sscratch := sscratch
     difftestCSR.mideleg := mideleg
     difftestCSR.medeleg := medeleg
-    difftestCSR.fdiMainCfg := FDIMainCfg & FDIUMainCfgMask
-    difftestCSR.fdiUMBoundLo := FDI_umain_bound_lo
-    difftestCSR.fdiUMBoundHi := FDI_umain_bound_hi
-    difftestCSR.fdiLibCfg := ZeroExt(VecInit(FDI_mem.map(_.cfg)).asUInt, XLEN)
+    difftestCSR.fdiMainCfg := fdiMainCfg & fdiUMainCfgMask
+    difftestCSR.fdiUMBoundLo := fdiUMainBoundLo
+    difftestCSR.fdiUMBoundHi := fdiUMainBoundHi
+    difftestCSR.fdiLibCfg := ZeroExt(VecInit(fdiMemBoundRegs.map(_.cfg)).asUInt, XLEN)
     for (i <- 0 until NumFDIMemBounds) {
-      difftestCSR.fdiLibBound(i * 2) := FDI_mem(i).boundLo
-      difftestCSR.fdiLibBound(i * 2 + 1) := FDI_mem(i).boundHi
+      difftestCSR.fdiLibBound(i * 2) := fdiMemBoundRegs(i).boundLo
+      difftestCSR.fdiLibBound(i * 2 + 1) := fdiMemBoundRegs(i).boundHi
     }
-    difftestCSR.fdiJumpCfg := ZeroExt(VecInit(FDI_jump.map(_.cfg)).asUInt, XLEN)
+    difftestCSR.fdiJumpCfg := ZeroExt(VecInit(fdiJumpBoundRegs.map(_.cfg)).asUInt, XLEN)
     for (i <- 0 until NumFDIJumpBounds) {
-      difftestCSR.fdiJumpBound(i * 2) := FDI_jump(i).boundLo
-      difftestCSR.fdiJumpBound(i * 2 + 1) := FDI_jump(i).boundHi
+      difftestCSR.fdiJumpBound(i * 2) := fdiJumpBoundRegs(i).boundLo
+      difftestCSR.fdiJumpBound(i * 2 + 1) := fdiJumpBoundRegs(i).boundHi
     }
-    difftestCSR.fdiMainCall := FDI_main_call_reg
-    difftestCSR.fdiReturnPC := FDI_return_pc_reg
+    difftestCSR.fdiMainCall := fdiMainCallReg
+    difftestCSR.fdiReturnPC := fdiReturnPcReg
   }
 
   if(env.AlwaysBasicDiff || env.EnableDifftest) {

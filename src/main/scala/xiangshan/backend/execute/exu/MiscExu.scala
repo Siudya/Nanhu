@@ -97,11 +97,13 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   })
 
   // FDICALL.JR will write FDIReturnPC CSR
-  when (RegNext(io.fdicallSnpc.valid, false.B)) {
+  private val fdicallValid       = RegNext(io.fdicallSnpc.valid, false.B)
+  private val fdicallSnpcBitsReg = RegEnable(io.fdicallSnpc.bits, io.fdicallSnpc.valid)
+  when (fdicallValid) {
     csr.io.in.valid := true.B
-    csr.io.in.bits.src(0) := RegNext(io.fdicallSnpc.bits)
+    csr.io.in.bits.src(0) := fdicallSnpcBitsReg
     csr.io.in.bits.uop.ctrl.rfWen := false.B
-    csr.io.in.bits.uop.ctrl.imm := csr.FDIReturnPc.U
+    csr.io.in.bits.uop.ctrl.imm := csr.Fdireturnpc.U
     csr.io.in.bits.uop.ctrl.fuOpType := CSROpType.wrt
   }
 

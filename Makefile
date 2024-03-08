@@ -113,10 +113,10 @@ verilog: $(TOP_V)
 
 $(SIM_TOP_V): $(SCALA_FILE) $(TEST_FILE)
 ifeq ($(ROT),1)
-	@sed -i 's/\(soc\.Bootrom_disable\s*:=\s*\).*\.B/\1false.B/' src/test/scala/top/SimTop.scala
+	@sed -i 's/\(soc\.bootrom_disable\s*:=\s*\).*\.B/\1false.B/' src/test/scala/top/SimTop.scala
 	@echo "Run in Bootrom enable mode"
 else
-	@sed -i 's/\(soc\.Bootrom_disable\s*:=\s*\).*\.B/\1true.B/' src/test/scala/top/SimTop.scala
+	@sed -i 's/\(soc\.bootrom_disable\s*:=\s*\).*\.B/\1true.B/' src/test/scala/top/SimTop.scala
 	@echo "Run in Bootrom disable mode"
 endif
 	mkdir -p $(@D)

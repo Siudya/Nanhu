@@ -22,7 +22,7 @@ import chisel3.util._
 import xiangshan.backend.decode.ImmUnion
 import xiangshan.backend.execute.fu.{FDICheckFault, FDIJumpChecker, FDIOp, FUWithRedirect, JumpFDI}
 import xiangshan.{FuOpType, RedirectLevel, XSModule}
-import xiangshan.ExceptionNO.{FDIUJumpFault, illegalInstr}
+import xiangshan.ExceptionNO.{fdiUJumpFault, illegalInstr}
 import xiangshan._
 import xs.utils.{ParallelMux, SignExt}
 
@@ -75,7 +75,7 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
   private val valid = io.in.valid
   private val isRVC = uop.cf.pd.isRVC
   private val isPrefetchI = JumpOpType.jumpOpIsPrefetch_I(io.in.bits.uop.ctrl.fuOpType)
-  private val isUntrusted = io.in.bits.uop.cf.FDIUntrusted
+  private val isUntrusted = io.in.bits.uop.cf.fdiUntrusted
 
   private val jumpDataModule = Module(new JumpDataModule)
   jumpDataModule.io.src := src1
@@ -110,12 +110,12 @@ class Jump(implicit p: Parameters) extends FUWithRedirect {
 
   // FDI jump modules
   val fdi = Module(new JumpFDI)
-  fdi.io.distribute_csr <> RegNext(fdicallDistributedCSR)
+  fdi.io.distribute_csr  := fdicallDistributedCSR.delay()
 
   val fdiJumpChecker = Module(new FDIJumpChecker)
   fdiJumpChecker.io.req.valid := io.in.valid && (JumpOpType.jumpOpIsJal(func) || JumpOpType.jumpOpIsJalr(func))  //only check jump (jal/jalr) instruction
   fdiJumpChecker.io.connect(pc, redirectOut.cfiUpdate.target, isUntrusted, FDIOp.jump, fdi.io.control_flow)
 
   io.out.bits.uop.cf.exceptionVec(illegalInstr) := valid && JumpOpType.jumpOpIsFDIcall(func) && isUntrusted
-  io.out.bits.uop.cf.exceptionVec(FDIUJumpFault) := fdiJumpChecker.io.resp.FDI_fault === FDICheckFault.UJumpFDIFault
+  io.out.bits.uop.cf.exceptionVec(fdiUJumpFault) := fdiJumpChecker.io.resp.fdi_fault === FDICheckFault.UJumpFDIFault
 }

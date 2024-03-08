@@ -118,7 +118,7 @@ class CtrlFlow(implicit p: Parameters) extends XSBundle {
   val ftqPtr = new FtqPtr
   val ftqOffset = UInt(log2Up(PredictWidth).W)
   // needs to be checked by FDI
-  val FDIUntrusted = Bool()
+  val fdiUntrusted = Bool()
 
   //vector
 
@@ -233,7 +233,7 @@ class MicroOp(implicit p: Parameters) extends CfCtrl {
   val elmIdx = UInt(3.W)
 
   //FDI
-  val FDIUntrusted = Bool()
+  val fdiUntrusted = Bool()
 
   def clearExceptions(
     exceptionBits: Seq[Int] = Seq(),

@@ -186,7 +186,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     dontTouch(dft_lgc_rst_n)
     dontTouch(dft_mode)
     dontTouch(dfx_reset)
-    dontTouch(Bootrom_disable)
+    dontTouch(bootrom_disable)
     misc.module.ext_intrs := io.extIntrs
     misc.module.dfx_reset := dfx_reset
     misc.module.rtc_clock := rtc_clock
@@ -196,7 +196,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       core.module.io.dfx_reset := dfx_reset
       core.module.io.reset_vector := io.riscv_rst_vec(i)
       //zdr: ROM init enable
-      core.module.io.ROMInitEn := misc.module.ROMInitEn | Bootrom_disable
+      core.module.io.ROMInitEn := misc.module.ROMInitEn | bootrom_disable
       io.riscv_halt(i) := core.module.io.cpu_halt
     }
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)

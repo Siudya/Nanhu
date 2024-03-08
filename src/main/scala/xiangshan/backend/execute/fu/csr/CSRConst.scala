@@ -56,8 +56,8 @@ trait HasCSRConst {
   val FDILibCfgBase = 0x880
   val FDILibBoundBase = 0x890
 
-  val FDIMainCall  = 0x8b0
-  val FDIReturnPc  = 0x8b1
+  val Fdimaincall  = 0x8b0
+  val Fdireturnpc  = 0x8b1
 
   val FDIJmpCfgBase = 0x8c8
   val FDIJmpBoundBase = 0x8c0
@@ -91,9 +91,9 @@ trait HasCSRConst {
   val Sfetchctl     = 0x9E0
 
   // Supervisor FDI Settings (for User protection)
-  val FDIUMainCfg = 0x9E0
-  val FDIUMainBoundLo = 0x9E2
-  val FDIUMainBoundHi = 0x9E3
+  val Fdiumaincfg = 0x9E0
+  val Fdiumainboundlo = 0x9E2
+  val Fdiumainboundhi = 0x9E3
   
   // SPMP
   val SpmpSwitch    = 0x19F

@@ -105,7 +105,7 @@ class StoreUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging 
     val lsq = ValidIO(new LsPipelineBundle())
     val dtlbResp = Flipped(DecoupledIO(new TlbResp(if(UseOneDtlb) 2 else 1)))
     val rsFeedback = ValidIO(new RSFeedback)
-    val FDIReq = ValidIO(new FDIReqBundle())
+    val fdiReq = ValidIO(new FDIReqBundle())
   })
 
   val EnableMem = io.in.bits.uop.loadStoreEnable
@@ -120,10 +120,10 @@ class StoreUnit_S1(implicit p: Parameters) extends XSModule with HasPerfLogging 
   val s1_exception = Mux(EnableMem, ExceptionNO.selectByFu(io.out.bits.uop.cf.exceptionVec, staCfg).asUInt.orR, false.B)
 
   //FDI check
-  io.FDIReq.valid := io.out.fire  //TODO: temporarily assignment
-  io.FDIReq.bits.addr := io.out.bits.vaddr //TODO: need for alignment?
-  io.FDIReq.bits.inUntrustedZone := io.out.bits.uop.FDIUntrusted
-  io.FDIReq.bits.operation := FDIOp.write
+  io.fdiReq.valid := io.out.fire  //TODO: temporarily assignment
+  io.fdiReq.bits.addr := io.out.bits.vaddr //TODO: need for alignment?
+  io.fdiReq.bits.inUntrustedZone := io.out.bits.uop.fdiUntrusted
+  io.fdiReq.bits.operation := FDIOp.write
 
   io.in.ready := true.B
 
@@ -172,7 +172,7 @@ class StoreUnit_S2(implicit p: Parameters) extends XSModule {
     val pmpResp = Flipped(new PMPRespBundle)
     val static_pm = Input(Valid(Bool()))
     val out = Decoupled(new LsPipelineBundle)
-    val FDIResp = Flipped(new FDIRespBundle)
+    val fdiResp = Flipped(new FDIRespBundle)
   })
   val EnableMem = io.in.bits.uop.loadStoreEnable
   val pmp = WireInit(io.pmpResp)
@@ -193,7 +193,7 @@ class StoreUnit_S2(implicit p: Parameters) extends XSModule {
   io.out.valid := io.in.valid && (!is_mmio || s2_exception)
 
   //FDI store access fault
-  io.out.bits.uop.cf.exceptionVec(FDIUStoreAccessFault) := io.FDIResp.FDI_fault === FDICheckFault.UWriteFDIFault
+  io.out.bits.uop.cf.exceptionVec(fdiUStoreAccessFault) := io.fdiResp.fdi_fault === FDICheckFault.UWriteFDIFault
 }
 
 class StoreUnit_S3(implicit p: Parameters) extends XSModule {
@@ -234,8 +234,8 @@ class StoreUnit(implicit p: Parameters) extends XSModule with HasPerfLogging {
     // store mask, send to sq in store_s0
     val storeMaskOut = Valid(new StoreMaskBundle)
     //FDI
-    val FDIReq = ValidIO(new FDIReqBundle())
-    val FDIResp = Flipped(new FDIRespBundle())
+    val fdiReq = ValidIO(new FDIReqBundle())
+    val fdiResp = Flipped(new FDIRespBundle())
   })
   io.tlb := DontCare
   val store_s0 = Module(new StoreUnit_S0)
@@ -250,8 +250,8 @@ class StoreUnit(implicit p: Parameters) extends XSModule with HasPerfLogging {
   store_s0.io.isFirstIssue := io.isFirstIssue
   store_s0.io.vmEnable := io.vmEnable
 
-  io.FDIReq := store_s1.io.FDIReq
-  store_s2.io.FDIResp := io.FDIResp
+  io.fdiReq := store_s1.io.fdiReq
+  store_s2.io.fdiResp := io.fdiResp
 
   io.storeMaskOut.valid := store_s0.io.in.valid
   io.storeMaskOut.bits.mask := store_s0.io.out.bits.mask
