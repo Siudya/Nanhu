@@ -40,10 +40,11 @@ class JumpDataModule(implicit p: Parameters) extends XSModule {
 
   val isJalr = JumpOpType.jumpOpIsJalr(func)
   val isAuipc = JumpOpType.jumpOpIsAuipc(func)
+  val isFDICall = JumpOpType.jumpOpIsFDIcall(func)
   val offset = SignExt(ParallelMux(Seq(
-    isJalr -> ImmUnion.I.toImm32(immMin),
+    (isJalr || isFDICall) -> ImmUnion.I.toImm32(immMin),
     isAuipc -> ImmUnion.U.toImm32(immMin),
-    !(isJalr || isAuipc) -> ImmUnion.J.toImm32(immMin)
+    !(isJalr || isAuipc || isFDICall) -> ImmUnion.J.toImm32(immMin)
   )), XLEN)
 
   val snpc = Mux(isRVC, pc + 2.U, pc + 4.U)
