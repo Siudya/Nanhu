@@ -158,7 +158,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     val dft_mode = IO(Input(Bool()))
     val rtc_clock = IO(Input(Bool()))
     val dfx_reset = Wire(new DFTResetSignals())
-    val Bootrom_disable = IO(Input(Bool()))     //1: disable bootrom; 0: bootrom check enable
+    val bootrom_disable = IO(Input(Bool()))     //1: disable bootrom; 0: bootrom check enable
     dfx_reset.lgc_rst_n := dft_lgc_rst_n
     dfx_reset.mode := dft_mode
     dfx_reset.scan_mode := scan_mode
