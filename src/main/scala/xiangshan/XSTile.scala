@@ -168,7 +168,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
     val reset_vector = Input(UInt(PAddrBits.W))
     val cpu_halt = Output(Bool())
     val dfx_reset = Input(new DFTResetSignals())
-    val ROMInitEn = Input(Bool())
+    val XStileResetGate = Input(Bool())
   })
   val ireset = reset
   dontTouch(io.hartId)
@@ -178,8 +178,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
   outer.core.module.io.hartId := io.hartId
   outer.core.module.io.reset_vector := io.reset_vector
   outer.core.module.io.dfx_reset := io.dfx_reset
-  //zdr: ROM init enable
-  outer.core.module.io.ROMInitEn := io.ROMInitEn
+
   outer.l2cache.foreach(_.module.io.dfx_reset := io.dfx_reset)
   io.cpu_halt := outer.core.module.io.cpu_halt
   
@@ -255,5 +254,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
       l2bufs.map(_.module.asInstanceOf[Module]) ++
       outer.l1d_to_l2_bufferOpt.map(_.module)
   )
-  ResetGen(resetChain, reset, Some(io.dfx_reset), !outer.debugOpts.FPGAPlatform)
+  val gatedReset = Wire(Reset())
+  gatedReset := (reset.asBool | io.XStileResetGate).asAsyncReset
+  ResetGen(resetChain, gatedReset, Some(io.dfx_reset), !outer.debugOpts.FPGAPlatform)
 }

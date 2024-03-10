@@ -196,7 +196,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       core.module.io.dfx_reset := dfx_reset
       core.module.io.reset_vector := io.riscv_rst_vec(i)
       //zdr: ROM init enable
-      core.module.io.ROMInitEn := misc.module.ROMInitEn | bootrom_disable
+      core.module.io.XStileResetGate := !(misc.module.ROMInitEn | bootrom_disable)
       io.riscv_halt(i) := core.module.io.cpu_halt
     }
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)
