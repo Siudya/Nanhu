@@ -759,7 +759,7 @@ if __name__ == "__main__":
     
     if os.path.exists(rot_build_path):
         lut_files = []
-        for root, dirs, files in os.walk(build_path):
+        for root, dirs, files in os.walk(out_dir):
             for f in files:
                 if re.match(r'LUT.*\.sv', f):
                     lut_files.append(os.path.join(root, f))
