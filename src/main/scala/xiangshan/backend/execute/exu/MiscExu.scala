@@ -21,10 +21,11 @@ package xiangshan.backend.execute.exu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
+import xiangshan.ExceptionNO.fdiUJumpFault
 import xiangshan.backend.execute.fu.csr.{CSR, CSRFileIO, CSROpType}
 import xiangshan.backend.execute.fu.fence.{SfenceBundle, _}
 import xiangshan.backend.execute.fu.jmp._
-import xiangshan.backend.execute.fu.{FUWithRedirect, FuConfigs, FunctionUnit}
+import xiangshan.backend.execute.fu.{FUWithRedirect, FuConfigs, FunctionUnit, FDICallJumpExcpIO}
 import xiangshan._
 import xs.utils.{DelayN, ParallelMux}
 
@@ -68,7 +69,7 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
     val writebackFromMou = Flipped(Decoupled(new ExuOutput))
     val fenceio = new FenceIO
     val csrio = new CSRFileIO
-    val fdicallSnpc = Input(Valid(UInt(p(XSCoreParamsKey).XLEN.W)))
+    val fdicallJumpExcpIO = Flipped(new FDICallJumpExcpIO)
   })
   private val issuePort = outer.issueNode.in.head._1
   private val writebackPort = outer.writebackNode.out.head._1
@@ -89,7 +90,7 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
 
     val isCsr = finalIssueSignals.bits.uop.ctrl.fuType === FuType.csr
     val isExclusive = finalIssueSignals.bits.uop.ctrl.noSpecExec && finalIssueSignals.bits.uop.ctrl.blockBackward
-    val isFDICall = RegNext(io.fdicallSnpc.valid, false.B)
+    val isFDICall = RegNext(io.fdicallJumpExcpIO.isFDICall, false.B)
     when(m.io.in.valid){
       assert(m.io.in.ready)
       assert(isCsr || isExclusive || isFDICall)
@@ -97,11 +98,11 @@ class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extend
   })
 
   // FDICALL.JR will write FDIReturnPC CSR
-  private val fdicallValid       = RegNext(io.fdicallSnpc.valid, false.B)
-  private val fdicallSnpcBitsReg = RegEnable(io.fdicallSnpc.bits, io.fdicallSnpc.valid)
+  private val fdicallValid     = RegNext(io.fdicallJumpExcpIO.isFDICall, false.B)
+  private val fdicallTargetReg = RegEnable(io.fdicallJumpExcpIO.target, io.fdicallJumpExcpIO.isFDICall)
   when (fdicallValid) {
     csr.io.in.valid := true.B
-    csr.io.in.bits.src(0) := fdicallSnpcBitsReg
+    csr.io.in.bits.src(0) := fdicallTargetReg
     csr.io.in.bits.uop.ctrl.rfWen := false.B
     csr.io.in.bits.uop.ctrl.imm := csr.Fdireturnpc.U
     csr.io.in.bits.uop.ctrl.fuOpType := CSROpType.wrt

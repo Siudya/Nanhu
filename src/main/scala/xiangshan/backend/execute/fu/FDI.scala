@@ -33,14 +33,12 @@ object FDIOp{
 }
 
 object FDICheckFault {
-    def noFDIFault     = "b000".U
+    def noFDIFault     = "b00".U
+    def UReadDascisFault  = "b01".U
+    def UWriteFDIFault = "b10".U
+    def UJumpFDIFault  = "b11".U
 
-
-    def UReadDascisFault  = "b001".U
-    def UWriteFDIFault = "b010".U
-    def UJumpFDIFault  = "b011".U
-
-    def apply() = UInt(3.W)
+    def apply() = UInt(2.W)
 }
 
 // FDI Config
@@ -273,6 +271,20 @@ class FDIJumpCheckerIO(implicit p: Parameters) extends XSBundle with FDIConst{
     this.req.bits.inUntrustedZone := inUntrustedZone
     this.req.bits.operation := operation
     this.contro_flow <> contro_flow
+  }
+}
+
+// This bundle works for FDICall and Jump Exception simultaneously
+// TODO: Need a better name
+class FDICallJumpExcpIO(implicit p: Parameters) extends XSBundle with FDIConst {
+  val isFDICall = Output(Bool())
+  val isJumpExcp = Output(Bool())
+  val target = Output(UInt(XLEN.W))
+
+  def connect(isFDICall: Bool, isJumpExcp: Bool, target: UInt): Unit = {
+    this.isFDICall := isFDICall
+    this.isJumpExcp := isJumpExcp
+    this.target := target
   }
 }
 
