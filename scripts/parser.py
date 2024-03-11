@@ -5,6 +5,7 @@ import os
 import re
 from datetime import date
 from shutil import copy, move
+import subprocess
 
 import xlsxwriter
 
@@ -695,6 +696,36 @@ if __name__ == "__main__":
 
     build_path = args.build_dir
     assert(build_path is not None)
+
+    rot_path = './src/main/resources/TLROT/'
+    rot_build_path = os.path.join(build_path, 'TLROT')
+    if not os.path.exists(rot_path):
+        print(f"The source directory {rot_path} does not exist.")
+    else:
+        if os.path.exists(rot_build_path):
+            command_rm = ['rm', '-rf', rot_build_path]
+            subprocess.run(command_rm, check=True)
+        command_cp = ['cp', '-rf', rot_path, build_path]
+        subprocess.run(command_cp, check=True)
+        lut_files = []
+        for root, dirs, files in os.walk(build_path):
+            for f in files:
+                if re.match(r'LUT.*\.sv', f):
+                    lut_files.append(os.path.join(root, f))
+        submodule_re_rot = re.compile(r'^\s*(\w+)\s*(?: #\(.*\))?\s*(\w+)\s*\(\s*(//.*)?$')
+
+        for lut_file in lut_files:
+            # file_path = os.path.join(build_path, lut_file)
+            with open(lut_file, 'r') as file:
+                lines = file.readlines()
+
+            with open(lut_file, 'w') as file:
+                for line in lines:
+                    if submodule_re_rot.match(line) and not line.strip().startswith('//'):
+                        file.write('// tmp' + line)
+                    else:
+                        file.write(line)
+
     files = get_files(build_path)
     if args.include is not None:
         for inc_path in args.include.split(","):
@@ -725,3 +756,18 @@ if __name__ == "__main__":
             create_sram_xlsx(out_dir, collection, sram_conf, top_module, try_prefix=module_prefix)
     if not args.no_mbist_files:
         copy_mbist_files(mbist_dir, build_path)
+    
+    if os.path.exists(rot_build_path):
+        lut_files = []
+        for root, dirs, files in os.walk(out_dir):
+            for f in files:
+                if re.match(r'LUT.*\.sv', f):
+                    lut_files.append(os.path.join(root, f))
+        # lut_files = [f for f in os.listdir(build_path) if re.match(r'LUT.*\.sv', f)]
+        for lut_file in lut_files:
+            with open(lut_file, 'r') as file:
+                lines = file.readlines()   
+                lines = [line if not line.lstrip().startswith('// tmp') else line.lstrip()[len('// tmp'):] for line in lines]
+            with open(lut_file, 'w') as file:
+                file.writelines(lines)
+
