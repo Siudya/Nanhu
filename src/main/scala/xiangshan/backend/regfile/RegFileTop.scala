@@ -27,7 +27,7 @@ import difftest._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import xiangshan.backend.issue.RsIdx
 import xiangshan.backend.writeback.{WriteBackSinkNode, WriteBackSinkParam, WriteBackSinkType}
-import xiangshan.frontend.Ftq_RF_Components
+import xiangshan.frontend.FtqPCEntry
 import xiangshan.vector.HasVectorParameters
 import xiangshan._
 import xiangshan.backend.decode.ImmUnion
@@ -83,7 +83,7 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
       val hartId = Input(UInt(64.W))
       val mmuEnable = Input(Bool())
       val pcReadAddr = Output(Vec(pcReadNum, UInt(log2Ceil(FtqSize).W)))
-      val pcReadData = Input(Vec(pcReadNum, new Ftq_RF_Components))
+      val pcReadData = Input(Vec(pcReadNum, new FtqPCEntry))
       val vectorReads = Vec(loadUnitNum * 2, Flipped(new VectorRfReadPort))
       val extraReads = Vec(extraScalarRfReadPort, new ScalarRfReadPort)
       val vectorRfMoveReq = Output(Vec(loadUnitNum, Valid(new MoveReq)))

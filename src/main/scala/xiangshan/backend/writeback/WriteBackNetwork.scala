@@ -25,7 +25,7 @@ import chisel3.util._
 import xiangshan.backend.execute.exu.ExuType
 import freechips.rocketchip.diplomacy._
 import xiangshan.{ExuOutput, HasXSParameter, MemPredUpdateReq, Redirect, XSCoreParamsKey}
-import xiangshan.frontend.Ftq_RF_Components
+import xiangshan.frontend.FtqPCEntry
 import difftest._
 import xs.utils.GTimer
 
@@ -43,7 +43,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
   wbSources.foreach(w => print(w._2))
   val io = IO(new Bundle {
     val pcReadAddr = Output(Vec(2, UInt(log2Ceil(FtqSize).W)))
-    val pcReadData = Input(Vec(2, new Ftq_RF_Components))
+    val pcReadData = Input(Vec(2, new FtqPCEntry))
     val redirectOut = Output(Valid(new Redirect))
     val memPredUpdate = Output(Valid(new MemPredUpdateReq))
     val preWalk = Output(Valid(new Redirect))

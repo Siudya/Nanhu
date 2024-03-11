@@ -27,7 +27,7 @@ import xiangshan._
 import xiangshan.backend.decode.ImmUnion
 import xiangshan.backend.issue.SelectPolicy
 import xiangshan.backend.rob.RobPtr
-import xiangshan.frontend.{BrType, Ftq_RF_Components}
+import xiangshan.frontend.{BrType, FtqPCEntry}
 import xs.utils.{SignExt, XORFold}
 import xs.utils.perf.HasPerfLogging
 
@@ -64,7 +64,7 @@ class RedirectGen(jmpRedirectNum:Int, aluRedirectNum:Int, memRedirectNum:Int)(im
     val aluWbIn = Input(Vec(aluRedirectNum, Flipped(ValidIO(new ExuOutput))))
     val memWbIn = Input(Vec(memRedirectNum, Flipped(ValidIO(new ExuOutput))))
     val pcReadAddr = Output(Vec(2, UInt(log2Ceil(FtqSize).W)))
-    val pcReadData = Input(Vec(2, new Ftq_RF_Components))
+    val pcReadData = Input(Vec(2, new FtqPCEntry))
     val redirectIn = Input(Valid(new Redirect))
     val redirectOut = Output(Valid(new Redirect))
     val preWalk = Output(Valid(new Redirect))

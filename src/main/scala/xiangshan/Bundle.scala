@@ -35,7 +35,7 @@ import chisel3.util.BitPat.bitPatToUInt
 import xiangshan.backend.execute.fu.alu.ALUOpType
 import xiangshan.backend.execute.fu.csr.CSROpType
 import xiangshan.backend.execute.fu.fpu.FPUCtrlSignals
-import xiangshan.frontend.Ftq_Redirect_SRAMEntry
+import xiangshan.frontend.FtqRedirectEntry
 import xiangshan.frontend.AllAheadFoldedHistoryOldestBits
 import xs.utils.DataChanged
 import xiangshan.vector._
@@ -84,7 +84,7 @@ class CfiUpdateInfo(implicit p: Parameters) extends XSBundle with HasBPUParamete
   val shift = Bool()
   val addIntoHist = Bool()
 
-  def fromFtqRedirectSram(entry: Ftq_Redirect_SRAMEntry) = {
+  def fromFtqRedirectSram(entry: FtqRedirectEntry) = {
     // this.hist := entry.ghist
     this.foldedHist := entry.foldedHist
     this.lastBrNumOH := entry.lastBrNumOH
