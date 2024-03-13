@@ -190,18 +190,7 @@ trait PMAMethod extends PMAConst {
     }
 
     addPMA(0x480000000L, c = true, atomic = true, a = 1, x = true, w = true, r = true)
-    addPMA(0x80000000L, a = 1, w = true, r = true)
-    addPMA(0x3c000000L, a = 1)
-    addPMA(0x39002000L, a = 1, w = true, r = true)
-    addPMA(0x39000000L, a = 1)
-    addPMA(0x38021000L, a = 1, w = true, r = true, x = true)
-    addPMA(0x38020000L, a = 1)
-    addPMA(0x38010000L, a = 1, w = true, r = true)
-    addPMA(0x38000000L, a = 1)
-    addPMA(0x31310000L, a = 1, w = true, r = true)
-    addPMA(0x30000000L, a = 1)
-    addPMA(0x20000000L, a = 1, w = true, x = true, r = true)
-    addPMA(0x10000000L, a = 1)
+    addPMA(0x80000000L, a = 1, x=true, w = true, r = true)
     addPMA(0)
     while (cfg_list.length < 16) {
       addPMA(0)
