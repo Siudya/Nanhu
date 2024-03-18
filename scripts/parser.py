@@ -1,6 +1,7 @@
 #! /usr/bin/env python3
 
 import argparse
+import glob
 import os
 import re
 from datetime import date
@@ -756,18 +757,15 @@ if __name__ == "__main__":
             create_sram_xlsx(out_dir, collection, sram_conf, top_module, try_prefix=module_prefix)
     if not args.no_mbist_files:
         copy_mbist_files(mbist_dir, build_path)
+
     
     if os.path.exists(rot_build_path):
-        lut_files = []
-        for root, dirs, files in os.walk(out_dir):
-            for f in files:
-                if re.match(r'LUT.*\.sv', f):
-                    lut_files.append(os.path.join(root, f))
-        # lut_files = [f for f in os.listdir(build_path) if re.match(r'LUT.*\.sv', f)]
-        for lut_file in lut_files:
-            with open(lut_file, 'r') as file:
-                lines = file.readlines()   
-                lines = [line if not line.lstrip().startswith('// tmp') else line.lstrip()[len('// tmp'):] for line in lines]
-            with open(lut_file, 'w') as file:
-                file.writelines(lines)
+        top_rtl_dir = os.path.join(out_dir, top_module)
+        verilog_files = glob.glob(os.path.join(rot_path, '**/*.sv'), recursive=True) + \
+                glob.glob(os.path.join(rot_path, '**/*.v'), recursive=True)
+        for file_path in verilog_files:
+            file_name = os.path.basename(file_path)
+            destination_path = os.path.join(top_rtl_dir, file_name)
+            copy(file_path, destination_path)
+
 
