@@ -191,6 +191,8 @@ trait PMAMethod extends PMAConst {
 
     addPMA(0x480000000L, c = true, atomic = true, a = 1, x = true, w = true, r = true)
     addPMA(0x80000000L, a = 1, w = true, r = true)
+    addPMA(0x3b300000L, a = 1, x = true, r = true)
+    addPMA(0x3b1f0000L, a = 1, w = true, r = true)
     addPMA(0x3b000000L, a = 1)
     addPMA(0x39002000L, a = 1, w = true, r = true)
     addPMA(0x39000000L, a = 1)
