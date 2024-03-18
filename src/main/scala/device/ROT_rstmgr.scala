@@ -13,7 +13,7 @@ import freechips.rocketchip.regmapper.{RegField, RegFieldAccessType, RegFieldDes
 class ROT_rstmgr(implicit p: Parameters) extends LazyModule {
 
   val node = TLRegisterNode(
-    address = Seq(AddressSet(0x3b300000L, 0xff)),
+    address = Seq(AddressSet(0x3b010000L, 0xff)),
     device = new SimpleDevice("rot_rstmgr", Seq()),
     beatBytes = 8,
     concurrency = 1

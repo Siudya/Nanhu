@@ -176,7 +176,7 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
 
   // Create a TLManagerNode
   val node = TLManagerNode(Seq(TLSlavePortParameters.v1(Seq(TLSlaveParameters.v1(
-    address = Seq(AddressSet(0x3b000000, 0x1fffff)), 
+    address = Seq(AddressSet(0x3b100000, 0xfffff)), 
     // resources = device.reg("mem"),
     resources = Seq(
       // tlrotAddr, 
