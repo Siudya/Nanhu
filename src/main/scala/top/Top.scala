@@ -129,11 +129,11 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     FileRegisters.add("json", json)
     FileRegisters.add("plusArgs", freechips.rocketchip.util.PlusArgArtefacts.serialize_cHeader())
 
-    val dma = IO(Flipped(misc.dma.cloneType))
+//    val dma = IO(Flipped(misc.dma.cloneType))
     val peripheral = IO(misc.peripheral.cloneType)
     val memory = IO(misc.memory.cloneType)
 
-    misc.dma <> dma
+//    misc.dma <> dma
     peripheral <> misc.peripheral
     memory <> misc.memory
 
@@ -177,7 +177,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     io.debug_reset := misc.module.debug_module_io.debugIO.ndreset
 
     // input
-    dontTouch(dma)
+//    dontTouch(dma)
     dontTouch(io)
     dontTouch(peripheral)
     dontTouch(memory)
