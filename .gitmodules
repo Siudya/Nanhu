@@ -28,3 +28,4 @@
 [submodule "src/main/resources/TLROT"]
 	path = src/main/resources/TLROT
 	url = https://github.com/PENGLAI-ZGC-TEE/TLROT.git
+	branch = master
