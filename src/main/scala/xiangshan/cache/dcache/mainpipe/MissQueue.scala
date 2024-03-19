@@ -440,7 +440,7 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
   )._2
   io.mem_acquire.bits := Mux(full_overwrite, acquirePerm, acquireBlock)
   private val prefecthBit = Mux(io.l2_pf_store_only, req.isStore, true.B)
-  io.mem_acquire.bits.data := Cat(req.vaddr(13, 12), prefecthBit)
+  io.mem_acquire.bits.data := Cat(req.vaddr(12), prefecthBit)
   require(nSets <= 256)
 
   io.mem_grant.ready := !w_grantlast && s_acquire

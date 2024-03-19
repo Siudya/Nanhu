@@ -33,7 +33,7 @@ import xiangshan.cache.mmu.BlockTlbRequestIO
 import xiangshan.backend.execute.fu.fence.{FenceIBundle, SfenceBundle}
 
 case class ICacheParameters(
-    nSets: Int = 256,//128,//256,
+    nSets: Int = 128,//128,//256,
     nWays: Int = 4,
     rowBits: Int = 64,
     nTLBEntries: Int = 32,

@@ -302,16 +302,16 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
         inclusive = inclusive,
         clientCaches = tiles.map{ core =>
           val l2params = core.L2CacheParamsOpt.get.toCacheParams
-          l2params.copy(sets = 2 * clientDirBytes / core.L2NBanks / l2params.ways / 64, ways = l2params.ways + 2)
+          l2params.copy(sets = l2params.sets, ways = l2params.ways + 2)
         },
         enablePerf = false,
         prefetch = None,
         // prefetchRecv = Some(huancun.prefetch.PrefetchReceiverParams()),
-        ctrl = Some(huancun.CacheCtrl(
-          address = 0x39000000,
-          beatBytes = 8,
-          numCores = up(XSTileKey).length
-        )),
+//        ctrl = Some(huancun.CacheCtrl(
+//          address = 0x39000000,
+//          beatBytes = 8,
+//          numCores = up(XSTileKey).length
+//        )),
         reqField = Seq(xs.utils.tl.ReqSourceField()),
         sramClkDivBy2 = true,
         sramDepthDiv = 8,
@@ -344,9 +344,9 @@ class MediumConfig(n: Int = 1) extends Config(
 )
 
 class DefaultConfig(n: Int = 1) extends Config(
-  new WithNKBL3(4 * 1024, inclusive = false, banks = 4, ways = 8, core_num = n)
-    ++ new WithNKBL2(256, inclusive = false, banks = 2, ways = 8, alwaysReleaseData = true)
-    ++ new WithNKBL1D(64)
+  new WithNKBL3(128, inclusive = false, banks = 1, ways = 8, core_num = n)
+    ++ new WithNKBL2(128, inclusive = false, banks = 1, ways = 8, alwaysReleaseData = true)
+    ++ new WithNKBL1D(32)
     ++ new BaseConfig(n)
 )
 
