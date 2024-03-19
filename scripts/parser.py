@@ -293,10 +293,10 @@ class VCollection(object):
                     f.writelines(module.get_lines())
         return True
 
-    def dump_negedge_modules_to_file(self, name, output_dir, with_submodule=True, try_prefix=None):
+    def dump_negedge_modules_to_file(self, name, output_dir, with_submodule=True, try_prefix=None, ignore_modules=None):
         print("Dump negedge module {} to {}...".format(name, output_dir))
         negedge_modules = []
-        self.get_module(name, negedge_modules, "NegedgeDataModule_", with_submodule=with_submodule, try_prefix=try_prefix)
+        self.get_module(name, negedge_modules, "NegedgeDataModule_", with_submodule=with_submodule, try_prefix=try_prefix, ignore_modules=ignore_modules)
         negedge_modules_sort = []
         for negedge in negedge_modules:
             re_degits = re.compile(r".*[0-9]$")
@@ -358,7 +358,7 @@ def create_verilog(files, top_module, config, try_prefix=None, ignore_modules=No
     today = date.today()
     directory = f'{top_module}-Release-{config}-{today.strftime("%b-%d-%Y")}'
     success = collection.dump_to_file(top_module, os.path.join(directory, top_module), try_prefix=try_prefix, ignore_modules=ignore_modules)
-    collection.dump_negedge_modules_to_file(top_module, directory, try_prefix=try_prefix)
+    collection.dump_negedge_modules_to_file(top_module, directory, try_prefix=try_prefix, ignore_modules=ignore_modules)
     if not success:
         return None, None
     return collection, os.path.realpath(directory)
@@ -698,34 +698,6 @@ if __name__ == "__main__":
     build_path = args.build_dir
     assert(build_path is not None)
 
-    rot_path = './src/main/resources/TLROT/'
-    rot_build_path = os.path.join(build_path, 'TLROT')
-    if not os.path.exists(rot_path):
-        print(f"The source directory {rot_path} does not exist.")
-    else:
-        if os.path.exists(rot_build_path):
-            command_rm = ['rm', '-rf', rot_build_path]
-            subprocess.run(command_rm, check=True)
-        command_cp = ['cp', '-rf', rot_path, build_path]
-        subprocess.run(command_cp, check=True)
-        lut_files = []
-        for root, dirs, files in os.walk(build_path):
-            for f in files:
-                if re.match(r'LUT.*\.sv', f):
-                    lut_files.append(os.path.join(root, f))
-        submodule_re_rot = re.compile(r'^\s*(\w+)\s*(?: #\(.*\))?\s*(\w+)\s*\(\s*(//.*)?$')
-
-        for lut_file in lut_files:
-            # file_path = os.path.join(build_path, lut_file)
-            with open(lut_file, 'r') as file:
-                lines = file.readlines()
-
-            with open(lut_file, 'w') as file:
-                for line in lines:
-                    if submodule_re_rot.match(line) and not line.strip().startswith('//'):
-                        file.write('// tmp' + line)
-                    else:
-                        file.write(line)
 
     files = get_files(build_path)
     if args.include is not None:
@@ -739,6 +711,10 @@ if __name__ == "__main__":
     if module_prefix is not None:
         top_module = f"{module_prefix}{top_module}"
         ignore_modules += list(map(lambda x: module_prefix + x, ignore_modules))
+        ignore_modules.append(f"{module_prefix}TLROT_top")
+    else:  
+        ignore_modules.append("TLROT_top")  
+
 
     print(f"Top-level Module: {top_module} with prefix {module_prefix}")
     print(f"Config:           {config}")
@@ -758,14 +734,38 @@ if __name__ == "__main__":
     if not args.no_mbist_files:
         copy_mbist_files(mbist_dir, build_path)
 
-    
-    if os.path.exists(rot_build_path):
-        top_rtl_dir = os.path.join(out_dir, top_module)
+    rot_path = './src/main/resources/TLROT/'
+
+    if os.path.exists(rot_path):
+        rot_rtl_dir = os.path.join(out_dir, "TLROT")
+        if not (os.path.isdir(rot_rtl_dir)):
+            os.makedirs(rot_rtl_dir)
         verilog_files = glob.glob(os.path.join(rot_path, '**/*.sv'), recursive=True) + \
-                glob.glob(os.path.join(rot_path, '**/*.v'), recursive=True)
+                glob.glob(os.path.join(rot_path, '**/*.v'), recursive=True) + \
+                glob.glob(os.path.join(rot_path, '**/*.svh'), recursive=True)
         for file_path in verilog_files:
             file_name = os.path.basename(file_path)
-            destination_path = os.path.join(top_rtl_dir, file_name)
+            destination_path = os.path.join(rot_rtl_dir, file_name)
             copy(file_path, destination_path)
+        print("Copy TLROT files done!")
+
+        # gen a TLROT filelist
+        VCS_filelist = os.path.join(rot_path, "vcs_filelist")
+        TLROT_filelist = os.path.join(out_dir, "TLROT.f")
+
+        rot_basename = [os.path.basename(file_path) for file_path in verilog_files]
+        
+        with open(VCS_filelist, 'r') as file:
+            with open(TLROT_filelist, 'w') as new_file:
+                for line in file:
+                    line = line.strip()
+                    file_name = line.split('/')[-1]
+                    new_line = f'/TLROT/{file_name}\n'
+                    new_file.write(new_line)
+                    if file_name not in rot_basename:
+                        print(f'{file_name} in TLROT missed!')
+
+        print(f'TLROT processed file names have been written to {TLROT_filelist}')
+            
 
 
