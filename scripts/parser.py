@@ -764,6 +764,7 @@ if __name__ == "__main__":
                     new_file.write(new_line)
                     if file_name not in rot_basename:
                         print(f'{file_name} in TLROT missed!')
+                new_file.write(f'/TLROT/TLROT_top.sv\n')
 
         print(f'TLROT processed file names have been written to {TLROT_filelist}')
             
