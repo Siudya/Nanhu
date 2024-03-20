@@ -711,9 +711,19 @@ if __name__ == "__main__":
     if module_prefix is not None:
         top_module = f"{module_prefix}{top_module}"
         ignore_modules += list(map(lambda x: module_prefix + x, ignore_modules))
-        ignore_modules.append(f"{module_prefix}TLROT_top")
+        ignore_modules.append(f"TLROT_top")
     else:  
         ignore_modules.append("TLROT_top")  
+
+    rot_path = './src/main/resources/TLROT/'
+
+    if os.path.exists(rot_path):
+        verilog_files = glob.glob(os.path.join(rot_path, '**/*.sv'), recursive=True)
+        for file_path in verilog_files:
+            file_name = os.path.basename(file_path)
+            if 'sram_array' in file_name:
+                copy(file_path, build_path)
+        print("Copy TLROT SRAM to build path done!")
 
 
     print(f"Top-level Module: {top_module} with prefix {module_prefix}")
@@ -725,16 +735,7 @@ if __name__ == "__main__":
 
     export_sram_files(out_dir,top_module)
 
-    rtl_dirs = [top_module]
-    extra_filelist_lines = []
-    if not args.no_sram_conf:
-        sram_conf = generate_sram_conf(collection, module_prefix, out_dir)
-        if not args.no_sram_xlsx:
-            create_sram_xlsx(out_dir, collection, sram_conf, top_module, try_prefix=module_prefix)
-    if not args.no_mbist_files:
-        copy_mbist_files(mbist_dir, build_path)
-
-    rot_path = './src/main/resources/TLROT/'
+    
 
     if os.path.exists(rot_path):
         rot_rtl_dir = os.path.join(out_dir, "TLROT")
@@ -745,7 +746,10 @@ if __name__ == "__main__":
                 glob.glob(os.path.join(rot_path, '**/*.svh'), recursive=True)
         for file_path in verilog_files:
             file_name = os.path.basename(file_path)
-            destination_path = os.path.join(rot_rtl_dir, file_name)
+            if 'sram_array' not in file_name:
+                destination_path = os.path.join(rot_rtl_dir, file_name)
+            else:
+                destination_path = os.path.join(out_dir, "SRAM")
             copy(file_path, destination_path)
         print("Copy TLROT files done!")
 
@@ -757,16 +761,34 @@ if __name__ == "__main__":
         
         with open(VCS_filelist, 'r') as file:
             with open(TLROT_filelist, 'w') as new_file:
-                for line in file:
-                    line = line.strip()
-                    file_name = line.split('/')[-1]
-                    new_line = f'/TLROT/{file_name}\n'
-                    new_file.write(new_line)
-                    if file_name not in rot_basename:
-                        print(f'{file_name} in TLROT missed!')
-                new_file.write(f'/TLROT/TLROT_top.sv\n')
+                with open(os.path.join(out_dir,"cpu_srams.f"),'a') as sram_file:
+                    for line in file:
+                        line = line.strip()
+                        file_name = line.split('/')[-1]
+                        if 'sram_array' not in file_name:
+                            new_line = f'/TLROT/{file_name}\n'
+                            new_file.write(new_line)
+                        else:
+                            new_line = f'SRAM/{file_name}\n'
+                            sram_file.write(new_line)
+                        if file_name not in rot_basename:
+                            print(f'{file_name} in TLROT missed!')
+                    new_file.write(f'/TLROT/TLROT_top.sv\n')
+        
+
 
         print(f'TLROT processed file names have been written to {TLROT_filelist}')
+
+    rtl_dirs = [top_module]
+    extra_filelist_lines = []
+    if not args.no_sram_conf:
+        sram_conf = generate_sram_conf(collection, module_prefix, out_dir)
+        if not args.no_sram_xlsx:
+            create_sram_xlsx(out_dir, collection, sram_conf, top_module, try_prefix=module_prefix)
+    if not args.no_mbist_files:
+        copy_mbist_files(mbist_dir, build_path)
+
+    
             
 
 
