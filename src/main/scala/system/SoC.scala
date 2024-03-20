@@ -94,6 +94,23 @@ abstract class BaseSoC()(implicit p: Parameters) extends LazyModule with HasSoCP
   val peripheralXbar = TLXbar()
   val l3_xbar = TLXbar()
   val l3_banked_xbar = TLXbar()
+
+  val memRange = Seq(
+    AddressSet(0x0080000000L, 0x07FFFFFFFL),
+    AddressSet(0x0100000000L, 0x0FFFFFFFFL),
+    AddressSet(0x0200000000L, 0x1FFFFFFFFL),
+    AddressSet(0x0400000000L, 0x3FFFFFFFFL),
+    AddressSet(0x0800000000L, 0x7FFFFFFFFL),
+    AddressSet(0x1000000000L, 0x07FFFFFFFL)
+  )
+  val periRange = Seq(
+    AddressSet(0x0000000000L, 0x07FFFFFFFL),
+    AddressSet(0x1080000000L, 0x07FFFFFFFL),
+    AddressSet(0x1100000000L, 0x0FFFFFFFFL),
+    AddressSet(0x1200000000L, 0x1FFFFFFFFL),
+    AddressSet(0x1400000000L, 0x3FFFFFFFFL),
+    AddressSet(0x1800000000L, 0x7FFFFFFFFL),
+  )
 }
 
 // We adapt the following three traits from rocket-chip.
@@ -135,9 +152,6 @@ trait HaveSlaveAXI4Port {
 trait HaveAXI4MemPort {
   this: BaseSoC =>
   val device = new MemoryDevice
-
-  val memAddrMask = (1L << PAddrBits) - 1L
-  val memRange = AddressSet(0x00000000L, memAddrMask).subtract(AddressSet(0x00000000L, 0x7FFFFFFFL))
   val memAXI4SlaveNode = AXI4SlaveNode(Seq(
     AXI4SlavePortParameters(
       slaves = Seq(
@@ -183,7 +197,7 @@ trait HaveAXI4MemPort {
 trait HaveAXI4PeripheralPort { this: BaseSoC =>
   // on-chip devices: 0x3800_0000 - 0x3fff_ffff 0x0000_0000 - 0x0000_0fff
   val onChipPeripheralRange = AddressSet(0x38000000L, 0x07ffffffL)
-  val uartRange = AddressSet(0x40600000, 0xf)
+  val uartRange = AddressSet(0x40600000L, 0xFFFF)
   val uartDevice = new SimpleDevice("serial", Seq("xilinx,uartlite"))
   val uartParams = AXI4SlaveParameters(
     address = Seq(uartRange),
@@ -193,7 +207,9 @@ trait HaveAXI4PeripheralPort { this: BaseSoC =>
     resources = uartDevice.reg
   )
 
-  val peripheralRange = AddressSet(0x00000000L, 0x7FFFFFFFL).subtract(onChipPeripheralRange).flatMap(x => x.subtract(uartRange))
+  val peripheralRange = periRange
+    .flatMap(_.subtract(onChipPeripheralRange))
+    .flatMap(_.subtract(uartRange))
   val peripheralNode = AXI4SlaveNode(Seq(AXI4SlavePortParameters(
     Seq(AXI4SlaveParameters(
       address = peripheralRange,
