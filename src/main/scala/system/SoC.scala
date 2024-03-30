@@ -334,10 +334,12 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     val rtc_clock = IO(Input(Bool()))
     private val rst_sync = ResetGen(2, Some(dfx_reset))
     debugModule.module.io <> debug_module_io
+    dontTouch(debug_module_io.resetCtrl.hartIsInReset)
     debugModule.module.io.clock := clock.asBool
     debugModule.module.io.reset := rst_sync
     debugModule.module.io.debugIO.clock := clock
     debugModule.module.io.debugIO.reset := rst_sync
+    debugModule.module.io.resetCtrl.hartIsInReset.foreach(r => r := rst_sync.asBool)
     plic.module.reset := rst_sync
     clint.module.reset := rst_sync
     managerBuffer.module.reset := rst_sync
