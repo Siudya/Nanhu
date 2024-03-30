@@ -59,7 +59,7 @@ class DebugModuleImp(outer:DebugModule, numCores: Int) extends LazyRawModuleImp(
   debug.module.io.tl_reset := io.reset // this should be TL reset
   debug.module.io.tl_clock := io.clock.asClock // this should be TL clock
   withClock(io.clock.asClock) {
-    debug.module.io.hartIsInReset := RegNext(io.resetCtrl.hartIsInReset)
+    debug.module.io.hartIsInReset := RegNext(RegNext(RegNext(io.resetCtrl.hartIsInReset)))
   }
   io.resetCtrl.hartResetReq.foreach { rcio => debug.module.io.hartResetReq.foreach { rcdm => rcio := rcdm } }
 
