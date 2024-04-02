@@ -273,6 +273,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   val dfx_reset = IO(Input(new DFTResetSignals()))
   val rtc_clock = IO(Input(Bool()))
   val ROMInitEn = IO(Output(Bool()))
+  val scan_mode = IO(Input(Bool()))
 
   val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
   val dft = if (p(SoCParamsKey).hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
@@ -307,6 +308,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   outer.periCx.module.dfx_reset := dfx_reset
   outer.periCx.module.rtc_clock := rtc_clock
   ROMInitEn := outer.periCx.module.ROMInitEn
+  outer.periCx.module.scan_mode := scan_mode
 }
 
 class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCParameter {
@@ -349,6 +351,7 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     val dfx_reset = IO(Input(new DFTResetSignals()))
     val rtc_clock = IO(Input(Bool()))
     val ROMInitEn = IO(Output(Bool()))
+    val scan_mode = IO(Input(Bool()))
     private val rst_sync = ResetGen(2, Some(dfx_reset))
     debugModule.module.io <> debug_module_io
     debugModule.module.io.clock := clock.asBool
@@ -367,11 +370,18 @@ class MiscPeriComplex(implicit p: Parameters) extends LazyModule with HasSoCPara
     managerBuffer.module.reset := rst_sync
 
     tlrot.module.io_rot.clock := clock
-    val rst_ctrl = rst_sync.asBool | rot_rstmgr.module.io.ctrl
+    // val rst_ctrl = rst_sync.asBool | (rot_rstmgr.module.io.ctrl | scan_mode)
+    val rst_ctrl = Wire(Bool())
+    when(scan_mode) {
+      rst_ctrl := rst_sync.asBool
+    } .otherwise {
+      rst_ctrl := rst_sync.asBool | rot_rstmgr.module.io.ctrl
+    }
     tlrot.module.io_rot.key0 := rot_rstmgr.module.io.key
     tlrot.module.io_rot.key_valid := rot_rstmgr.module.io.key_valid
     tlrot.module.io_rot.reset := rst_ctrl
     ROMInitEn := tlrot.module.io_rot.ROMInitEn
+    tlrot.module.io_rot.scan_mode := scan_mode 
 
     // sync external interrupts
     withReset(rst_sync) {

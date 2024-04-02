@@ -66,6 +66,7 @@ class TLROT_top extends BlackBox with HasBlackBoxResource {
     // val rst_ni = Input(AsyncReset())
     val rst_ni = Input(Bool())
     val ROMInitEn = Output(Bool())
+    val scan_mode = Input(Bool())
     // val tl_i = Input(new TlH2d())
     // val tl_o = Output(new TlD2h())
 
@@ -216,6 +217,7 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
       val ROMInitEn = Output(Bool())
       val key0 = Input(UInt(256.W))
       val key_valid = Input(Bool())
+      val scan_mode = Input(Bool())
       // val intr = Output(new interruptIO)
 
       // val intr_hmac_hmac_done_o = Output(Bool()) 
@@ -333,6 +335,7 @@ class TLROT_blackbox(implicit p: Parameters) extends LazyModule {
     // in.d.ready := tlrot.io.tl_o.ready 
     tlrot.io.clk_i := io_rot.clock
     io_rot.ROMInitEn := tlrot.io.ROMInitEn
+    tlrot.io.scan_mode := io_rot.scan_mode
 
     tlrot.io.key0 := io_rot.key0
     tlrot.io.key_valid := io_rot.key_valid

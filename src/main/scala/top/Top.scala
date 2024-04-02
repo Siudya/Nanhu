@@ -162,6 +162,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     dfx_reset.lgc_rst_n := dft_lgc_rst_n
     dfx_reset.mode := dft_mode
     dfx_reset.scan_mode := scan_mode
+    misc.module.scan_mode := scan_mode
 
     val reset_sync = withClockAndReset(io.clock.asClock, io.reset) {
       ResetGen(2, Some(dfx_reset))

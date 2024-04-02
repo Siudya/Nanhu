@@ -798,18 +798,19 @@ if __name__ == "__main__":
         
         with open(VCS_filelist, 'r') as file:
             with open(TLROT_filelist, 'w') as new_file:
+                new_file.write(f'+incdir+$root_data_path_/TLROT\n')
                 for line in file:
                     line = line.strip()
                     file_name = line.split('/')[-1]
                     if 'sram_array' not in file_name:
-                        new_line = f'/TLROT/{file_name}\n'
+                        new_line = f'$root_data_path_/TLROT/{file_name}\n'
                         new_file.write(new_line)
                     if file_name not in rot_basename:
                         print(f'{file_name} in TLROT missed!')
                 if module_prefix is not None:
-                    new_file.write(f'/TLROT/{module_prefix}TLROT_top.sv\n')
+                    new_file.write(f'$root_data_path_/TLROT/{module_prefix}TLROT_top.sv\n')
                 else:
-                    new_file.write(f'/TLROT/TLROT_top.sv\n')
+                    new_file.write(f'$root_data_path_/TLROT/TLROT_top.sv\n')
         
         print(f'TLROT processed file names have been written to {TLROT_filelist}')
 

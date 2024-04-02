@@ -25,6 +25,7 @@ SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).sv
 SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
 TEST_FILE = $(shell find ./src/test/scala -name '*.scala')
 MEM_GEN = ./scripts/vlsi_mem_gen
+ROT_VMEM_DIR = $(CURDIR)/src/main/resources/TLROT/test.vmem
 
 SIMTOP  = top.SimTop
 IMAGE  ?= temp
@@ -85,7 +86,12 @@ endif
 help:
 	mill -i XiangShan.test.runMain $(SIMTOP) --xs-help
 
-$(TOP_V): $(SCALA_FILE)
+update-vmem-path:
+	@sed -i 's|parameter RomCtrlBootRomInitFile = ".*"|parameter RomCtrlBootRomInitFile = "$(ROT_VMEM_DIR)"|' \
+	     src/main/resources/TLROT/src/lowrisc_systems_rot_top_0.1/rtl/rot_top.sv
+	@echo "Change ROT vmem init file to $(ROT_VMEM_DIR)"
+
+$(TOP_V): $(SCALA_FILE) update-vmem-path
 	mkdir -p $(@D)
 	time -o $(@D)/time.log mill -i XiangShan.runMain $(FPGATOP) -td $(@D) \
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
@@ -210,5 +216,5 @@ simv-run: sim-verilog
 verdi:
 	cd sim/rtl/$(RUN_BIN) && verdi -sv -2001 +verilog2001ext+v +systemverilogext+v -ssf tb_top.vf -dbdir simv.daidir -f sim_flist.f
 
-.PHONY: verilog sim-verilog emu clean help init bump bsp $(REF_SO)
+.PHONY: verilog sim-verilog emu clean help init bump bsp $(REF_SO) update-vmem-path
 
