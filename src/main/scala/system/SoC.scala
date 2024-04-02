@@ -273,7 +273,6 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   val dfx_reset = IO(Input(new DFTResetSignals()))
   val rtc_clock = IO(Input(Bool()))
   val ROMInitEn = IO(Output(Bool()))
-  val scan_mode = IO(Input(Bool()))
 
   val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
   val dft = if (p(SoCParamsKey).hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
@@ -308,7 +307,6 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   outer.periCx.module.dfx_reset := dfx_reset
   outer.periCx.module.rtc_clock := rtc_clock
   ROMInitEn := outer.periCx.module.ROMInitEn
-  outer.periCx.module.scan_mode := scan_mode
 }
 
 class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends LazyModule with HasSoCParameter {
@@ -368,7 +366,6 @@ class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends 
     val dfx_reset = IO(Input(new DFTResetSignals()))
     val rtc_clock = IO(Input(Bool()))
     val ROMInitEn = IO(Output(Bool()))
-    val scan_mode = IO(Input(Bool()))
     private val rst_sync = ResetGen(2, Some(dfx_reset))
     debugModule.module.io <> debug_module_io
     debugModule.module.io.clock := clock.asBool
@@ -392,7 +389,7 @@ class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends 
 
     rot_rstmgr.foreach { rstmgr =>
       val rst_ctrl = Wire(Bool())
-      when(scan_mode) {
+      when(dfx_reset.scan_mode) {
         rst_ctrl := rst_sync.asBool
       }.otherwise {
         rst_ctrl := rst_sync.asBool | rstmgr.module.io.ctrl
@@ -402,7 +399,7 @@ class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends 
       tlrot.get.module.io_rot.key_valid := rstmgr.module.io.key_valid
       tlrot.get.module.io_rot.reset := rst_ctrl
       ROMInitEn := tlrot.get.module.io_rot.ROMInitEn
-      tlrot.get.module.io_rot.scan_mode := scan_mode
+      tlrot.get.module.io_rot.scan_mode := dfx_reset.scan_mode
     }
 
     if (tlrot.isEmpty) {
