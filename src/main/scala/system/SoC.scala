@@ -341,17 +341,6 @@ class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends 
 
   plic.intnode := intSourceNode
 
-  // if (includeROT) {
-  //   // ROT
-  //   val rot_rstmgr = LazyModule(new ROT_rstmgr)
-  //   rot_rstmgr.node :*= managerBuffer.node
-    
-  //   val tlrot = LazyModule(new TLROT_blackbox)
-  //   tlrot.node := TLFragmenter(4, 8) := TLWidthWidget(8) :*= managerBuffer.node
-  //   tlrot.node_rom :*= managerBuffer.node
-  // } else {
-  //   None
-  // }
 
   val rot_rstmgr: Option[ROT_rstmgr] = if (includeROT) {
     // ROT
@@ -396,24 +385,6 @@ class MiscPeriComplex(includeROT: Boolean=true)(implicit p: Parameters) extends 
     plic.module.reset := rst_sync
     clint.module.reset := rst_sync
     managerBuffer.module.reset := rst_sync
-
-    // if (includeROT) {
-    //   tlrot.module.io_rot.clock := clock
-    //   // val rst_ctrl = rst_sync.asBool | (rot_rstmgr.module.io.ctrl | scan_mode)
-    //   val rst_ctrl = Wire(Bool())
-    //   when(scan_mode) {
-    //     rst_ctrl := rst_sync.asBool
-    //   } .otherwise {
-    //     rst_ctrl := rst_sync.asBool | rot_rstmgr.module.io.ctrl
-    //   }
-    //   tlrot.module.io_rot.key0 := rot_rstmgr.module.io.key
-    //   tlrot.module.io_rot.key_valid := rot_rstmgr.module.io.key_valid
-    //   tlrot.module.io_rot.reset := rst_ctrl
-    //   ROMInitEn := tlrot.module.io_rot.ROMInitEn
-    //   tlrot.module.io_rot.scan_mode := scan_mode 
-    // } else {
-    //   ROMInitEn := true.B
-    // }
 
     tlrot.foreach { rot =>
       rot.module.io_rot.clock := clock
