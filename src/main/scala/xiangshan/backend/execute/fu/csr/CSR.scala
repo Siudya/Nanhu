@@ -181,7 +181,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   }
 
   class Interrupt extends Bundle {
-//  val d = Output(Bool())    // Debug
+    val lcof = Bool() // Local Count OverFlow
     val e = new Priv
     val t = new Priv
     val s = new Priv
@@ -251,7 +251,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // mtvec: {BASE (WARL), MODE (WARL)} where mode is 0 or 1
   val mtvecMask = ~(0x2.U(XLEN.W))
   val mtvec = RegInit(UInt(XLEN.W), 0.U)
-  val mcounteren = RegInit(UInt(XLEN.W), 0.U)
+  val mcounteren = RegInit(UInt(32.W), 0.U)
   val mcause = RegInit(UInt(XLEN.W), 0.U)
   val mtval = RegInit(UInt(XLEN.W), 0.U)
   val mepc = Reg(UInt(XLEN.W))
@@ -396,8 +396,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val stvec = RegInit(UInt(XLEN.W), 0.U)
 
   // val sie = RegInit(0.U(XLEN.W))
-  val sieMask = "h222".U & mideleg
-  val sipMask = "h222".U & mideleg
+  val sieMask = "h1222".U & mideleg
+  val sipMask = "h1222".U & mideleg
   val sipWMask = "h2".U(XLEN.W) & mideleg // ssip is writeable in smode
   val satp = if(EnbaleTlbDebug) RegInit(UInt(XLEN.W), "h8000000000087fbe".U) else RegInit(0.U(XLEN.W))
   // val satp = RegInit(UInt(XLEN.W), "h8000000000087fbe".U) // only use for tlb naive debug
@@ -669,18 +669,22 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // Hart Priviledge Mode
   val priviledgeMode = RegInit(UInt(2.W), ModeM)
 
-  //val perfEventscounten = List.fill(nrPerfCnts)(RegInit(false(Bool())))
   // Perf Counter
   val nrPerfCnts = 29  // 3...31
   val priviledgeModeOH = UIntToOH(priviledgeMode)
-  val perfEventscounten = RegInit(0.U.asTypeOf(Vec(nrPerfCnts, Bool())))
-  val perfCnts   = List.fill(nrPerfCnts)(RegInit(0.U(XLEN.W)))
-  val perfEvents = List.fill(8)(RegInit("h0000000000".U(XLEN.W))) ++
-                   List.fill(8)(RegInit("h4010040100".U(XLEN.W))) ++
-                   List.fill(8)(RegInit("h8020080200".U(XLEN.W))) ++
-                   List.fill(5)(RegInit("hc0300c0300".U(XLEN.W)))
-  for (i <-0 until nrPerfCnts) {
-    perfEventscounten(i) := (perfEvents(i)(63,60) & priviledgeModeOH).orR
+  val modeInhibit = RegInit(0.U.asTypeOf(Vec(nrPerfCnts, Bool())))
+  val mhpmcounter = List.fill(nrPerfCnts)(RegInit(0.U(XLEN.W)))
+  val mhpmevent = List.fill(8)(RegInit("h0000000000".U(XLEN.W))) ++
+                  List.fill(8)(RegInit("h4010040100".U(XLEN.W))) ++
+                  List.fill(8)(RegInit("h8020080200".U(XLEN.W))) ++
+                  List.fill(5)(RegInit("hc0300c0300".U(XLEN.W)))
+  val scountovf = RegInit(UInt(32.W), 0.U)
+  val scountovfs = WireInit(VecInit.fill(29)(false.B))
+  scountovf := scountovfs.asUInt ## 0.U(3.W)
+
+  for (i <- 0 until nrPerfCnts) {
+    val mode = priviledgeModeOH(3) ## (priviledgeModeOH(2) || priviledgeModeOH(1)) ## priviledgeModeOH(0)
+    modeInhibit(i) := (mhpmevent(i)(62,60) & mode).orR
   }
 
   val hpmEvents = Wire(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
@@ -696,7 +700,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     }
   }
 
-  val csrevents = perfEvents.slice(24, 29)
+  val csrevents = mhpmevent.slice(24, 29)
   val hpm_hc = HPerfMonitor(csrevents, hpmEvents)
   val mcountinhibit = RegInit(0.U(XLEN.W))
   val mcycle = RegInit(0.U(XLEN.W))
@@ -708,8 +712,15 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
                     hpm_hc.getPerf
   minstret := Mux(mcountinhibit(2), minstret, minstret + RegNext(csrio.perf.retiredInstr))
   for(i <- 0 until 29){
-    perfCnts(i) := Mux(mcountinhibit(i+3) | !perfEventscounten(i), perfCnts(i), perfCnts(i) + perf_events(i).value)
+    val nextCounter = Mux(mcountinhibit(i+3) | modeInhibit(i), mhpmcounter(i), mhpmcounter(i) +& perf_events(i).value)
+    val overflow = nextCounter(64)
+    mhpmcounter(i) := nextCounter(63,0)
+    when(overflow) {
+      mhpmevent(i) := (true.B << (XLEN-1)) | mhpmevent(i)
+      scountovfs(i) := true.B || scountovf(i+3)
+    }
   }
+  mipWire.lcof := mhpmevent.map(event => event(63)).reduce(_ || _)
 
   // CSR reg map
   val basicPrivMapping = Map(
@@ -728,6 +739,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     MaskedRegMap(Sie, mie, sieMask, MaskedRegMap.NoSideEffect, sieMask),
     MaskedRegMap(Stvec, stvec, stvecMask, MaskedRegMap.NoSideEffect, stvecMask),
     MaskedRegMap(Scounteren, scounteren),
+    MaskedRegMap(Scountovf, scountovf, 0.U(XLEN.W), MaskedRegMap.Unwritable),
 
     //--- Supervisor Trap Handling ---
     MaskedRegMap(Sscratch, sscratch),
@@ -759,7 +771,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     MaskedRegMap(Mstatus, mstatus, mstatusWMask, mstatusUpdateSideEffect, mstatusMask),
     MaskedRegMap(Misa, misa, 0.U, MaskedRegMap.Unwritable), // now whole misa is unchangeable
     MaskedRegMap(Medeleg, medeleg, "hff00b3ff".U(XLEN.W)),
-    MaskedRegMap(Mideleg, mideleg, "h222".U(XLEN.W)),
+    MaskedRegMap(Mideleg, mideleg, "h1222".U(XLEN.W)),
     MaskedRegMap(Mie, mie, "haaa".U(XLEN.W)),
     MaskedRegMap(Mtvec, mtvec, mtvecMask, MaskedRegMap.NoSideEffect, mtvecMask),
     MaskedRegMap(Mcounteren, mcounteren),
@@ -793,21 +805,10 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   )
 
   val perfCntMapping = (0 until 29).map(i => {Map(
-    MaskedRegMap(addr = Mhpmevent3 +i,
-                 reg  = perfEvents(i),
-                 wmask = "hf87fff3fcff3fcff".U(XLEN.W)),
-    MaskedRegMap(addr = Mhpmcounter3 +i,
-                 reg  = perfCnts(i)),
-    MaskedRegMap(addr = Hpmcounter3 + i,
-                 reg  = perfCnts(i))
+    MaskedRegMap(Mhpmevent3 + i,   mhpmevent(i), wmask = "h7fffff3fcff3fcff".U(XLEN.W), rmask = "hffffff3fcff3fcff".U(XLEN.W)),
+    MaskedRegMap(Mhpmcounter3 + i, mhpmcounter(i)),
+    MaskedRegMap(Hpmcounter3 + i,  mhpmcounter(i))
   )}).fold(Map())((a,b) => a ++ b)
-  // TODO: mechanism should be implemented later
-  // val MhpmcounterStart = Mhpmcounter3
-  // val MhpmeventStart   = Mhpmevent3
-  // for (i <- 0 until nrPerfCnts) {
-  //   perfCntMapping += MaskedRegMap(MhpmcounterStart + i, perfCnts(i))
-  //   perfCntMapping += MaskedRegMap(MhpmeventStart + i, perfEvents(i))
-  // }
 
   val cacheopRegs = CacheInstrucion.CacheInsRegisterList.map{case (name, attribute) => {
     name -> RegInit(0.U(attribute("width").toInt.W))
@@ -1098,11 +1099,11 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val debugIntr = csrio.externalInterrupt.debug & debugIntrEnable
   XSDebug(debugIntr, "Debug Mode: debug interrupt is asserted and valid!")
   // send interrupt information to ROB
-  val intrVecEnable = Wire(Vec(12, Bool()))
+  val intrVecEnable = Wire(Vec(13, Bool()))
   val disableInterrupt = debugMode || (dcsrData.step && !dcsrData.stepie)
-  intrVecEnable.zip(ideleg.asBools).map{case(x,y) => x := priviledgedEnableDetect(y) && !disableInterrupt}
-  val intrVec = Cat(debugIntr && !debugMode, (mie(11,0) & mip.asUInt & intrVecEnable.asUInt))
-  val mintrVec = intrVec & (~mideleg(12, 0))
+  intrVecEnable.zip(ideleg.asBools).foreach{ case(x,y) => x := priviledgedEnableDetect(y) && !disableInterrupt }
+  val intrVec = Cat(debugIntr && !debugMode, (mie(13,0) & mip.asUInt & intrVecEnable.asUInt))
+  val mintrVec = intrVec & (~mideleg(13, 0)).asUInt
   val mintrNO = IntPriority.foldRight(0.U)((i: Int, sum: UInt) => Mux(mintrVec(i), i.U, sum))
   val intrBitSet = intrVec.orR
   csrio.interrupt := intrBitSet
@@ -1110,7 +1111,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   // The WFI instruction can also be executed when interrupts are disabled. The operation of WFI
   // must be unaffected by the global interrupt bits in mstatus (MIE and SIE) and the delegation
   // register mideleg, but should honor the individual interrupt enables (e.g, MTIE).
-  csrio.wfi_event := debugIntr || (mie(11, 0) & mip.asUInt).orR
+  csrio.wfi_event := debugIntr || (mie(13, 0) & mip.asUInt).orR
   mipWire.t.m := csrio.externalInterrupt.mtip
   mipWire.s.m := csrio.externalInterrupt.msip
   mipWire.e.m := csrio.externalInterrupt.meip
@@ -1446,20 +1447,20 @@ class PFEvent(implicit p: Parameters) extends XSModule with HasCSRConst  {
 
   val w = io.distribute_csr.w
 
-  val perfEvents = List.fill(8)(RegInit("h0000000000".U(XLEN.W))) ++
+  val mhpmevent = List.fill(8)(RegInit("h0000000000".U(XLEN.W))) ++
                    List.fill(8)(RegInit("h4010040100".U(XLEN.W))) ++
                    List.fill(8)(RegInit("h8020080200".U(XLEN.W))) ++
                    List.fill(5)(RegInit("hc0300c0300".U(XLEN.W)))
 
   val perfEventMapping = (0 until 29).map(i => {Map(
     MaskedRegMap(addr = Mhpmevent3 +i,
-                 reg  = perfEvents(i),
-                 wmask = "hf87fff3fcff3fcff".U(XLEN.W))
+                 reg  = mhpmevent(i),
+                 wmask = "h7fffff3fcff3fcff".U(XLEN.W))
   )}).fold(Map())((a,b) => a ++ b)
 
   val rdata = Wire(UInt(XLEN.W))
   MaskedRegMap.generate(perfEventMapping, w.bits.addr, rdata, w.valid, w.bits.data)
   for(i <- 0 until 29){
-    io.hpmevent(i) := perfEvents(i)
+    io.hpmevent(i) := mhpmevent(i)
   }
 }

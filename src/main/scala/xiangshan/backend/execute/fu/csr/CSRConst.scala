@@ -62,6 +62,9 @@ trait HasCSRConst {
   val FDIJmpCfgBase = 0x8c8
   val FDIJmpBoundBase = 0x8c0
 
+  // Supervisor Count Overflow
+  val Scountovf = 0xDA0
+
   // Supervisor Trap Setup
   val Sstatus       = 0x100
   val Sie           = 0x104
@@ -239,6 +242,8 @@ trait HasCSRConst {
 
   def IRQ_DEBUG = 12
 
+  def IRQ_OVERFLOW = 13
+
   val Satp_Mode_len = 4
   val Satp_Asid_len = 16
   val Satp_Addr_len = 44
@@ -251,7 +256,8 @@ trait HasCSRConst {
     IRQ_DEBUG,
     IRQ_MEIP, IRQ_MSIP, IRQ_MTIP,
     IRQ_SEIP, IRQ_SSIP, IRQ_STIP,
-    IRQ_UEIP, IRQ_USIP, IRQ_UTIP
+    IRQ_UEIP, IRQ_USIP, IRQ_UTIP,
+    IRQ_OVERFLOW
   )
 
   def csrAccessPermissionCheck(addr: UInt, wen: Bool, mode: UInt): Bool = {
