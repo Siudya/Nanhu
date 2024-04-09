@@ -347,6 +347,6 @@ class DefaultConfig(n: Int = 1) extends Config(
   new WithNKBL3(128, inclusive = false, banks = 1, ways = 8, core_num = n)
     ++ new WithNKBL2(128, inclusive = false, banks = 1, ways = 8, alwaysReleaseData = true)
     ++ new WithNKBL1D(32)
-    ++ new BaseConfig(n)
+    ++ new BaseConfig(n, false)
 )
 
