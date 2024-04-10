@@ -189,7 +189,7 @@ trait PMAMethod extends PMAConst {
       mask_list.append(genMask(addr, a))
     }
 
-    addPMA(0x480000000L, c = true, atomic = true, a = 1, x = true, w = true, r = true)
+    addPMA(0x1000000000L, c = true, atomic = true, a = 1, x = true, w = true, r = true)
     addPMA(0x80000000L, a = 1, x=true, w = true, r = true)
     addPMA(0)
     while (cfg_list.length < 16) {
