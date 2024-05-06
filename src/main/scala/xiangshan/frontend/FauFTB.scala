@@ -119,7 +119,8 @@ class FauFTB(implicit p: Parameters) extends BasePredictor with FauFTBParams {
   private val fauftbEnable = RegNext(dup(io.ctrl.ubtb_enable))
 
   class FauFTBMeta(implicit p: Parameters) extends XSBundle with FauFTBParams {
-    val predWay = UInt(log2Ceil(numWays).W)
+    //val predWay = UInt(log2Ceil(numWays).W)
+    val pred_way = if (!env.FPGAPlatform) Some(UInt(log2Ceil(numWays).W)) else None
     val hit = Bool()
   }
   val respMeta = Wire(new FauFTBMeta)
@@ -162,7 +163,8 @@ class FauFTB(implicit p: Parameters) extends BasePredictor with FauFTBParams {
   io.out.s1.fullPred.zip(fauftbEnable).foreach {case (fp, en) => fp.hit := s1_hit && en}
 
   respMeta.hit := RegEnable(RegEnable(s1_hit, io.s1_fire(dupForUbtb)), io.s2_fire(dupForUbtb))
-  respMeta.predWay := RegEnable(RegEnable(s1_hitWay, io.s1_fire(dupForUbtb)), io.s2_fire(dupForUbtb))
+  //respMeta.predWay := RegEnable(RegEnable(s1_hitWay, io.s1_fire(dupForUbtb)), io.s2_fire(dupForUbtb))
+  if(respMeta.pred_way.isDefined) {respMeta.pred_way.get := RegEnable(RegEnable(s1_hitWay, io.s1_fire(0)), io.s2_fire(0))}
   io.out.lastStageMeta := respMeta.asUInt
 
   private val s1_ftbEntry = Mux1H(s1_hitOH, banks.io.respEntries)
@@ -224,7 +226,15 @@ class FauFTB(implicit p: Parameters) extends BasePredictor with FauFTBParams {
   /** Performance counters */
   val s0_fire_next_cycle = RegNext(io.s0_fire(dupForUbtb))
   val u_pred_hit_way_map   = (0 until numWays).map(w => s0_fire_next_cycle && s1_hit && s1_hitWay === w.U)
-  val u_commit_hit_way_map = (0 until numWays).map(w => us.valid && u_meta.hit && u_meta.predWay === w.U)
+  //val u_commit_hit_way_map = (0 until numWays).map(w => us.valid && u_meta.hit && u_meta.predWay === w.U)
+
+  if(u_meta.pred_way.isDefined) {
+    val u_commit_hit_way_map = (0 until numWays).map(w => us.valid && u_meta.hit && u_meta.pred_way.get === w.U)
+    for (w <- 0 until numWays) {
+      XSPerfAccumulate(f"uftb_commit_hit_way_${w}", u_commit_hit_way_map(w))
+    }
+  }
+
   XSPerfAccumulate("uftb_read_hits",   s0_fire_next_cycle &&  s1_hit)
   XSPerfAccumulate("uftb_read_misses", s0_fire_next_cycle && !s1_hit)
   XSPerfAccumulate("uftb_commit_hits",   us.valid &&  u_meta.hit)
@@ -232,7 +242,7 @@ class FauFTB(implicit p: Parameters) extends BasePredictor with FauFTBParams {
   XSPerfAccumulate("uftb_commit_read_hit_pred_miss", us.valid && !u_meta.hit && u_s0_hitOH(0).orR)
   for (w <- 0 until numWays) {
     XSPerfAccumulate(f"uftb_pred_hit_way_${w}",   u_pred_hit_way_map(w))
-    XSPerfAccumulate(f"uftb_commit_hit_way_${w}", u_commit_hit_way_map(w))
+    //XSPerfAccumulate(f"uftb_commit_hit_way_${w}", u_commit_hit_way_map(w))
     XSPerfAccumulate(f"uftb_replace_way_${w}", !u_s1_hit(0) && u_s1_allocWay(0) === w.U)
   }
 

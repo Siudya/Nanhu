@@ -145,6 +145,7 @@ class FtqRedirectEntry(implicit p: Parameters) extends SpeculativeInfo {}
 
 class FtqMetaEntry(implicit p: Parameters) extends XSBundle with HasBPUConst {
   val meta = UInt(MaxMetaLength.W)
+  val ftb_entry = new FTBEntry
 }
 
 
@@ -493,6 +494,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   ftqMetaSram.io.wen := io.fromBpu.resp.bits.lastStage.valid(dupForFtq)
   ftqMetaSram.io.waddr := io.fromBpu.resp.bits.lastStage.ftqIdx.value
   ftqMetaSram.io.wdata.meta := io.fromBpu.resp.bits.lastStageMeta
+  ftqMetaSram.io.wdata.ftb_entry := io.fromBpu.resp.bits.lastStageFtbEntry
 
   val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
     MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistPipe")
@@ -501,7 +503,8 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   }
 
   //                                                            ifuRedirect + backendRedirect + commit
-  val ftbEntryMem = Module(new SyncDataModuleTemplate(new FTBEntry, FtqSize, 1+1+1, 1, "FtqEntry"))
+  val ftbEntryMem = Module(new SyncDataModuleTemplate(new FTBEntry_FtqMem, FtqSize, 1+1+1, 1, "FtqEntry"))
+  // val ftbEntryMem = Module(new SyncDataModuleTemplate(new FTBEntry, FtqSize, 1+1+1, 1, "FtqEntry"))
   ftbEntryMem.io.wen(0) := io.fromBpu.resp.bits.lastStage.valid(dupForFtq)
   ftbEntryMem.io.waddr(0) := io.fromBpu.resp.bits.lastStage.ftqIdx.value
   ftbEntryMem.io.wdata(0) := io.fromBpu.resp.bits.lastStageFtbEntry
@@ -999,9 +1002,9 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   val commitSpecInfo = ftqRedirectSram.io.rdata.last
   ftqMetaSram.io.ren(0) := canCommit
   ftqMetaSram.io.raddr(0) := commPtr.value
-  val commitMeta = ftqMetaSram.io.rdata(0)
+  val commitMeta = ftqMetaSram.io.rdata(0).meta
   ftbEntryMem.io.raddr.last := commPtr.value
-  val commitFtbEntry = ftbEntryMem.io.rdata.last
+  val commitFtbEntry = ftqMetaSram.io.rdata(0).ftb_entry
 
   // need one cycle to read mem and srams
   val doCommitPtr = RegNext(commPtr)
@@ -1052,7 +1055,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   val update = io.toBpu.update.bits
   update.falseHit   := commitHit === h_false_hit
   update.pc          := commitPcBundle.startAddr
-  update.meta        := commitMeta.meta
+  update.meta        := commitMeta
   update.cfi_idx     := commitCfi
   update.fullTarget := commitTarget
   update.fromStage  := commitStage
@@ -1163,7 +1166,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
     val misPred = commitMispredict(i)
     // val ghist = commitSpecInfo.ghist.predHist
     val histPtr = commitSpecInfo.histPtr
-    val predCycle = commitMeta.meta(63, 0)
+    val predCycle = commitMeta(63, 0)
     val target = commitTarget
 
     val brIdx = OHToUInt(Reverse(update_ftb_entry.brValid && update_ftb_entry.offset === i.U))

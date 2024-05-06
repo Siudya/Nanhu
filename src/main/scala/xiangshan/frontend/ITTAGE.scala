@@ -93,22 +93,25 @@ class ITTageUpdate(implicit p: Parameters) extends ITTageBundle {
 class ITTageMeta(implicit p: Parameters) extends XSBundle with ITTageParams{
   val provider = ValidUndirectioned(UInt(log2Ceil(ITTageNTables).W))
   val altProvider = ValidUndirectioned(UInt(log2Ceil(ITTageNTables).W))
-  val altDiffers = Bool()
+  //val altDiffers = Bool()
   val providerU = Bool()
   val providerCtr = UInt(ITTageCtrBits.W)
   val altProviderCtr = UInt(ITTageCtrBits.W)
   val allocate = ValidUndirectioned(UInt(log2Ceil(ITTageNTables).W))
-  val taken = Bool()
+  //val taken = Bool()
   val providerTarget = UInt(VAddrBits.W)
   val altProviderTarget = UInt(VAddrBits.W)
   // val scMeta = new SCMeta(EnableSC)
   // TODO: check if we need target info here
   val predCycle = if (!env.FPGAPlatform) Some(UInt(64.W)) else None
 
+  def altDiffers = Mux(altProvider.valid, altProviderCtr(ITTageCtrBits-1), true.B) =/= 1.B  
+
   override def toPrintable = {
     p"pvdr(v:${provider.valid} num:${provider.bits} ctr:$providerCtr u:$providerU tar:${Hexadecimal(providerTarget)}), " +
-    p"altpvdr(v:${altProvider.valid} num:${altProvider.bits}, ctr:$altProviderCtr, tar:${Hexadecimal(altProviderTarget)}), " +
-    p"altdiff:$altDiffers, alloc(v:${allocate.valid} num:${allocate.bits}), taken:$taken, cycle:${predCycle.getOrElse(0.U)}"
+    p"altpvdr(v:${altProvider.valid} num:${altProvider.bits}, ctr:$altProviderCtr, tar:${Hexadecimal(altProviderTarget)})"
+    // p"altpvdr(v:${altProvider.valid} num:${altProvider.bits}, ctr:$altProviderCtr, tar:${Hexadecimal(altProviderTarget)}), " +
+    // p"altdiff:$altDiffers, alloc(v:${allocate.valid} num:${allocate.bits}), taken:$taken, cycle:${predCycle.getOrElse(0.U)}"
   }
 }
 
@@ -335,7 +338,7 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val debug_pc_s2 = RegEnable(debug_pc_s1, s1_fire)
   val debug_pc_s3 = RegEnable(debug_pc_s2, s2_fire)
 
-  val s2_tageTaken         = Wire(Bool())
+  //val s2_tageTaken         = Wire(Bool())
   val s2_tageTarget        = Wire(UInt(VAddrBits.W))
   val s2_providerTarget    = Wire(UInt(VAddrBits.W))
   val s2_altProviderTarget = Wire(UInt(VAddrBits.W))
@@ -343,12 +346,12 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val s2_provider          = Wire(UInt(log2Ceil(ITTageNTables).W))
   val s2_altProvided       = Wire(Bool())
   val s2_altProvider       = Wire(UInt(log2Ceil(ITTageNTables).W))
-  val s2_finalAltPred      = Wire(Bool())
+  //val s2_finalAltPred      = Wire(Bool())
   val s2_providerU         = Wire(Bool())
   val s2_providerCtr       = Wire(UInt(ITTageCtrBits.W))
   val s2_altProviderCtr    = Wire(UInt(ITTageCtrBits.W))
 
-  val s3_tageTaken_dup     = io.s2_fire.map(f => RegEnable(s2_tageTaken, f))
+  //val s3_tageTaken_dup     = io.s2_fire.map(f => RegEnable(s2_tageTaken, f))
   val s3_tageTarget_dup    = io.s2_fire.map(f => RegEnable(s2_tageTarget, f))
   val s3_providerTarget    = RegEnable(s2_providerTarget, s2_fire)
   val s3_altProviderTarget = RegEnable(s2_altProviderTarget, s2_fire)
@@ -356,7 +359,7 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val s3_provider          = RegEnable(s2_provider, s2_fire)
   val s3_altProvided       = RegEnable(s2_altProvided, s2_fire)
   val s3_altProvider       = RegEnable(s2_altProvider, s2_fire)
-  val s3_finalAltPred      = RegEnable(s2_finalAltPred, s2_fire)
+  //val s3_finalAltPred      = RegEnable(s2_finalAltPred, s2_fire)
   val s3_providerU         = RegEnable(s2_providerU, s2_fire)
   val s3_providerCtr       = RegEnable(s2_providerCtr, s2_fire)
   val s3_altProviderCtr    = RegEnable(s2_altProviderCtr, s2_fire)
@@ -415,19 +418,19 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
   val altProviderInfo = selectedInfo.second
   val providerNull = providerInfo.ctr === 0.U
   
-  val basePred   = true.B
+  //val basePred   = true.B
   val baseTarget = io.in.bits.resp_in(0).s2.fullPred(dupForIttage).jalrTarget // use ftb pred as base target
   
-  s2_tageTaken := Mux1H(Seq(
-    // (provided && !providerNull, providerInfo.ctr(ITTageCtrBits-1)),
-    // (altProvided && providerNull, altProviderInfo.ctr(ITTageCtrBits-1)),
-    // (!provided || providerNull && !altProvided, basePred)
-    // #2276
-    (provided && !(providerNull && altProvided), true.B),
-    (altProvided && providerNull, true.B),
-    (!provided, basePred)
+  // s2_tageTaken := Mux1H(Seq(
+  //   // (provided && !providerNull, providerInfo.ctr(ITTageCtrBits-1)),
+  //   // (altProvided && providerNull, altProviderInfo.ctr(ITTageCtrBits-1)),
+  //   // (!provided || providerNull && !altProvided, basePred)
+  //   // #2276
+  //   (provided && !(providerNull && altProvided), true.B),
+  //   (altProvided && providerNull, true.B),
+  //   (!provided, basePred)
 
-  )) // TODO: reintroduce BIM
+  // )) // TODO: reintroduce BIM
   s2_tageTarget := Mux1H(Seq(
     // (provided && !providerNull, providerInfo.target),
     // #2276
@@ -435,7 +438,7 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
     (altProvided && providerNull, altProviderInfo.target),
     (!provided|| providerNull && !altProvided, baseTarget)
   ))
-  s2_finalAltPred := Mux(altProvided, altProviderInfo.ctr(ITTageCtrBits-1), basePred)
+  //s2_finalAltPred := Mux(altProvided, altProviderInfo.ctr(ITTageCtrBits-1), basePred)
   s2_provided       := provided
   s2_provider       := providerInfo.tableIdx
   s2_altProvided    := altProvided
@@ -448,22 +451,20 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
 
   XSDebug(s2_fire, p"hit_taken_jalr:")
 
-  for (fp & s3_tageTaken & s3_tageTarget <-
-    io.out.s3.fullPred zip s3_tageTaken_dup zip s3_tageTarget_dup)
+  for (fp  & s3_tageTarget <-
+    io.out.s3.fullPred  zip s3_tageTarget_dup)
     yield
-      when(s3_tageTaken) {
-        fp.jalrTarget := s3_tageTarget
-      }
+    fp.jalrTarget := s3_tageTarget
 
   resp_meta.provider.valid    := s3_provided
   resp_meta.provider.bits     := s3_provider
   resp_meta.altProvider.valid := s3_altProvided
   resp_meta.altProvider.bits  := s3_altProvider
-  resp_meta.altDiffers        := s3_finalAltPred =/= s3_tageTaken_dup(dupForIttage)
+  //resp_meta.altDiffers        := s3_finalAltPred =/= s3_tageTaken_dup(dupForIttage)
   resp_meta.providerU         := s3_providerU
   resp_meta.providerCtr       := s3_providerCtr
   resp_meta.altProviderCtr    := s3_altProviderCtr
-  resp_meta.taken             := s3_tageTaken_dup(dupForIttage)
+  //resp_meta.taken             := s3_tageTaken_dup(dupForIttage)
   resp_meta.providerTarget    := s3_providerTarget
   resp_meta.altProviderTarget := s3_altProviderTarget
   resp_meta.predCycle.foreach(_:= GTimer())
@@ -622,8 +623,8 @@ class ITTage(parentName:String = "Unknown")(implicit p: Parameters) extends Base
     val s2_resps = RegEnable(s1_resps, s1_fire)
     XSDebug("req: v=%d, pc=0x%x\n", s0_fire, s0_pc_dup(dupForIttage))
     XSDebug("s1_fire:%d, resp: pc=%x\n", s1_fire, debug_pc_s1)
-    XSDebug("s2_fireOnLastCycle: resp: pc=%x, target=%x, hit=%b, taken=%b\n",
-      debug_pc_s2, io.out.s2.target(dupForIttage), s2_provided, s2_tageTaken)
+    // XSDebug("s2_fireOnLastCycle: resp: pc=%x, target=%x, hit=%b\n",
+    //   debug_pc_s2, io.out.s2.target(dupForIttage), s2_provided)
     for (i <- 0 until ITTageNTables) {
       XSDebug("TageTable(%d): valids:%b, resp_ctrs:%b, resp_us:%b, target:%x\n",
         i.U, VecInit(s2_resps(i).valid).asUInt, s2_resps(i).bits.ctr,

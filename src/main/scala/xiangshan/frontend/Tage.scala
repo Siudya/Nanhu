@@ -103,9 +103,14 @@ class TageReq(implicit p: Parameters) extends TageBundle {
   val foldedHist = new AllFoldedHistories(foldedGHistInfos)
 }
 
-class TageResp(implicit p: Parameters) extends TageBundle {
-  val ctr    = UInt(TageCtrBits.W)
-  val u      = Bool()
+class TageResp_meta(implicit p: Parameters) extends TageBundle with TageParams {
+  val ctr = UInt(TageCtrBits.W)
+  val u = Bool()
+}
+
+class TageResp(implicit p: Parameters) extends TageResp_meta {
+  // val ctr    = UInt(TageCtrBits.W)
+  // val u      = Bool()
   val unconf = Bool()
   val wayIdx = UInt(2.W)
 }
@@ -127,12 +132,12 @@ class TageUpdate(implicit p: Parameters) extends TageBundle {
 class TageMeta(implicit p: Parameters) extends TageBundle with HasSCParameter
 {
   val providers     = ValidUndirectioned(UInt(log2Ceil(TageNTables).W))
-  val providerResps = new TageResp
+  val providerResps = new TageResp_meta
   val altUsed       = Bool()
-  val altDiffers    = Bool()
+  //val altDiffers    = Bool()
   val basecnts      = UInt(2.W)
   val allocates     = UInt(TageNTables.W)
-  val takens        = Bool()
+  //val takens        = Bool()
   val scMeta        = if (EnableSC) Some(new SCMeta(SCNTables)) else None
   val pred_cycle    = if (!env.FPGAPlatform) Some(UInt(64.W)) else None
   val use_alt_on_na = if (!env.FPGAPlatform) Some(Bool()) else None
@@ -140,6 +145,8 @@ class TageMeta(implicit p: Parameters) extends TageBundle with HasSCParameter
 
   def altPreds = basecnts(1)
   def allocateValid = allocates.orR
+  def altDiffers = basecnts(1) =/= providerResps.ctr(TageCtrBits - 1)
+  def takens = Mux(altUsed, basecnts(1), providerResps.ctr(TageCtrBits-1))
 }
 
 trait TBTParams extends HasXSParameter with TageParams {
@@ -529,7 +536,7 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   // meta
   val s1AllocMask  = VecInit(s1RespVec.map(resp => !resp.valid && !resp.bits.u)).asUInt &
     ~(LowerMask(UIntToOH(s1ProvideIdx, TageNTables)) & Fill(TageNTables, s1Provide.asUInt))
-  val s1altDiffer  = s1BaseCtr(1) =/= s1Resp.ctr(TageCtrBits - 1)
+  //val s1altDiffer  = s1BaseCtr(1) =/= s1Resp.ctr(TageCtrBits - 1)
   val s1UseAltOnNa = predAltCtr(alterCtrBits - 1) && s1Resp.unconf
   val s1HitWayIdx  = s1Resp.wayIdx
 
@@ -537,7 +544,7 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   val s2Provide     = RegEnable(s1Provide, false.B, io.s1_fire(1))
   val s2ProvideIdx  = RegEnable(s1ProvideIdx, 0.U.asTypeOf(s1ProvideIdx), io.s1_fire(1))
   val s2Resp        = RegEnable(s1Resp, 0.U.asTypeOf(s1Resp), io.s1_fire(1))
-  val s2altDiffer   = RegEnable(s1altDiffer, false.B, io.s1_fire(1))
+  //val s2altDiffer   = RegEnable(s1altDiffer, false.B, io.s1_fire(1))
   val s2AllocMask   = RegEnable(s1AllocMask, 0.U.asTypeOf(s1AllocMask), io.s1_fire(1))
   val s2PredCycle   = GTimer()
   val s2UseAltOnNa  = RegEnable(s1UseAltOnNa, 0.U.asTypeOf(s1UseAltOnNa), io.s1_fire(1))
@@ -548,7 +555,7 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   val s3ProvideIdx = RegEnable(s2ProvideIdx, 0.U.asTypeOf(s1ProvideIdx), io.s2_fire(1))
   val s3Resp       = RegEnable(s2Resp, 0.U.asTypeOf(s1Resp), io.s2_fire(1))
   val s3altUsed    = RegEnable(s2altUsed, false.B, io.s2_fire(1))
-  val s3altDiffer  = RegEnable(s2altDiffer, false.B, io.s2_fire(1))
+  //val s3altDiffer  = RegEnable(s2altDiffer, false.B, io.s2_fire(1))
   val s3baseCtr    = RegEnable(s2BaseCtr, 0.U, io.s2_fire(1))
   val s3AllocMask  = RegEnable(s2AllocMask, 0.U.asTypeOf(s2AllocMask), io.s2_fire(1))
   val s3PredCycle  = RegEnable(s2PredCycle, 0.U.asTypeOf(s2PredCycle), io.s2_fire(1))
@@ -559,10 +566,10 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
   tageMeta.providers.bits  := s3ProvideIdx
   tageMeta.providerResps   := s3Resp
   tageMeta.altUsed         := s3altUsed
-  tageMeta.altDiffers      := s3altDiffer
+  //tageMeta.altDiffers      := s3altDiffer
   tageMeta.basecnts        := s3baseCtr
   tageMeta.allocates       := s3AllocMask
-  tageMeta.takens          := s3PredTaken
+  //tageMeta.takens          := s3PredTaken
   tageMeta.pred_cycle.foreach(_ := s3PredCycle)
   tageMeta.use_alt_on_na.foreach(_ := s3UseAltOnNa)
   tageMeta.wayIdx             := s3HitWayIdx

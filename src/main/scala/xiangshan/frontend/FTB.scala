@@ -44,6 +44,30 @@ trait FTBParams extends HasXSParameter with HasBPUConst {
   def JMP_OFFSET_LEN = 20
 }
 
+//cut ftb_entry_mem area
+class FTBEntry_FtqMem(implicit p: Parameters) extends XSBundle with FTBParams with BPUUtils {
+  
+  /** Slot information */
+  val valid   = Bool()
+  val offset  = UInt(log2Ceil(PredictWidth).W)
+  val sharing = Bool()  // means is branch
+
+  /** Jump type */ //TODO: compat with sharing
+  val isCall      = Bool()
+  val isRet       = Bool()
+  val isJalr      = Bool()
+
+  def isJal: Bool = !isJalr
+
+  //def brValid: Bool  = this.valid && this.sharing
+  def jmpValid: Bool = this.valid && !this.sharing
+
+  def noEmptySlotForNewBr: Bool = this.valid
+  def newBrCanNotInsert(offset: UInt): Bool = this.valid && this.offset < offset
+  def brIsRecorded(offset: UInt): Bool = this.valid && this.sharing && this.offset === offset
+  def getBrMaskByOffset(offset: UInt) : Bool = this.valid && this.sharing && this.offset <= offset
+}
+
 class FTBEntry(implicit p: Parameters) extends XSBundle with FTBParams with BPUUtils {
   
   /** Slot information */
