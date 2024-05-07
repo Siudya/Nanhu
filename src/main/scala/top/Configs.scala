@@ -42,7 +42,7 @@ class BaseConfig(n: Int, mbist:Boolean = false) extends Config((site, here, up) 
   case XLen => 64
   case DebugOptionsKey => DebugOptions()
   case SoCParamsKey => SoCParameters(
-    hasShareBus = mbist, hasMbist = mbist
+    hasShareBus = mbist, hasMbist = mbist, hasRot = false
   )
   case PMParameKey => PMParameters()
   case XSTileKey => Seq.tabulate(n){
