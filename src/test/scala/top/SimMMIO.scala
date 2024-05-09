@@ -30,13 +30,6 @@ class SimMMIO(edge: AXI4EdgeParameters, dmaEdge: AXI4EdgeParameters)(implicit p:
 
   val flash = LazyModule(new AXI4Flash(Seq(AddressSet(0x10000000L, 0xfffffff))))
   val uart = LazyModule(new AXI4UART(Seq(AddressSet(0x40600000L, 0xf))))
-  // val vga = LazyModule(new AXI4VGA(
-  //   sim = false,
-  //   fbAddress = Seq(AddressSet(0x50000000L, 0x3fffffL)),
-  //   ctrlAddress = Seq(AddressSet(0x40001000L, 0x7L))
-  // ))
-  val sd = LazyModule(new AXI4DummySD(Seq(AddressSet(0x40002000L, 0xfff))))
-  val intrGen = LazyModule(new AXI4IntrGenerator(Seq(AddressSet(0x40070000L, 0x0000ffffL))))
   val dmaGen = LazyModule(new AXI4FakeDMA(Seq(AddressSet(0x37030000L, 0x0000ffffL)), dmaEdge.master))
 
   val axiBus = AXI4Xbar()
@@ -44,8 +37,6 @@ class SimMMIO(edge: AXI4EdgeParameters, dmaEdge: AXI4EdgeParameters)(implicit p:
   uart.node := axiBus
   // vga.node :*= axiBus
   flash.node := axiBus
-  sd.node := axiBus
-  intrGen.node := axiBus
   dmaGen.node := axiBus
 
   axiBus := node
@@ -66,6 +57,6 @@ class SimMMIO(edge: AXI4EdgeParameters, dmaEdge: AXI4EdgeParameters)(implicit p:
       val interrupt = new IntrGenIO
     })
     io.uart <> uart.module.io.extra.get
-    io.interrupt <> intrGen.module.io.extra.get
+    io.interrupt := 0.U.asTypeOf(io.interrupt)
   }
 }

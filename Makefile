@@ -36,6 +36,7 @@ ABS_WORK_DIR := $(shell pwd)
 RUN_BIN_DIR ?= $(ABS_WORK_DIR)/ready-to-run
 RUN_BIN ?= coremark-2-iteration
 CONSIDER_FSDB ?= 1
+PA ?= 0
 
 ifdef FLASH
 	RUN_OPTS := +flash=$(RUN_BIN_DIR)/$(RUN_BIN)
@@ -69,7 +70,7 @@ ARG_PREFIX =
 endif
 
 # emu for the release version
-RELEASE_ARGS = --fpga-platform --enable-difftest $(ARG_PREFIX)
+RELEASE_ARGS = --fpga-platform $(ARG_PREFIX)
 DEBUG_ARGS   = --enable-difftest $(ARG_PREFIX)
 PLDM_ARGS 	 = --fpga-platform --basic-difftest $(ARG_PREFIX)
 
@@ -79,6 +80,10 @@ else ifeq ($(PLDM),1)
 override SIM_ARGS += $(PLDM_ARGS)
 else
 override SIM_ARGS += $(DEBUG_ARGS)
+endif
+
+ifeq ($(PA), 1)
+RELEASE_ARGS += --power-analysis
 endif
 
 .DEFAULT_GOAL = verilog
@@ -97,7 +102,7 @@ $(TOP_V): $(SCALA_FILE) update-vmem-path
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(RELEASE_ARGS) --target systemverilog | tee build/make.log
 ifeq ($(VCS), 1)
-	@sed -i $$'s/$$fatal/assert(1\'b0)/g' $@
+	@sed -i "s/\$$fatal/assert(1\'b0)/g" $@
 else
 	@sed -i 's/$$fatal/xs_assert(`__LINE__)/g' $@
 endif
@@ -132,7 +137,7 @@ endif
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(SIM_ARGS) --target systemverilog | tee build/make.log
 ifeq ($(VCS), 1)
-	@sed -i $$'s/$$fatal/assert(1\'b0)/g' $@
+	@sed -i -e "s/\$$fatal/assert(1\'b0)/g" $@
 else ifeq ($(PLDM),1)
 	@sed -i -e 's/$$fatal/$$finish/g' $@
 else

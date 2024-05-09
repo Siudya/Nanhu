@@ -76,9 +76,10 @@ class SimTop(implicit p: Parameters) extends Module {
     soc.sram.get.rmsp_hs_ctrl := 0x1616.U
   }
 
-  val success = Wire(Bool())
-  val jtag = Module(new SimJTAG(tickDelay=3)(p))
-  jtag.connect(soc.io.systemjtag.jtag, clock, reset.asBool, !reset.asBool, success)
+  soc.io.systemjtag.jtag.TCK := false.B.asClock
+  soc.io.systemjtag.jtag.TMS := false.B
+  soc.io.systemjtag.jtag.TDI := false.B
+  soc.io.systemjtag.jtag.TRSTn.foreach(_ := true.B)
   soc.io.systemjtag.reset := reset.asAsyncReset
   soc.io.systemjtag.mfr_id := 0.U(11.W)
   soc.io.systemjtag.part_number := 0.U(16.W)
@@ -107,7 +108,16 @@ class SimTop(implicit p: Parameters) extends Module {
     dontTouch(dump)
   }
 
-  DifftestModule.finish("XiangShan")
+  if(debugOpts.PowerAnalysis) {
+    val lpaMonitor = Module(new LpaMonitor)
+    lpaMonitor.io.clock := clock.asBool
+    lpaMonitor.io.stop := io.perfInfo.dump
+    lpaMonitor.io.reset := l_soc.module.io.reset.asBool
+  }
+
+  if(debugOpts.EnableDifftest) {
+    DifftestModule.finish("XiangShan")
+  }
 }
 
 object SimTop extends App {

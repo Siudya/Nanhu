@@ -38,6 +38,7 @@ object ArgParser {
       |--enable-log
       |--disable-perf
       |--prefix
+      |--power-analysis
       |""".stripMargin
 
   def getConfigByName(confString: String): Parameters = {
@@ -94,6 +95,10 @@ object ArgParser {
         case "--enable-topdown" :: tail =>
           nextOption(config.alter((site, here, up) => {
             case DebugOptionsKey => up(DebugOptionsKey).copy(EnableTopDown = true)
+          }), tail)
+        case "--power-analysis" :: tail =>
+          nextOption(config.alter((site, here, up) => {
+            case DebugOptionsKey => up(DebugOptionsKey).copy(PowerAnalysis = true)
           }), tail)
         case "--prefix" :: confString :: tail =>
           nextOption(config.alter((site, here, up) => {
