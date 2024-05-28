@@ -181,7 +181,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   }
 
   class Interrupt extends Bundle {
-    val lcof = Bool() // Local Count OverFlow
+    val lcof = Bool() // Bit13 Local Count OverFlow
+    val reverse = Bool() // Bit 12
     val e = new Priv
     val t = new Priv
     val s = new Priv
@@ -261,8 +262,10 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val mie = RegInit(0.U(XLEN.W))
   val mipWire = WireInit(0.U.asTypeOf(new Interrupt))
   val mipReg  = RegInit(0.U(XLEN.W))
-  val mipFixMask = ZeroExt(GenMask(9) | GenMask(5) | GenMask(1), XLEN)
+  val mipFixMask = ZeroExt(GenMask(13) | GenMask(9) | GenMask(5) | GenMask(1), XLEN)
   val mip = (mipWire.asUInt | mipReg).asTypeOf(new Interrupt)
+  dontTouch(mipWire)
+  dontTouch(mip)
 
   def getMisaMxl(mxl: BigInt): BigInt = mxl << (XLEN - 2)
   def getMisaExt(ext: Char): Long = 1 << (ext.toInt - 'a'.toInt)
@@ -396,8 +399,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val stvec = RegInit(UInt(XLEN.W), 0.U)
 
   // val sie = RegInit(0.U(XLEN.W))
-  val sieMask = "h1222".U & mideleg
-  val sipMask = "h1222".U & mideleg
+  val sieMask = "h2222".U & mideleg
+  val sipMask = "h2222".U & mideleg
   val sipWMask = "h2".U(XLEN.W) & mideleg // ssip is writeable in smode
   val satp = if(EnbaleTlbDebug) RegInit(UInt(XLEN.W), "h8000000000087fbe".U) else RegInit(0.U(XLEN.W))
   // val satp = RegInit(UInt(XLEN.W), "h8000000000087fbe".U) // only use for tlb naive debug
@@ -702,7 +705,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
 
   val csrevents = mhpmevent.slice(24, 29)
   val hpm_hc = HPerfMonitor(csrevents, hpmEvents)
-  val mcountinhibit = RegInit(0.U(XLEN.W))
+  val mcountinhibit = RegInit(0.U(32.W))
   val mcycle = RegInit(0.U(XLEN.W))
   mcycle := Mux(mcountinhibit(0), mcycle, mcycle + 1.U)
   val minstret = RegInit(0.U(XLEN.W))
@@ -715,11 +718,13 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     val nextCounter = Mux(mcountinhibit(i+3) | modeInhibit(i), mhpmcounter(i), mhpmcounter(i) +& perf_events(i).value)
     val overflow = nextCounter(64)
     mhpmcounter(i) := nextCounter(63,0)
+    scountovfs(i) := mhpmevent(i)(63)
     when(overflow) {
       mhpmevent(i) := (true.B << (XLEN-1)) | mhpmevent(i)
-      scountovfs(i) := true.B || scountovf(i+3)
+      scountovfs(i) := true.B
     }
   }
+//  mipWire.lcof := scountovf.orR
   mipWire.lcof := mhpmevent.map(event => event(63)).reduce(_ || _)
 
   // CSR reg map
@@ -771,8 +776,8 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
     MaskedRegMap(Mstatus, mstatus, mstatusWMask, mstatusUpdateSideEffect, mstatusMask),
     MaskedRegMap(Misa, misa, 0.U, MaskedRegMap.Unwritable), // now whole misa is unchangeable
     MaskedRegMap(Medeleg, medeleg, "hff00b3ff".U(XLEN.W)),
-    MaskedRegMap(Mideleg, mideleg, "h1222".U(XLEN.W)),
-    MaskedRegMap(Mie, mie, "haaa".U(XLEN.W)),
+    MaskedRegMap(Mideleg, mideleg, "h2222".U(XLEN.W)),
+    MaskedRegMap(Mie, mie, "h2aaa".U(XLEN.W)),
     MaskedRegMap(Mtvec, mtvec, mtvecMask, MaskedRegMap.NoSideEffect, mtvecMask),
     MaskedRegMap(Mcounteren, mcounteren),
 
@@ -1099,7 +1104,7 @@ class CSR(implicit p: Parameters) extends FUWithRedirect
   val debugIntr = csrio.externalInterrupt.debug & debugIntrEnable
   XSDebug(debugIntr, "Debug Mode: debug interrupt is asserted and valid!")
   // send interrupt information to ROB
-  val intrVecEnable = Wire(Vec(13, Bool()))
+  val intrVecEnable = Wire(Vec(14, Bool()))
   val disableInterrupt = debugMode || (dcsrData.step && !dcsrData.stepie)
   intrVecEnable.zip(ideleg.asBools).foreach{ case(x,y) => x := priviledgedEnableDetect(y) && !disableInterrupt }
   val intrVec = Cat(debugIntr && !debugMode, (mie(13,0) & mip.asUInt & intrVecEnable.asUInt))
