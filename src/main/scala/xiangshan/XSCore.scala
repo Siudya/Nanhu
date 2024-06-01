@@ -30,6 +30,7 @@ import freechips.rocketchip.tile.HasFPUParameters
 import freechips.rocketchip.tilelink.TLBuffer
 import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
 import xs.utils.sram.SRAMTemplate
+import xs.utils.tl.TLUStoreBuffer
 import xs.utils.{DFTResetSignals, ModuleNode, RegNextN, ResetGen, ResetGenNode}
 import system.HasSoCParameter
 import utils._
@@ -42,15 +43,14 @@ import xiangshan.vector.HasVectorParameters
 abstract class XSModule(implicit val p: Parameters) extends Module
   with HasXSParameter
   with HasFPUParameters
-  with HasVectorParameters{
+  with HasVectorParameters {
 }
 
 abstract class XSBundle(implicit val p: Parameters) extends Bundle
   with HasXSParameter with HasVectorParameters
 
-abstract class XSCoreBase(val parentName:String = "Unknown")(implicit p: config.Parameters) extends LazyModule
-  with HasXSParameter
-{
+class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) extends LazyModule
+  with HasXSParameter with HasXSDts {
   // interrupt sinks
   val clint_int_sink = IntSinkNode(IntSinkPortSimple(1, 2))
   val debug_int_sink = IntSinkNode(IntSinkPortSimple(1, 1))
@@ -61,6 +61,7 @@ abstract class XSCoreBase(val parentName:String = "Unknown")(implicit p: config.
   val ptw_to_l2_buffer = LazyModule(new TLBuffer)
   val exuBlock = LazyModule(new ExecuteBlock(parentName = parentName + "execute_"))
   val ctrlBlock = LazyModule(new CtrlBlock)
+  val uncacheBuffer = LazyModule(new TLUStoreBuffer(coreParams.uncacheOustanding))
   exuBlock.integerReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   exuBlock.floatingReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   exuBlock.memoryReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
@@ -69,15 +70,13 @@ abstract class XSCoreBase(val parentName:String = "Unknown")(implicit p: config.
   ctrlBlock.rob.writebackNode :=* exuBlock.writebackNetwork.node
   ctrlBlock.wbMergeBuffer.writebackNode :=* exuBlock.writebackNetwork.node
   ptw_to_l2_buffer.node := ptw.node
-}
+  uncacheBuffer.node :=* frontend.instrUncache.clientNode
+  uncacheBuffer.node :=* exuBlock.memoryBlock.uncache.clientNode
 
-class XSCore(parentName:String = "Core_")(implicit p: config.Parameters) extends XSCoreBase(parentName = parentName)
-  with HasXSDts
-{
   lazy val module = new XSCoreImp(this)
 }
 
-class XSCoreImp(outer: XSCoreBase) extends LazyModuleImp(outer)
+class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
   with HasXSParameter
   with HasSoCParameter {
   val io = IO(new Bundle {

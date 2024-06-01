@@ -247,6 +247,7 @@ case class XSCoreParameters
   L2NBanks: Int = 1,
   usePTWRepeater: Boolean = false,
   softPTW: Boolean = false, // dpi-c debug only
+  uncacheOustanding: Int = 16,
 
   //vector
   hasVector: Boolean = true,
