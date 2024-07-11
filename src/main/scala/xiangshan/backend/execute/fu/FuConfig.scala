@@ -39,8 +39,25 @@ object FuConfigs{
     writeVxsat = false,
     latency = 0,
     trigger = false,
-    hasRedirect = true
+    hasRedirect = false
   )
+
+  // val aluStdCfg = FuConfig(
+  //   name = "aluStd",
+  //   fuType = FuType.alu,
+  //   numIntSrc = 2,
+  //   numFpSrc = 0,
+  //   numVecSrc = 0,
+  //   writeIntRf = true,
+  //   writeFpRf = false,
+  //   writeVecRf = false,
+  //   writeFflags = false,
+  //   writeVxsat = false,
+  //   latency = 0,
+  //   trigger = false,
+  //   hasRedirect = true
+  // )
+
   val mulCfg = FuConfig(
     name = "mul",
     fuType = FuType.mul,
@@ -56,6 +73,7 @@ object FuConfigs{
     trigger = false,
     hasRedirect = false
   )
+
   val bkuCfg = FuConfig(
     name = "bku",
     fuType = FuType.bku,
@@ -71,6 +89,7 @@ object FuConfigs{
     trigger = false,
     hasRedirect = false
   )
+
   val divCfg = FuConfig(
     name = "div",
     FuType.div,
@@ -86,6 +105,7 @@ object FuConfigs{
     trigger = false,
     hasRedirect = false
   )
+
   val jmpCfg = FuConfig(
     name = "jmp",
     fuType = FuType.jmp,
@@ -102,6 +122,24 @@ object FuConfigs{
     hasRedirect = true,
     exceptionOut = Seq(illegalInstr, fdiUJumpFault)
   )
+
+  val bruCfg = FuConfig(
+    name = "bru",
+    fuType = FuType.bru, //TODO
+    numIntSrc = 2,
+    numFpSrc = 0,
+    numVecSrc = 0,
+    writeIntRf = false,
+    writeFpRf = false,
+    writeVecRf = false,
+    writeFflags = false,
+    writeVxsat = false,
+    latency = 0,
+    hasRedirect = true,
+    trigger = false,
+    exceptionOut = Seq(illegalInstr)
+  )
+
   val fenceCfg = FuConfig(
     name = "fence",
     fuType = FuType.fence,
@@ -118,6 +156,7 @@ object FuConfigs{
     trigger = false,
     exceptionOut = Seq(illegalInstr)
   )
+
   val csrCfg = FuConfig(
     name = "csr",
     fuType = FuType.csr,
@@ -134,6 +173,7 @@ object FuConfigs{
     trigger = false,
     exceptionOut = Seq(illegalInstr, breakPoint, ecallU, ecallS, ecallM)
   )
+
   val i2fCfg = FuConfig(
     name = "i2f",
     fuType = FuType.i2f,
@@ -149,6 +189,7 @@ object FuConfigs{
     trigger = false,
     hasRedirect = false
   )
+
   val fmacCfg = FuConfig(
     name = "fmac",
     fuType = FuType.fmac,

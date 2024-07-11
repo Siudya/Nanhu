@@ -25,14 +25,18 @@ case class ExuParameters
   AluMiscCnt:Int = 1,
   AluMulCnt:Int = 2,
   AluDivCnt:Int = 1,
+  AluMulDivStdCnt: Int = 2,
+  AluBruMiscCnt: Int = 2,
   FmaCnt:Int = 2,
   FmaDivCnt:Int = 1,
   FmaMiscCnt:Int = 1,
   LduCnt:Int = 2,
   StuCnt:Int = 2
 ){
-  val aluNum:Int = AluMulCnt + AluDivCnt + AluMiscCnt
-  val mulNum:Int = AluMulCnt
+  val aluNum:Int = AluMulDivStdCnt + AluBruMiscCnt
+  val mulNum:Int = AluMulDivStdCnt
+  val aluMulDivStdNum: Int = AluMulDivStdCnt
+  val aluBruMiscNum: Int = AluBruMiscCnt
   val LsExuCnt:Int = LduCnt + StuCnt
   val fmaNum:Int = FmaCnt + FmaDivCnt + FmaMiscCnt
 }

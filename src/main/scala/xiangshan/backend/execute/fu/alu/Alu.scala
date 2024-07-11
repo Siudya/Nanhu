@@ -20,8 +20,9 @@ import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.fu.FUWithRedirect
-import xiangshan.{FuOpType, RedirectLevel, XSModule}
+import xiangshan.{FuOpType, RedirectLevel, XSModule, XSCoreParamsKey}
 import xs.utils.{LookupTree, SignExt, ZeroExt}
+import xiangshan.backend.execute.fu.FunctionUnit
 
 class AddModule(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
@@ -182,9 +183,9 @@ class AluDataModule(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val src = Vec(2, Input(UInt(XLEN.W)))
     val func = Input(FuOpType())
-    val pred_taken, isBranch = Input(Bool())
+    //val pred_taken, isBranch = Input(Bool())
     val result = Output(UInt(XLEN.W))
-    val taken, mispredict = Output(Bool())
+    //val taken, mispredict = Output(Bool())
   })
   val (src1, src2, func) = (io.src(0), io.src(1), io.func)
 
@@ -305,12 +306,12 @@ class AluDataModule(implicit p: Parameters) extends XSModule {
   val rev8 = Cat((0 until 8).map(i => src1(8 * i + 7, 8 * i)))
 
   // branch
-  val branchOpTable = List(
-    ALUOpType.getBranchType(ALUOpType.beq)  -> !xor.orR,
-    ALUOpType.getBranchType(ALUOpType.blt)  -> slt,
-    ALUOpType.getBranchType(ALUOpType.bltu) -> sltu
-  )
-  val taken = LookupTree(ALUOpType.getBranchType(func), branchOpTable) ^ ALUOpType.isBranchInvert(func)
+  // val branchOpTable = List(
+  //   ALUOpType.getBranchType(ALUOpType.beq)  -> !xor.orR,
+  //   ALUOpType.getBranchType(ALUOpType.blt)  -> slt,
+  //   ALUOpType.getBranchType(ALUOpType.bltu) -> sltu
+  // )
+  // val taken = LookupTree(ALUOpType.getBranchType(func), branchOpTable) ^ ALUOpType.isBranchInvert(func)
 
   // Result Select
   val shiftResSel = Module(new ShiftResultSelect)
@@ -364,36 +365,18 @@ class AluDataModule(implicit p: Parameters) extends XSModule {
   val aluRes = aluResSel.io.aluRes
 
   io.result := aluRes
-  io.taken := taken
-  io.mispredict := (io.pred_taken ^ taken) && io.isBranch
+  // io.taken := taken
+  // io.mispredict := (io.pred_taken ^ taken) && io.isBranch
 }
 
-class Alu(implicit p: Parameters) extends FUWithRedirect {
+class Alu(implicit p: Parameters) extends FunctionUnit(p(XSCoreParamsKey).XLEN) {
 
   val uop = io.in.bits.uop
 
-  val isBranch = ALUOpType.isBranch(io.in.bits.uop.ctrl.fuOpType)
   val dataModule = Module(new AluDataModule)
 
   dataModule.io.src := io.in.bits.src.take(2)
   dataModule.io.func := io.in.bits.uop.ctrl.fuOpType
-  dataModule.io.pred_taken := uop.cf.pred_taken
-  dataModule.io.isBranch := isBranch
-
-  redirectOutValid := io.out.valid && isBranch
-  redirectOut := DontCare
-  redirectOut.level := RedirectLevel.flushAfter
-  redirectOut.robIdx := uop.robIdx
-  redirectOut.ftqIdx := uop.cf.ftqPtr
-  redirectOut.ftqOffset := uop.cf.ftqOffset
-  redirectOut.cfiUpdate.isMisPred := dataModule.io.mispredict
-  redirectOut.cfiUpdate.taken := dataModule.io.taken
-  redirectOut.cfiUpdate.predTaken := uop.cf.pred_taken
-  redirectOut.isException := false.B
-  redirectOut.isLoadLoad := false.B
-  redirectOut.isLoadStore := false.B
-  redirectOut.isFlushPipe := uop.ctrl.flushPipe
-  redirectOut.isPreWalk := false.B
 
   io.in.ready := io.out.ready
   io.out.valid := io.in.valid

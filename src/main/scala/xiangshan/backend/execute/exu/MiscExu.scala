@@ -29,11 +29,11 @@ import xiangshan.backend.execute.fu.{FUWithRedirect, FuConfigs, FunctionUnit, FD
 import xiangshan._
 import xs.utils.{DelayN, ParallelMux}
 
-class FenceIO(implicit p: Parameters) extends XSBundle {
-  val sfence = Output(new SfenceBundle)
-  val fencei = new FenceIBundle
-  val sbuffer = new FenceToSbuffer
-}
+// class FenceIO(implicit p: Parameters) extends XSBundle {
+//   val sfence = Output(new SfenceBundle)
+//   val fencei = new FenceIBundle
+//   val sbuffer = new FenceToSbuffer
+// }
 
 class MiscExu (id:Int, complexName:String, val bypassInNum:Int)(implicit p:Parameters) extends BasicExu{
   private val cfg = ExuConfig(
@@ -49,18 +49,18 @@ class MiscExu (id:Int, complexName:String, val bypassInNum:Int)(implicit p:Param
   val writebackNode = new ExuOutputNode(cfg)
   override lazy val module = new MiscExuImpl(this, cfg)
 }
-class FakeMou()(implicit p:Parameters) extends FunctionUnit(p(XSCoreParamsKey).XLEN) {
-  val issueToMou = IO(Decoupled(new ExuInput))
-  val writebackFromMou = IO(Flipped(Decoupled(new ExuOutput)))
-  io.in.ready := issueToMou.ready
-  issueToMou.valid := io.in.valid
-  issueToMou.bits.src := io.in.bits.src
-  issueToMou.bits.uop := io.in.bits.uop
-  issueToMou.bits.vm := DontCare
-  io.out.valid := writebackFromMou.valid
-  io.out.bits := writebackFromMou.bits
-  writebackFromMou.ready := io.out.ready
-}
+// class FakeMou()(implicit p:Parameters) extends FunctionUnit(p(XSCoreParamsKey).XLEN) {
+//   val issueToMou = IO(Decoupled(new ExuInput))
+//   val writebackFromMou = IO(Flipped(Decoupled(new ExuOutput)))
+//   io.in.ready := issueToMou.ready
+//   issueToMou.valid := io.in.valid
+//   issueToMou.bits.src := io.in.bits.src
+//   issueToMou.bits.uop := io.in.bits.uop
+//   issueToMou.bits.vm := DontCare
+//   io.out.valid := writebackFromMou.valid
+//   io.out.bits := writebackFromMou.bits
+//   writebackFromMou.ready := io.out.ready
+// }
 
 class MiscExuImpl(outer:MiscExu, exuCfg:ExuConfig)(implicit p:Parameters) extends BasicExuImpl(outer) {
   val io = IO(new Bundle{

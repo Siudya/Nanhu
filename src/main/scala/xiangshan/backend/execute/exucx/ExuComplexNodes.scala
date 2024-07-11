@@ -23,6 +23,7 @@ import chisel3.experimental.SourceInfo
 import freechips.rocketchip.diplomacy._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuOutwardImpl, ExuType}
 import xiangshan.backend.issue.{IssueBundle, RsParam}
+import chisel3.Bool
 
 case class ExuComplexParam
 (
@@ -33,6 +34,7 @@ case class ExuComplexParam
   val hasJmp: Boolean = exuConfigs.map(_.exuType == ExuType.jmp).reduce(_ || _)
   val hasMisc: Boolean = exuConfigs.map(_.exuType == ExuType.misc).reduce(_ || _)
   val hasAlu: Boolean = exuConfigs.map(_.exuType == ExuType.alu).reduce(_ || _)
+  val hasBru: Boolean = exuConfigs.map(_.exuType == ExuType.bru).reduce(_ || _)
   val hasMul: Boolean = exuConfigs.map(_.exuType == ExuType.mul).reduce(_ || _)
   val hasDiv: Boolean = exuConfigs.map(_.exuType == ExuType.div).reduce(_ || _)
   val hasFmac: Boolean = exuConfigs.map(_.exuType == ExuType.fmac).reduce(_ || _)
@@ -62,6 +64,8 @@ case class ExuComplexParam
   val isSta:Boolean = hasSta
   val isStd:Boolean = hasStd
   val isLdu:Boolean = hasLoad
+  val isAluMulDivStd: Boolean = hasAlu && hasMul && hasDiv
+  val isAluBruMisc: Boolean = hasAlu && hasBru && hasMisc
 
   val needToken:Boolean = exuConfigs.map(_.needToken).reduce(_||_)
 
