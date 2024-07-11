@@ -64,16 +64,11 @@ class SimTop(implicit p: Parameters) extends Module {
   soc.bootrom_disable := true.B
   if(soc.dft.isDefined) {
     soc.dft.get.cgen := false.B
-    soc.dft.get.l3dataram_clk := false.B
-    soc.dft.get.l3dataramclk_bypass := false.B
+    soc.dft.get.ram_aux_clk := false.B
+    soc.dft.get.ram_aux_ckbp := false.B
     soc.dft.get.ram_hold := false.B
     soc.dft.get.ram_bypass := false.B
     soc.dft.get.ram_bp_clken := false.B
-  }
-  if (soc.sram.isDefined) {
-    soc.sram.get.rf2p_ctrl := 0x5832C.U
-    soc.sram.get.rmsp_hd_ctrl := 0xB2C.U
-    soc.sram.get.rmsp_hs_ctrl := 0x1616.U
   }
 
   val success = Wire(Bool())

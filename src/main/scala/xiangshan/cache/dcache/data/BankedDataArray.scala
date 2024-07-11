@@ -19,7 +19,7 @@ package xiangshan.cache
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xiangshan.backend.rob.RobPtr
 import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
@@ -147,7 +147,7 @@ abstract class AbstractBankedDataArray(implicit p: Parameters) extends DCacheMod
   }
 }
 
-class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) extends AbstractBankedDataArray {
+class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
   def getECCFromEncWord(encWord: UInt) = {
     require(encWord.getWidth == encWordBits)
     encWord(encWordBits - 1, wordBits)
@@ -159,7 +159,7 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   io.write_dup.foreach(_.ready := true.B)
 
   // wrap data rows of 8 ways
-  class DataSRAMBank(index: Int, parentName: String = "Unknown") extends Module {
+  class DataSRAMBank extends Module {
     val io = IO(new Bundle() {
       val w = Input(new DataSRAMBankWriteReq)
 
@@ -189,17 +189,10 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
         shouldReset = false,
         holdRead = false,
         singlePort = true,
-        hasClkGate = true,
-        hasMbist = coreParams.hasMbist,
-        hasShareBus = coreParams.hasShareBus,
-        parentName = parentName + s"bank${idx}_"
+        hasMbist = coreParams.hasMbist
       ))
     }
-    val mbistPipeline = if (coreParams.hasMbist && coreParams.hasShareBus) {
-      MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
-    } else {
-      None
-    }
+    val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
     for (w <- 0 until DCacheWays) {
       val wen = w_reg_en && w_reg_way_en(w)
@@ -273,9 +266,7 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
       shouldReset = false,
       holdRead = false,
       singlePort = true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName + s"bank_${bankIdx}_way_${wayIdx}_"
+      hasMbist = coreParams.hasMbist
     ))
 
     val wenReg = RegNext(io.w.en)
@@ -321,7 +312,7 @@ class BankedDataArray(parentName: String = "Unknown")(implicit p: Parameters) ex
   }
 
   //  val data_banks = List.tabulate(DCacheBanks)(i => List.tabulate(DCacheWays)(j => Module(new DataSRAM(i, j, parentName = parentName + s"arrsy${i}"))))
-  val data_banks = List.tabulate(DCacheBanks)(i => Module(new DataSRAMBank(i, parentName = parentName + s"array${i}_")))
+  val data_banks = List.tabulate(DCacheBanks)(i => Module(new DataSRAMBank))
   // val ecc_banks = List.fill(DCacheBanks)(Module(new SRAMTemplate(
   //   Bits(eccBits.W),
   //   set = DCacheSets,

@@ -18,18 +18,14 @@ package xiangshan.frontend
 
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import utils._
 import xs.utils._
 
 
-class Composer(parentName:String = "Unknown")(implicit p: Parameters) extends BasePredictor with HasBPUConst with HasPerfEvents {
-  val (components, resp) = getBPDComponents(io.in.bits.resp_in(0), p, parentName = parentName)
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistPipe", true)
-  } else {
-    None
-  }
+class Composer(implicit p: Parameters) extends BasePredictor with HasBPUConst with HasPerfEvents {
+  val (components, resp) = getBPDComponents(io.in.bits.resp_in(0), p)
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(2, "mbistPipe_BPU", coreParams.hasMbist)
   io.out := resp
   // shorter path for s1 pred
   val all_fast_pred = components.filter(_.is_fast_pred)

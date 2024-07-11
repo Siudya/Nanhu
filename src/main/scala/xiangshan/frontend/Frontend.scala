@@ -30,10 +30,10 @@ import xiangshan.frontend.icache._
 import xs.utils.perf.HasPerfLogging
 
 
-class Frontend(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasXSParameter{
+class Frontend(implicit p: Parameters) extends LazyModule with HasXSParameter{
 
   val instrUncache  = LazyModule(new InstrUncache())
-  val icache        = LazyModule(new ICache(parentName = parentName + "icache_"))
+  val icache        = LazyModule(new ICache)
 
   lazy val module = new FrontendImp(this)
 }
@@ -70,10 +70,10 @@ class FrontendImp (outer: Frontend) extends LazyModuleImp(outer)
   //decouped-frontend modules
   val instrUncache = outer.instrUncache.module
   val icache       = outer.icache.module
-  val bpu     = Module(new Predictor(parentName = outer.parentName + s"bpu_"))
+  val bpu     = Module(new Predictor)
   val ifu     = Module(new NewIFU)
   val ibuffer =  Module(new Ibuffer)
-  val ftq = Module(new Ftq(parentName = outer.parentName + s"ftq_"))
+  val ftq = Module(new Ftq)
 
   val tlbCsr = DelayN(io.tlbCsr, 2)
   val csrCtrl = DelayN(io.csrCtrl, 2)

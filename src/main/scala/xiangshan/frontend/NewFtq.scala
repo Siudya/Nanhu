@@ -19,7 +19,7 @@ package xiangshan.frontend
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import utils._
 import xs.utils._
 import xiangshan._
@@ -46,7 +46,7 @@ object FtqPtr {
   }
 }
 
-class FtqNRSRAM[T <: Data](gen: T, numRead: Int, parentName:String = "Unknown")(implicit p: Parameters) extends XSModule {
+class FtqNRSRAM[T <: Data](gen: T, numRead: Int)(implicit p: Parameters) extends XSModule {
 
   val io = IO(new Bundle() {
     val raddr = Input(Vec(numRead, UInt(log2Up(FtqSize).W)))
@@ -60,9 +60,7 @@ class FtqNRSRAM[T <: Data](gen: T, numRead: Int, parentName:String = "Unknown")(
   for(i <- 0 until numRead){
     val sram = Module(new SRAMTemplate(gen = gen, set = FtqSize,
       bypassWrite = true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName + s"sram${i}_"
+      hasMbist = coreParams.hasMbist
     ))
     sram.io.r.req.valid := io.ren(i)
     sram.io.r.req.bits.setIdx := io.raddr(i)
@@ -71,11 +69,7 @@ class FtqNRSRAM[T <: Data](gen: T, numRead: Int, parentName:String = "Unknown")(
     sram.io.w.req.bits.setIdx := io.waddr
     sram.io.w.req.bits.data := VecInit(io.wdata)
   }
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 }
 
 class Ftq_RF_Components(implicit p: Parameters) extends XSBundle with BPUUtils with HasBPUConst {
@@ -430,7 +424,7 @@ class FtqPcMemWrapper(numOtherReads: Int)(implicit p: Parameters) extends XSModu
   io.commPtr_rdata      := mem.io.rdata.last
 }
 
-class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper
+class Ftq(implicit p: Parameters) extends XSModule with HasCircularQueuePtrHelper
   with BPUUtils with HasBPUConst with HasPerfEvents with HasPerfLogging
   with HasICacheParameters{
   val io = IO(new Bundle {
@@ -526,7 +520,7 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   ftq_pc_mem.io.wdata.fromBranchPrediction(bpu_in_resp)
 
   //                                                            ifuRedirect + backendRedirect + commit
-  val ftq_redirect_sram = Module(new FtqNRSRAM(new Ftq_Redirect_SRAMEntry, 1+1+1, parentName = parentName + s"ftq_redirect_sram_"))
+  val ftq_redirect_sram = Module(new FtqNRSRAM(new Ftq_Redirect_SRAMEntry, 1+1+1))
   // these info is intended to enq at the last stage of bpu
   ftq_redirect_sram.io.wen := io.fromBpu.resp.bits.lastStage.valid(dupForFtq)
   ftq_redirect_sram.io.waddr := io.fromBpu.resp.bits.lastStage.ftq_idx.value
@@ -534,17 +528,13 @@ class Ftq(parentName:String = "Unknown")(implicit p: Parameters) extends XSModul
   println(f"ftq redirect SRAM: entry ${ftq_redirect_sram.io.wdata.getWidth} * ${FtqSize} * 3")
   println(f"ftq redirect SRAM: ahead fh ${ftq_redirect_sram.io.wdata.afhob.getWidth} * ${FtqSize} * 3")
 
-  val ftq_meta_1r_sram = Module(new FtqNRSRAM(new Ftq_1R_SRAMEntry, 1, parentName = parentName + s"ftq_meta_1r_sram_"))
+  val ftq_meta_1r_sram = Module(new FtqNRSRAM(new Ftq_1R_SRAMEntry, 1))
   // these info is intended to enq at the last stage of bpu
   ftq_meta_1r_sram.io.wen := io.fromBpu.resp.bits.lastStage.valid(dupForFtq)
   ftq_meta_1r_sram.io.waddr := io.fromBpu.resp.bits.lastStage.ftq_idx.value
   ftq_meta_1r_sram.io.wdata.meta := io.fromBpu.resp.bits.last_stage_meta
 
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(2, place = coreParams.hasMbist)
 
   //                                                            ifuRedirect + backendRedirect + commit
   val ftb_entry_mem = Module(new SyncDataModuleTemplate(new FTBEntry, FtqSize, 1+1+1, 1, "FtqEntry"))

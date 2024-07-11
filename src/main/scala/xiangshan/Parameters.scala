@@ -74,8 +74,7 @@ case class XSCoreParameters
   RasSize: Int = 32,
   CacheLineSize: Int = 512,
   FtbWays: Int = 4,
-  hasMbist:Boolean = true,
-  hasShareBus:Boolean = false,
+  hasMbist:Boolean = false,
   bootAddress:Long = 0x10000000L,
   TageTableInfos: Seq[Tuple3[Int,Int,Int]] =
   //       Sets  Hist   Tag
@@ -103,14 +102,14 @@ case class XSCoreParameters
   SCCtrBits: Int = 6,
   SCHistLens: Seq[Int] = Seq(0, 4, 10, 16),
   numBr: Int = 1,
-  branchPredictor: Function3[BranchPredictionResp, Parameters, String, Tuple2[Seq[BasePredictor], BranchPredictionResp]] =
-    ((resp_in: BranchPredictionResp, p: Parameters, parentName:String) => {
-      val ftb = Module(new FTB(parentName = parentName + "ftb_")(p))
+  branchPredictor: Function2[BranchPredictionResp, Parameters, Tuple2[Seq[BasePredictor], BranchPredictionResp]] =
+    ((resp_in: BranchPredictionResp, p: Parameters) => {
+      val ftb = Module(new FTB()(p))
       val ubtb =Module(new FauFTB()(p))
       // val bim = Module(new BIM()(p))
-      val tage = Module(new Tage_SC(parentName = parentName + "tage_")(p))
+      val tage = Module(new Tage_SC()(p))
       val ras = Module(new RAS()(p))
-      val ittage = Module(new ITTage(parentName = parentName + "ittage_")(p))
+      val ittage = Module(new ITTage()(p))
       val preds = Seq(ubtb, tage, ftb, ittage, ras)
       preds.map(_.io := DontCare)
 
@@ -305,8 +304,8 @@ trait HasXSParameter {
   val RasSize = coreParams.RasSize
   val bootAddress = coreParams.bootAddress
 
-  def getBPDComponents(resp_in: BranchPredictionResp, p: Parameters, parentName:String = "Unknown") = {
-    coreParams.branchPredictor(resp_in, p, parentName)
+  def getBPDComponents(resp_in: BranchPredictionResp, p: Parameters) = {
+    coreParams.branchPredictor(resp_in, p)
   }
   val numBr = coreParams.numBr
   val TageTableInfos = coreParams.TageTableInfos

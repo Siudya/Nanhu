@@ -602,9 +602,9 @@ def copy_mbist_files(out_dir, build_path):
     if not (os.path.isdir(out_dir)):
         os.makedirs(out_dir)
     copy("scripts/sharedBusLvlibGen.tcl", out_dir)
-    for f in os.listdir(build_path):
+    for f in os.listdir(build_path + "/mbist"):
         if f.endswith(".csv"):
-            src_path = os.path.join(build_path, f)
+            src_path = os.path.join(build_path + "/mbist", f)
             copy(src_path, out_dir)
 
 def get_combMem_path(sram_path, rtl_path):

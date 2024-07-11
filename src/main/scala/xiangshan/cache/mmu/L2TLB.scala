@@ -25,7 +25,7 @@ import xiangshan.cache.{HasDCacheParameters, MemoryOpConstants}
 import utils._
 import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tilelink._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import huancun.{PreferCacheField, PreferCacheKey}
 import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle, PMPRespBundle}
 import xiangshan.backend.execute.fu.csr.HasCSRConst
@@ -33,7 +33,7 @@ import xs.utils.{DataHoldBypass, DelayN, TimeOutAssert}
 import difftest._
 import xs.utils.perf.HasPerfLogging
 
-class PTW(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasPtwConst {
+class PTW(implicit p: Parameters) extends LazyModule with HasPtwConst {
 
   val node = TLClientNode(Seq(TLMasterPortParameters.v1(
     clients = Seq(TLMasterParameters.v1(
@@ -92,12 +92,8 @@ class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with H
   pmp_check.foreach(_.check_env.apply(ModeS, 8.U, pmp.io.pmp, pmp.io.pma, pmp.io.spmp, priv.sum, io.csr.spmp_enable))
 
   val missQueue = Module(new L2TlbMissQueue)
-  val cache = Module(new PtwCache(parentName = outer.parentName + "cache_"))
-  val mbistPipeline0 = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${outer.parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val cache = Module(new PtwCache)
+  val mbistPipeline0 = MbistPipeline.PlaceMbistPipeline(2, place = coreParams.hasMbist)
   val ptw = Module(new PtwFsm)
   val llptw = Module(new LLPTW)
   val blockmq = Module(new BlockHelper(3))
@@ -472,10 +468,10 @@ class FakePTW()(implicit p: Parameters) extends XSModule with HasPtwConst {
   }
 }
 
-class PTWWrapper(parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasXSParameter {
+class PTWWrapper(implicit p: Parameters) extends LazyModule with HasXSParameter {
   val useSoftPTW = coreParams.softPTW
   val node = if (!useSoftPTW) TLIdentityNode() else null
-  val ptw = if (!useSoftPTW) LazyModule(new PTW(parentName = parentName)) else null
+  val ptw = if (!useSoftPTW) LazyModule(new PTW) else null
   if (!useSoftPTW) {
     node := ptw.node
   }

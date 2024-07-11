@@ -35,9 +35,8 @@ import xiangshan.backend.execute.fu.PMAConst
 import axi2tl._
 import freechips.rocketchip.util.{FastToSlow, SlowToFast}
 import xs.utils.{DFTResetSignals, ResetGen}
-import xs.utils.mbist.STD_CLKGT_func
 import xs.utils.perf.DebugOptionsKey
-import xs.utils.sram.SRAMTemplate
+import xs.utils.sram.{SRAMTemplate, SramHelper}
 
 case object SoCParamsKey extends Field[SoCParameters]
 
@@ -54,7 +53,6 @@ case class SoCParameters
   )),
   periHalfFreq:Boolean = true,
   hasMbist:Boolean = false,
-  hasShareBus:Boolean = false,
   hasRot:Boolean = true
 ){
   // L3 configurations
@@ -121,7 +119,7 @@ trait HaveSlaveAXI4Port {
 
   l3_xbar :=
     TLBuffer() :=
-    AXI2TL(16, 16, soc.hasMbist, soc.hasShareBus) :=
+    AXI2TL(16, 16, soc.hasMbist) :=
     AXI4Buffer() :=
     AXI2TLFragmenter() :=
     AXI4Buffer() :=
@@ -276,7 +274,7 @@ class SoCMiscImp(outer:SoCMisc)(implicit p: Parameters) extends LazyModuleImp(ou
   val periClock = IO(Input(Clock()))
   val ROMInitEn = IO(Output(Bool()))
 
-  val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SRAMTemplate.genBroadCastBundleTop()) else None
+  val sigFromSrams = if (p(SoCParamsKey).hasMbist) Some(SramHelper.genBroadCastBundleTop()) else None
   val dft = if (p(SoCParamsKey).hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
   if (p(SoCParamsKey).hasMbist) {
     dft.get <> sigFromSrams.get

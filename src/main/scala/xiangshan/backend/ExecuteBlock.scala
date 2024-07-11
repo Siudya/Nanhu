@@ -45,7 +45,7 @@ import xiangshan.vector.vbackend.vissue.vrs.VectorReservationStation
 import xiangshan.vector.vbackend.vregfile.VRegfileTop
 import xs.utils.{DFTResetSignals, ModuleNode, RegNextN, ResetGen, ResetGenNode}
 import xiangshan.mem._
-class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) extends LazyModule with HasXSParameter with HasVectorParameters {
+class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter with HasVectorParameters {
   val integerReservationStation: IntegerReservationStation = LazyModule(new IntegerReservationStation)
   val floatingReservationStation: FloatingReservationStation = LazyModule(new FloatingReservationStation)
   val memoryReservationStation: MemoryReservationStation = LazyModule(new MemoryReservationStation)
@@ -55,7 +55,7 @@ class ExecuteBlock(val parentName:String = "Unknown")(implicit p:Parameters) ext
   val floatingBlock: FloatingBlock = LazyModule(new FloatingBlock)
   val vectorBlock: VectorBlock = LazyModule(new VectorBlock)
   val vectorPermutationBlock: VectorPermutationBlock = LazyModule(new VectorPermutationBlock)
-  val memoryBlock: MemBlock = LazyModule(new MemBlock(parentName + "memBlock_"))
+  val memoryBlock: MemBlock = LazyModule(new MemBlock)
   val exuBlocks = integerBlock :: floatingBlock :: memoryBlock :: Nil
 
   val regFile = LazyModule(new RegFileTop(2))

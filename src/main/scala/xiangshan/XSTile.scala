@@ -9,7 +9,7 @@ import freechips.rocketchip.interrupts._
 import freechips.rocketchip.tile.{BusErrorUnit, BusErrorUnitParams, BusErrors}
 import freechips.rocketchip.tilelink._
 import xs.utils.tl.TLLogger
-import xs.utils.mbist.MBISTInterface
+import xs.utils.mbist.MbistInterface
 import huancun.{HCCacheParamsKey, HuanCun}
 import coupledL2.{CoupledL2, L2ParamKey}
 import xs.utils.{DFTResetSignals, ResetGen}
@@ -17,7 +17,7 @@ import system.HasSoCParameter
 import top.BusPerfMonitor
 import utils.{IntBuffer, TLClientsMerger, TLEdgeBuffer}
 import xs.utils.perf.DebugOptionsKey
-import xs.utils.sram.BroadCastBundle
+import xs.utils.sram.SramBroadcastBundle
 
 class L1BusErrorUnitInfo(implicit val p: Parameters) extends Bundle with HasSoCParameter {
   val ecc_error = Valid(UInt(soc.PAddrBits.W))
@@ -199,7 +199,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
 
 
   private val mbistBroadCastToCore = if(outer.coreParams.hasMbist) {
-    val res = Some(Wire(new BroadCastBundle))
+    val res = Some(Wire(new SramBroadcastBundle))
     outer.core.module.dft.get := res.get
     res
   } else {
@@ -207,7 +207,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
   }
   private val mbistBroadCastToL2 = if(outer.coreParams.L2CacheParamsOpt.isDefined) {
     if(outer.coreParams.L2CacheParamsOpt.get.hasMbist){
-      val res = Some(Wire(new BroadCastBundle))
+      val res = Some(Wire(new SramBroadcastBundle))
       outer.l2cache.get.module.dft.get := res.get
       res
     } else {
@@ -217,7 +217,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
     None
   }
   val dft = if(mbistBroadCastToCore.isDefined || mbistBroadCastToL2.isDefined){
-    Some(IO(new BroadCastBundle))
+    Some(IO(new SramBroadcastBundle))
   } else {
     None
   }

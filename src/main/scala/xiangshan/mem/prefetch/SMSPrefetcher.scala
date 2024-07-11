@@ -3,7 +3,7 @@ package xiangshan.mem.prefetch
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xiangshan._
 import utils._
 import xs.utils._
@@ -492,7 +492,7 @@ class PhtEntry()(implicit p: Parameters) extends XSBundle with HasSMSModuleHelpe
   val decr_mode = Bool()
 }
 
-class PatternHistoryTable(parentName: String = "Unknown")(implicit p: Parameters) extends XSModule with HasSMSModuleHelper with HasPerfLogging {
+class PatternHistoryTable(implicit p: Parameters) extends XSModule with HasSMSModuleHelper with HasPerfLogging {
   val io = IO(new Bundle() {
     // receive agt evicted entry
     val agt_update = Flipped(ValidIO(new AGTEntry()))
@@ -506,15 +506,9 @@ class PatternHistoryTable(parentName: String = "Unknown")(implicit p: Parameters
     set = smsParams.pht_size / smsParams.pht_ways,
     way =smsParams.pht_ways,
     singlePort = true,
-    hasMbist = coreParams.hasMbist,
-    hasShareBus = coreParams.hasShareBus,
-    parentName = parentName + s"ram_"
+    hasMbist = coreParams.hasMbist
   ))
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, s"mbistPipe_sms", coreParams.hasMbist)
   def PHT_SETS = smsParams.pht_size / smsParams.pht_ways
   val pht_valids = Seq.fill(smsParams.pht_ways){
     RegInit(VecInit(Seq.fill(PHT_SETS){false.B}))
@@ -913,7 +907,7 @@ class PrefetchFilter()(implicit p: Parameters) extends XSModule with HasSMSModul
   XSPerfAccumulate("sms_pf_filter_l2_req", io.l2_pf_addr.valid)
 }
 
-class SMSPrefetcher(parentName: String = "Unknown")(implicit p: Parameters) extends BasePrefecher
+class SMSPrefetcher(implicit p: Parameters) extends BasePrefecher
   with HasSMSModuleHelper with HasPerfLogging {
 
   require(exuParameters.LduCnt == 2)
@@ -981,7 +975,7 @@ class SMSPrefetcher(parentName: String = "Unknown")(implicit p: Parameters) exte
   // prefetch stage0
   val active_gen_table = Module(new ActiveGenerationTable())
   val stride = Module(new StridePF())
-  val pht = Module(new PatternHistoryTable(parentName = parentName + "pht_"))
+  val pht = Module(new PatternHistoryTable)
   val pf_filter = Module(new PrefetchFilter())
 
   val train_vld_s0 = RegNext(train_vld, false.B)

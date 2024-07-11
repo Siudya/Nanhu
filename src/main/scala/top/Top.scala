@@ -27,9 +27,9 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.jtag.JTAGIO
 import xs.utils.{DFTResetSignals, FileRegisters, ResetGen}
-import xs.utils.sram.BroadCastBundle
+import xs.utils.sram.SramBroadcastBundle
 import huancun.{HCCacheParamsKey, HuanCun}
-import xs.utils.mbist.{MBISTInterface, MBISTPipeline}
+import xs.utils.mbist.{MbistInterface, MbistPipeline}
 import xs.utils.perf.DebugOptionsKey
 
 abstract class BaseXSSoc()(implicit p: Parameters) extends LazyModule
@@ -233,7 +233,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     }
 
     private val mbistBroadCastToTile = if (core_with_l2.head.module.dft.isDefined) {
-      val res = Some(Wire(new BroadCastBundle))
+      val res = Some(Wire(new SramBroadcastBundle))
       core_with_l2.foreach(_.module.dft.get := res.get)
       res
     } else {
@@ -241,7 +241,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     }
     private val mbistBroadCastToL3 = if (l3cacheOpt.isDefined) {
       if (l3cacheOpt.get.module.dft.isDefined) {
-        val res = Some(Wire(new BroadCastBundle))
+        val res = Some(Wire(new SramBroadcastBundle))
         l3cacheOpt.get.module.dft.get := res.get
         res
       } else {
@@ -251,62 +251,28 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       None
     }
     private val mbistBroadCastToMisc = if (misc.module.dft.isDefined) {
-      val res = Some(Wire(new BroadCastBundle))
+      val res = Some(Wire(new SramBroadcastBundle))
       misc.module.dft.get := res.get
       res
     } else {
       None
     }
 
-    class DftBundle extends Bundle {
-      val ram_hold = Input(Bool())
-      val ram_bypass = Input(Bool())
-      val ram_bp_clken = Input(Bool())
-      val l3dataram_clk = Input(Bool())
-      val l3dataramclk_bypass = Input(Bool())
-      val cgen = Input(Bool())
-    }
-    class SramBundle extends Bundle {
-      val rf2p_ctrl = Input(UInt(20.W))
-      val rmsp_hd_ctrl = Input(UInt(13.W))
-      val rmsp_hs_ctrl = Input(UInt(17.W))
-    }
-
     val dft = if (mbistBroadCastToTile.isDefined || mbistBroadCastToL3.isDefined || mbistBroadCastToMisc.isDefined) {
-      Some(IO(new DftBundle))
-    } else {
-      None
-    }
-    val sram = if (mbistBroadCastToTile.isDefined || mbistBroadCastToL3.isDefined || mbistBroadCastToMisc.isDefined) {
-      Some(IO(new SramBundle))
+      Some(IO(new SramBroadcastBundle))
     } else {
       None
     }
     dft.foreach(dontTouch(_))
-    sram.foreach(dontTouch(_))
-    (mbistBroadCastToTile ++ mbistBroadCastToL3 ++ mbistBroadCastToMisc).foreach(b => {
-      b.ram_hold            := dft.get.ram_hold
-      b.ram_bypass          := dft.get.ram_bypass
-      b.ram_bp_clken        := dft.get.ram_bp_clken
-      b.l3dataram_clk       := dft.get.l3dataram_clk
-      b.l3dataramclk_bypass := dft.get.l3dataramclk_bypass
-      b.cgen                := dft.get.cgen
-      b.rf2p_ctrl           := sram.get.rf2p_ctrl
-      b.rmsp_hd_ctrl        := sram.get.rmsp_hd_ctrl
-      b.rmsp_hs_ctrl        := sram.get.rmsp_hs_ctrl
-    })
+    (mbistBroadCastToTile ++ mbistBroadCastToL3 ++ mbistBroadCastToMisc).foreach(b => b := dft.get)
 
     /** ***************************************l3 & misc Mbist Share Bus************************************** */
     withClockAndReset(sysClock, sysRst) {
-      val miscPipeLine = if (p(SoCParamsKey).hasMbist && p(SoCParamsKey).hasShareBus) {
-        MBISTPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", true)
-      } else {
-        None
-      }
-      val miscIntf = if (p(SoCParamsKey).hasMbist && p(SoCParamsKey).hasShareBus) {
+      val miscPipeLine = MbistPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", p(SoCParamsKey).hasMbist)
+      val miscIntf = if (p(SoCParamsKey).hasMbist) {
         Some(miscPipeLine.zipWithIndex.map({ case (pip, idx) => {
           val params = pip.nodeParams
-          val intf = Module(new MBISTInterface(
+          val intf = Module(new MbistInterface(
             params = Seq(params),
             ids = Seq(pip.childrenIds),
             name = s"MBIST_intf_misc",
@@ -314,7 +280,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
           ))
           intf.toPipeline.head <> pip.mbist
           intf.mbist := DontCare
-          pip.genCSV(intf.info, s"MBIST_MISC")
+          pip.registerCSV(intf.info, s"MBIST_MISC")
           dontTouch(intf.mbist)
           //TODO: add mbist controller connections here
           intf

@@ -22,7 +22,7 @@ import chisel3.util.{DecoupledIO, _}
 import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp, TransferSizes}
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.util.BundleFieldBase
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xiangshan._
 import xiangshan.frontend._
 import xiangshan.cache._
@@ -134,7 +134,7 @@ object ICacheMetadata {
 }
 
 
-class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) extends ICacheArray {
+class ICacheMetaArray(implicit p: Parameters) extends ICacheArray {
   def onReset = ICacheMetadata(0.U)
 
   val metaBits = onReset.getWidth
@@ -196,19 +196,11 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
       shouldReset = true,
       holdRead = true,
       singlePort = true,
-      hasClkGate = true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName + s"tagArrays${bank}_"
+      hasMbist = coreParams.hasMbist
     ))
     tagArray
   }
-  val mbistTagPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTagPipe")
-  } else {
-    None
-  }
-
+  val mbistTagPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
   val tag_sram_write = Wire(Vec(2,tagArrays.head.io.w.req.cloneType))
   tag_sram_write.map(_.ready := true.B)
@@ -325,7 +317,7 @@ class ICacheMetaArray(parentName:String = "Unknown")(implicit p: Parameters) ext
 
 
 
-class ICacheDataArray(parentName:String = "Unknown")(implicit p: Parameters) extends ICacheArray
+class ICacheDataArray(implicit p: Parameters) extends ICacheArray
 {
 
   def getECCFromEncUnit(encUnit: UInt) = {
@@ -370,8 +362,7 @@ class ICacheDataArray(parentName:String = "Unknown")(implicit p: Parameters) ext
   val dataArrays = (0 until partWayNum).map{ i =>
     val dataArray = Module(new ICachePartWayArray(
       UInt(blockBits.W),
-      pWay,
-      parentName = parentName + s"dataArray${i}_"
+      pWay
     ))
 
     dataArray.io.read.req(0).valid :=  io.read.bits(i).read_bank_0 && io.read.bits(i).readValid
@@ -493,7 +484,7 @@ class ICacheIO(implicit p: Parameters) extends ICacheBundle
   val backend_redirect  = Input(Bool())
 }
 
-class ICache(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasICacheParameters {
+class ICache(implicit p: Parameters) extends LazyModule with HasICacheParameters {
 
   val clientParameters = TLMasterPortParameters.v1(
     Seq(TLMasterParameters.v1(
@@ -524,17 +515,13 @@ class ICacheImp(outer: ICache) extends LazyModuleImp(outer) with HasICacheParame
 
   val (bus, edge) = outer.clientNode.out.head
 
-  val metaArray      = Module(new ICacheMetaArray(parentName = s"${outer.parentName}metaArray_"))
-  val dataArray      = Module(new ICacheDataArray(parentName = s"${outer.parentName}dataArray_"))
+  val metaArray      = Module(new ICacheMetaArray)
+  val dataArray      = Module(new ICacheDataArray)
   val mainPipe       = Module(new ICacheMainPipe)
   val missUnit      = Module(new ICacheMissUnit(edge))
 
   val prefetchPipe    = Module(new IPrefetchPipe)
-  val mbistTagPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(2, s"${outer.parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val mbistTagPipeline = MbistPipeline.PlaceMbistPipeline(2, place = coreParams.hasMbist)
 
   val meta_read_arb   = Module(new Arbiter(new ICacheReadBundle,  2))
 
@@ -682,7 +669,7 @@ class ICacheWriteBundle[T <: Data](gen: T, pWay: Int)(implicit p: Parameters)
   val wmask = Vec(pWay, Bool())
 }
 
-class ICachePartWayArray[T <: Data](gen: T, pWay: Int, parentName:String = "Unknown")(implicit p: Parameters) extends ICacheArray
+class ICachePartWayArray[T <: Data](gen: T, pWay: Int)(implicit p: Parameters) extends ICacheArray
 {
 
   //including part way data
@@ -701,16 +688,9 @@ class ICachePartWayArray[T <: Data](gen: T, pWay: Int, parentName:String = "Unkn
       shouldReset = true,
       holdRead = true,
       singlePort = true,
-      hasClkGate = true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName + s"bank${bank}_"
+      hasMbist = coreParams.hasMbist
     ))
-    val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-      MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe${bank}")
-    } else {
-      None
-    }
+    val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
     sramBank.io.r.req.valid := io.read.req(bank).valid
     sramBank.io.r.req.bits.apply(setIdx= io.read.req(bank).bits.ridx)

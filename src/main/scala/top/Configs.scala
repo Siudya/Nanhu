@@ -42,11 +42,11 @@ class BaseConfig(n: Int, mbist:Boolean = false) extends Config((site, here, up) 
   case XLen => 64
   case DebugOptionsKey => DebugOptions()
   case SoCParamsKey => SoCParameters(
-    hasShareBus = mbist, hasMbist = mbist, hasRot = false
+    hasMbist = mbist, hasRot = false
   )
   case PMParameKey => PMParameters()
   case XSTileKey => Seq.tabulate(n){
-    i => XSCoreParameters(HartId = i, hasMbist = mbist, hasShareBus = mbist,
+    i => XSCoreParameters(HartId = i, hasMbist = mbist,
     prefetcher = Some(SMSParams()))
   }
   case ExportDebug => DebugAttachParams(protocols = Set(JTAG))
@@ -257,7 +257,6 @@ class WithNKBL2
         elaboratedTopDown = false,
         enablePerf = false,
         hasMbist = p.hasMbist,
-        hasShareBus = p.hasShareBus,
         prefetch = Some(coupledL2.prefetch.PrefetchReceiverParams()),
         /*
         del L2 prefetche recv option, move into: prefetch =  PrefetchReceiverParams
@@ -316,7 +315,6 @@ class WithNKBL3(n: Int, ways: Int = 8, inclusive: Boolean = true, banks: Int = 1
         sramClkDivBy2 = true,
         sramDepthDiv = 8,
         hasMbist = up(SoCParamsKey).hasMbist,
-        hasShareBus = up(SoCParamsKey).hasShareBus,
         tagECC = Some("secded"),
         dataECC = Some("secded"),
         simulation = !site(DebugOptionsKey).FPGAPlatform

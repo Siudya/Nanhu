@@ -22,7 +22,7 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xs.utils.sram.{FoldedSRAMTemplate, SRAMTemplate}
 
 import scala.math.min
@@ -141,7 +141,7 @@ trait TBTParams extends HasXSParameter with TageParams {
 }
 
 
-class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule with TBTParams{
+class TageBTable(implicit p: Parameters) extends XSModule with TBTParams{
   val io = IO(new Bundle {
     //#2410
     // val s0_fire = Input(Bool())
@@ -159,15 +159,9 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
   val bimAddr = new TableAddr(log2Up(BtSize), instOffsetBits)
 
   val bt = Module(new SRAMTemplate(UInt(2.W), set = BtSize, way=numBr, shouldReset = true, holdRead = true, bypassWrite = true,
-    hasMbist = coreParams.hasMbist,
-    hasShareBus = coreParams.hasShareBus,
-    parentName = parentName
+    hasMbist = coreParams.hasMbist
   ))
-  val mbistPipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe", true)
-  } else {
-    None
-  }
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
   val doing_reset = RegInit(true.B)
   val resetRow = RegInit(0.U(log2Ceil(BtSize).W))
@@ -253,7 +247,7 @@ class TageBTable(parentName:String = "Unknown")(implicit p: Parameters) extends 
 
 class TageTable
 (
-  val nRows: Int, val histLen: Int, val tagLen: Int, val tableIdx: Int, parentName:String = "Unknown"
+  val nRows: Int, val histLen: Int, val tagLen: Int, val tableIdx: Int
 )(implicit p: Parameters)
   extends TageModule with HasFoldedHistory with HasPerfLogging {
   val io = IO(new Bundle() {
@@ -325,26 +319,20 @@ class TageTable
   // val s1_pc = io.req.bits.pc
   val req_unhashed_idx = getUnhashedIdx(io.req.bits.pc)
 
-  val us = Module(new FoldedSRAMTemplate(Bool(), set=nRowsPerBr, width=uFoldedWidth, way=numBr, shouldReset=true, extraReset=true, holdRead=true, singlePort=true,
-    hasMbist = coreParams.hasMbist,
-    hasShareBus = coreParams.hasShareBus,
-    parentName = parentName + "us_"
+  val us = Module(new FoldedSRAMTemplate(Bool(), set=nRowsPerBr, width=uFoldedWidth, way=numBr, shouldReset=true,
+    extraReset=true, holdRead=true, singlePort=true,
+    hasMbist = coreParams.hasMbist
   ))
   us.extra_reset.get := io.update.reset_u.reduce(_||_)
 
 
   val table_banks = Seq.tabulate(nBanks)(idx =>
-    Module(new FoldedSRAMTemplate(new TageEntry, set=bankSize, width=bankFoldWidth, way=numBr, shouldReset=true, holdRead=true, singlePort=true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName + s"table${idx}_"
+    Module(new FoldedSRAMTemplate(new TageEntry, set=bankSize, width=bankFoldWidth, way=numBr,
+      shouldReset=true, holdRead=true, singlePort=true,
+      hasMbist = coreParams.hasMbist
     )))
 
-  val mbistTablePipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistTablePipe")
-  } else {
-    None
-  }
+  val mbistTablePipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
 
   val (s0_idx, s0_tag) = compute_tag_and_hash(req_unhashed_idx, io.req.bits.folded_hist)
@@ -578,13 +566,13 @@ class FakeTage(implicit p: Parameters) extends BaseTage {
 }
 
 
-class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends BaseTage {
+class Tage(implicit p: Parameters) extends BaseTage {
 
   val resp_meta = Wire(new TageMeta)
   override val meta_size = resp_meta.getWidth
   val tables = TageTableInfos.zipWithIndex.map {
     case ((nRows, histLen, tagLen), i) => {
-      val t = Module(new TageTable(nRows, histLen, tagLen, i, parentName = parentName + s"tagtable${i}_"))
+      val t = Module(new TageTable(nRows, histLen, tagLen, i))
       t.io.req.valid := io.s0_fire(1)
       t.io.req.bits.pc := s0_pc_dup(1)
       t.io.req.bits.folded_hist := io.in.bits.folded_hist(1)
@@ -592,7 +580,7 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
       t
     }
   }
-  val bt = Module (new TageBTable(parentName = parentName + "bttable_"))
+  val bt = Module (new TageBTable)
   // bt.io.s0_fire := io.s0_fire(1)
   // bt.io.s0_pc   := s0_pc_dup(1)
   //#2410
@@ -978,4 +966,4 @@ class Tage(val parentName:String = "Unknown")(implicit p: Parameters) extends Ba
 }
 
 
-class Tage_SC(parentName:String = "Unknown")(implicit p: Parameters) extends Tage(parentName) with HasSC {}
+class Tage_SC(implicit p: Parameters) extends Tage with HasSC {}

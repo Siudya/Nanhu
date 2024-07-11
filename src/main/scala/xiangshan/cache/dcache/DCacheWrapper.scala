@@ -428,7 +428,7 @@ class DCacheIO(implicit p: Parameters) extends DCacheBundle {
 }
 
 
-class DCache(val parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasDCacheParameters {
+class DCache(implicit p: Parameters) extends LazyModule with HasDCacheParameters {
 
   val clientParameters = TLMasterPortParameters.v1(
     Seq(TLMasterParameters.v1(
@@ -466,10 +466,10 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
 
   //----------------------------------------
   // core data structures
-  val bankedDataArray = Module(new BankedDataArray(parentName = outer.parentName + "bankedDataArray_"))
+  val bankedDataArray = Module(new BankedDataArray)
   val metaArray = Module(new AsynchronousMetaArray(readPorts = 3, writePorts = 2))
   val errorArray = Module(new ErrorArray(readPorts = 3, writePorts = 2)) // TODO: add it to meta array
-  val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1, parentName = outer.parentName + "tagArray_"))
+  val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1))
   bankedDataArray.dump()
 
   //----------------------------------------
@@ -927,11 +927,11 @@ class AMOHelper() extends ExtModule {
   val rdata  = IO(Output(UInt(64.W)))
 }
 
-class DCacheWrapper(parentName:String = "Unknown")(implicit p: Parameters) extends LazyModule with HasXSParameter {
+class DCacheWrapper(implicit p: Parameters) extends LazyModule with HasXSParameter {
 
   val useDcache = coreParams.dcacheParametersOpt.nonEmpty
   val clientNode = if (useDcache) TLIdentityNode() else null
-  val dcache = if (useDcache) LazyModule(new DCache(parentName = parentName)) else null
+  val dcache = if (useDcache) LazyModule(new DCache) else null
   if (useDcache) {
     clientNode := dcache.clientNode
   }

@@ -1,6 +1,6 @@
 package system
 import chisel3._
-import xs.utils.mbist.STD_CLKGT_func
+import xs.utils.ClockGate
 import xs.utils.{DFTResetSignals, ResetGen}
 
 class TopCrg extends Module {
@@ -16,12 +16,10 @@ class TopCrg extends Module {
   withClockAndReset(clock, rstSync.raw_reset) {
     val gt_ff = RegInit(true.B)
     gt_ff := ~gt_ff
-    val clkGt = Module(new STD_CLKGT_func)
+    val clkGt = Module(new ClockGate)
     clkGt.io.TE := false.B
     clkGt.io.E := gt_ff
     clkGt.io.CK := clock
-    clkGt.io.dft_l3dataram_clk := false.B
-    clkGt.io.dft_l3dataramclk_bypass := false.B
     io.sysClock := clock
     io.periClock := clkGt.io.Q
   }

@@ -22,7 +22,7 @@ import chisel3.util._
 import xiangshan._
 import utils._
 import xs.utils._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xs.utils.perf.HasPerfLogging
 import xs.utils.sram.SRAMTemplate
 
@@ -266,7 +266,7 @@ object FTBMeta {
 //   }
 // }
 
-class FTB(parentName:String = "Unknown")(implicit p: Parameters) extends BasePredictor with FTBParams with BPUUtils
+class FTB(implicit p: Parameters) extends BasePredictor with FTBParams with BPUUtils
   with HasCircularQueuePtrHelper with HasPerfEvents {
   override val meta_size = WireInit(0.U.asTypeOf(new FTBMeta)).getWidth
 
@@ -294,10 +294,9 @@ class FTB(parentName:String = "Unknown")(implicit p: Parameters) extends BasePre
     })
 
     // Extract holdRead logic to fix bug that update read override predict read result
-    val ftb = Module(new SRAMTemplate(new FTBEntryWithTag, set = numSets, way = numWays, shouldReset = true, holdRead = false, singlePort = true,
-      hasMbist = coreParams.hasMbist,
-      hasShareBus = coreParams.hasShareBus,
-      parentName = parentName
+    val ftb = Module(new SRAMTemplate(new FTBEntryWithTag, set = numSets, way = numWays,
+      shouldReset = true, holdRead = false, singlePort = true,
+      hasMbist = coreParams.hasMbist
     ))
     val ftb_r_entries = ftb.io.r.resp.data.map(_.entry)
 
@@ -404,11 +403,7 @@ class FTB(parentName:String = "Unknown")(implicit p: Parameters) extends BasePre
   } // FTBBank
 
   val ftbBank = Module(new FTBBank(numSets, numWays))
-  val mbistPipeline = if (coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistPipe")
-  } else {
-    None
-  }
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
 
   ftbBank.io.req_pc.valid := io.s0_fire(dupForFtb)
   ftbBank.io.req_pc.bits := s0_pc_dup(dupForFtb)

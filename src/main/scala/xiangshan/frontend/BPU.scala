@@ -227,12 +227,12 @@ class PredictorIO(implicit p: Parameters) extends XSBundle {
 }
 
 
-class Predictor(parentName:String = "Unknown")(implicit p: Parameters) extends XSModule
+class Predictor(implicit p: Parameters) extends XSModule
   with HasBPUConst with HasPerfEvents with HasCircularQueuePtrHelper with HasPerfLogging {
   val io = IO(new PredictorIO)
 
   val ctrl = DelayN(io.ctrl, 1)
-  val predictors = Module(if (useBPD) new Composer(parentName = parentName) else new FakePredictor)
+  val predictors = Module(if (useBPD) new Composer else new FakePredictor)
 
   // ctrl signal
   predictors.io.ctrl := ctrl

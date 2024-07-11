@@ -19,7 +19,7 @@ package xiangshan.cache.mmu
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import xs.utils.mbist.MBISTPipeline
+import xs.utils.mbist.MbistPipeline
 import xiangshan._
 import utils._
 import xiangshan.backend.execute.fu.fence.SfenceBundle
@@ -157,16 +157,9 @@ class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XS
     set = l2tlbParams.l2nSets,
     way = l2tlbParams.l2nWays,
     singlePort = sramSinglePort,
-    hasMbist = coreParams.hasMbist,
-    hasShareBus = coreParams.hasShareBus,
-    hasClkGate = true,
-    parentName = parentName + "l2_"
+    hasMbist = coreParams.hasMbist
   ))
-  val mbistL2Pipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistL2Pipe")
-  } else {
-    None
-  }
+  val mbistL2Pipeline = MbistPipeline.PlaceMbistPipeline(1, "mbistPipe_ptwl2", coreParams.hasMbist)
   val l2v = RegInit(0.U((l2tlbParams.l2nSets * l2tlbParams.l2nWays).W))
   val l2g = Reg(UInt((l2tlbParams.l2nSets * l2tlbParams.l2nWays).W))
   val l2asids = Reg(Vec(l2tlbParams.l2nSets, Vec(l2tlbParams.l2nWays, UInt(AsidLength.W))))
@@ -190,15 +183,9 @@ class PtwCache(parentName:String = "Unknown")(implicit p: Parameters) extends XS
     set = l2tlbParams.l3nSets,
     way = l2tlbParams.l3nWays,
     singlePort = sramSinglePort,
-    hasMbist = coreParams.hasMbist,
-    hasShareBus = coreParams.hasShareBus,
-    parentName = parentName + "l3_"
+    hasMbist = coreParams.hasMbist
   ))
-  val mbistL3Pipeline = if(coreParams.hasMbist && coreParams.hasShareBus) {
-    MBISTPipeline.PlaceMbistPipeline(1, s"${parentName}_mbistL3Pipe")
-  } else {
-    None
-  }
+  val mbistL3Pipeline = MbistPipeline.PlaceMbistPipeline(1, "mbistPipe_ptwl3", coreParams.hasMbist)
   val l3v = RegInit(0.U((l2tlbParams.l3nSets * l2tlbParams.l3nWays).W))
   val l3g = Reg(UInt((l2tlbParams.l3nSets * l2tlbParams.l3nWays).W))
   val l3asids = Reg(Vec(l2tlbParams.l3nSets, Vec(l2tlbParams.l3nWays, UInt(AsidLength.W))))
