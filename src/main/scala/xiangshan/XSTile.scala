@@ -16,6 +16,7 @@ import xs.utils.{DFTResetSignals, ResetGen}
 import system.HasSoCParameter
 import top.BusPerfMonitor
 import utils.{IntBuffer, TLClientsMerger, TLEdgeBuffer}
+import xs.utils.dft.{DftModBundle, EdtFuncBundle, EdtWrapper, HasIjtag, SIB, SOCC}
 import xs.utils.perf.DebugOptionsKey
 import xs.utils.sram.SramBroadcastBundle
 
@@ -156,26 +157,72 @@ class XSTile(val parentName:String = "Unknown")(implicit p: Parameters) extends 
   lazy val module = new XSTileImp(this)
 }
 
+class XsTileDftBundle(ci:Int, co:Int) extends Bundle {
+  val scan_en: Bool = Input(Bool())
+  val occ_shift:Bool = Input(Bool())
+  val edt: EdtFuncBundle = new EdtFuncBundle(ci, co)
+  val ram: SramBroadcastBundle = new SramBroadcastBundle
+  val rstCtl: DFTResetSignals = Input(new DFTResetSignals)
+}
+
 class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(outer)
   with HasXSParameter
-  with HasSoCParameter {
+  with HasSoCParameter
+  with HasIjtag {
+  val mName = "XSTile"
   val io = IO(new Bundle {
     val hartId = Input(UInt(64.W))
     val reset_vector = Input(UInt(PAddrBits.W))
     val cpu_halt = Output(Bool())
-    val dfx_reset = Input(new DFTResetSignals())
-    val XStileResetGate = Input(Bool())
+    val xsTileResetGate = Input(Bool())
   })
-  val ireset = reset
+  private val ciw = p(XSCoreParamsKey).edtCi
+  private val cow = p(XSCoreParamsKey).edtCo
+  val dft = IO(new XsTileDftBundle(ciw, cow))
+
   dontTouch(io.hartId)
-
-  val core_soft_rst = outer.core_reset_sink.in.head._1
-
+  private val sib = Module(new SIB)
+  private val socc = Module(new SOCC)
+  private val edt = Module(new EdtWrapper(
+    mName = "TileEdtWrapper",
+    instName = "edt",
+    ciw = coreParams.edtCi,
+    cow = coreParams.edtCo,
+    sw = coreParams.edtScan,
+    chainRange = coreParams.edtRange
+  ))
+  socc.io.scan := DontCare
+  socc.io.scan.en := dft.scan_en
+  socc.io.clock := clock
+  socc.io.clkCtrl := true.B
+  socc.io.shiftOnlyMode := dft.occ_shift
+  makeChain(Seq(ijtag, sib.ijtag))
+  makeChain(Seq(sib.host, socc.ijtag, edt.io.ijtag, outer.core.module.ijtag) ++ outer.l2cache.map(_.module.ijtag))
+  private val tileClock = socc.io.outClock
   outer.core.module.io.hartId := io.hartId
   outer.core.module.io.reset_vector := io.reset_vector
-  outer.core.module.io.dfx_reset := io.dfx_reset
+  outer.core.module.io.dfx_reset := dft.rstCtl
+  edt.io.scan_en := dft.scan_en
+  edt.io.ci := dft.edt.in_channels
+  dft.edt.out_channels := edt.io.co
+  edt.io.update := dft.edt.update
+  edt.io.atpg_clock := clock
 
-  outer.l2cache.foreach(_.module.io.dfx_reset := io.dfx_reset)
+  private val l2bufs = outer.l2InputBuffers.getOrElse(Seq())
+  private val bufSeq = (outer.l1i_to_l2_buffers ++ outer.ptw_to_l2_buffers ++ l2bufs).map(_.module.asInstanceOf[LazyModuleImp])
+  private val modSeq = Seq(
+    outer.misc.module,
+    outer.core.module,
+    outer.cltIntBuf.module,
+    outer.plicIntBuf.module,
+    outer.dbgIntBuf.module,
+    outer.beuIntBuf.module,
+    outer.l2IntBuf.module
+  ) ++ bufSeq ++ outer.l2cache.map(_.module.asInstanceOf[LazyModuleImp]) ++
+    outer.l1d_to_l2_bufferOpt.map(_.module.asInstanceOf[LazyModuleImp])
+  modSeq.foreach(_.clock := tileClock)
+
+  outer.l2cache.foreach(_.module.io.dfx_reset := dft.rstCtl)
   io.cpu_halt := outer.core.module.io.cpu_halt
 
   if (outer.l2cache.isDefined) {
@@ -188,45 +235,14 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
 
   outer.misc.module.beu_errors.icache <> outer.core.module.io.beu_errors.icache
   outer.misc.module.beu_errors.dcache <> outer.core.module.io.beu_errors.dcache
-  // TODO: replace Coupled L2
-  // if(outer.l2cache.isDefined){
-  //   outer.misc.module.beu_errors.l2.ecc_error.valid := outer.l2cache.get.module.io.ecc_error.valid
-  //   outer.misc.module.beu_errors.l2.ecc_error.bits := outer.l2cache.get.module.io.ecc_error.bits
-  // } else {
-  //   outer.misc.module.beu_errors.l2 <> 0.U.asTypeOf(outer.misc.module.beu_errors.l2)
-  // }
   outer.misc.module.beu_errors.l2 <> 0.U.asTypeOf(outer.misc.module.beu_errors.l2)
 
-
-  private val mbistBroadCastToCore = if(outer.coreParams.hasMbist) {
-    val res = Some(Wire(new SramBroadcastBundle))
-    outer.core.module.dft.get := res.get
-    res
-  } else {
-    None
+  if(outer.coreParams.hasMbist) {
+    outer.core.module.dft.get := dft.ram
   }
-  private val mbistBroadCastToL2 = if(outer.coreParams.L2CacheParamsOpt.isDefined) {
-    if(outer.coreParams.L2CacheParamsOpt.get.hasMbist){
-      val res = Some(Wire(new SramBroadcastBundle))
-      outer.l2cache.get.module.dft.get := res.get
-      res
-    } else {
-      None
-    }
-  } else {
-    None
-  }
-  val dft = if(mbistBroadCastToCore.isDefined || mbistBroadCastToL2.isDefined){
-    Some(IO(new SramBroadcastBundle))
-  } else {
-    None
-  }
-  if(dft.isDefined){
-    if(mbistBroadCastToCore.isDefined){
-      mbistBroadCastToCore.get := dft.get
-    }
-    if(mbistBroadCastToL2.isDefined) {
-       mbistBroadCastToL2.get := dft.get
+  if(outer.coreParams.L2CacheParamsOpt.isDefined) {
+    if (outer.coreParams.L2CacheParamsOpt.get.hasMbist) {
+      outer.l2cache.get.module.dft.get := dft.ram
     }
   }
   // Modules are reset one by one
@@ -234,7 +250,7 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
   //             |
   //             v
   // reset ----> OR_SYNC --> {Misc, L2 Cache, Cores}
-  private val l2bufs = outer.l2InputBuffers.getOrElse(Seq())
+
   val resetChain = Seq(
     Seq(
       outer.misc.module,
@@ -251,6 +267,6 @@ class XSTileImp(outer: XSTile)(implicit p: Parameters) extends LazyModuleImp(out
       outer.l1d_to_l2_bufferOpt.map(_.module)
   )
   val gatedReset = Wire(Reset())
-  gatedReset := (reset.asBool | io.XStileResetGate).asAsyncReset
-  ResetGen(resetChain, gatedReset, Some(io.dfx_reset), !outer.debugOpts.FPGAPlatform)
+  gatedReset := (reset.asBool | io.xsTileResetGate).asAsyncReset
+  ResetGen(resetChain, gatedReset, Some(dft.rstCtl), !outer.debugOpts.FPGAPlatform)
 }

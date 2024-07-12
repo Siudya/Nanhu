@@ -18,6 +18,7 @@ package top
 
 import chisel3._
 import chisel3.experimental.{ChiselAnnotation, annotate}
+import chisel3.util.Cat
 import xiangshan._
 import utils._
 import system._
@@ -27,9 +28,10 @@ import org.chipsalliance.cde.config._
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tilelink._
 import freechips.rocketchip.jtag.JTAGIO
-import xs.utils.{DFTResetSignals, FileRegisters, ResetGen}
-import xs.utils.sram.SramBroadcastBundle
+import xs.utils.{FileRegisters, ResetGen}
 import huancun.{HCCacheParamsKey, HuanCun}
+import xs.utils.dft.{BAP, EdtFuncBundle, HasIjtag, SIB, TestController}
+import xs.utils.mbist.controller.MbistController
 import sifive.enterprise.firrtl.NestedPrefixModulesAnnotation
 import xs.utils.mbist.{MbistInterface, MbistPipeline}
 import xs.utils.perf.DebugOptionsKey
@@ -39,6 +41,13 @@ abstract class BaseXSSoc()(implicit p: Parameters) extends LazyModule
 
   lazy val dts = DTS(bindingTree)
   lazy val json = JSON(bindingTree)
+}
+
+class XsTopDftBundle(ci:Int, co:Int) extends Bundle {
+  val scan_en: Bool = Input(Bool())
+  val atpg_clock:Clock = Input(Clock())
+  val edt: EdtFuncBundle = new EdtFuncBundle(ci, co)
+  val ram_aux_clk = Input(Bool())
 }
 
 class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
@@ -125,7 +134,8 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 
   lazy val module = new Impl
 
-  class Impl extends LazyRawModuleImp(this) {
+  class Impl extends LazyRawModuleImp(this) with HasIjtag {
+    val mName = "XSTop"
     FileRegisters.add("misc", "dts", dts)
     FileRegisters.add("misc", "graphml", graphML)
     FileRegisters.add("misc", "json", json)
@@ -146,6 +156,9 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     peripheral <> misc.peripheral
     memory <> misc.memory
 
+    private val ci = p(SoCParamsKey).edtCi + tiles.map(_.edtCi).sum
+    private val co = p(SoCParamsKey).edtCo + tiles.map(_.edtCo).sum
+
     val io = IO(new Bundle {
       val clock = Input(Clock())
       val reset = Input(AsyncReset())
@@ -161,33 +174,52 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       val riscv_halt = Output(Vec(NumCores, Bool()))
       val riscv_rst_vec = Input(Vec(NumCores, UInt(soc.PAddrBits.W)))
     })
-
-    val scan_mode = IO(Input(Bool()))
-    val dft_lgc_rst_n = IO(Input(AsyncReset()))
-    val dft_mode = IO(Input(Bool()))
     val rtc_clock = IO(Input(Bool()))
-    val dfx = Wire(new DFTResetSignals())
-    val bootrom_disable = IO(Input(Bool()))     //1: disable bootrom; 0: bootrom check enable
-    dfx.lgc_rst_n := dft_lgc_rst_n
-    dfx.mode := dft_mode
-    dfx.scan_mode := scan_mode
+    val bootrom_disable = IO(Input(Bool())) //1: disable bootrom; 0: bootrom check enable
+    val dft = IO(new XsTopDftBundle(ci, co))
 
     private val sysRst = Wire(AsyncReset())
-    private val sysClock = Wire(Clock())
+    private val miscClock = Wire(Clock())
     private val periClock = Wire(Clock())
-    withClockAndReset(io.clock, io.reset) {
-      val topCrg = Module(new TopCrg)
-      topCrg.io.dfx := dfx
+    private val topSib = Module(new SIB)
+    makeChain(Seq(ijtag, topSib.ijtag))
+    private val ctrlSib = Module(new SIB)
+    private val testCtrl = Module(new TestController)
+    makeChain(Seq(ctrlSib.host, testCtrl.ijtag))
+    private val cdnDriver = Module(new CdnDriver)
+    private val topCrg = withClockAndReset(cdnDriver.io.outClock, io.reset) {
+      val topCrg = Module(new TopCrg(
+        edtCi = p(SoCParamsKey).edtCi,
+        edtCo = p(SoCParamsKey).edtCo,
+        edtScan = p(SoCParamsKey).edtScan,
+        edtRange = p(SoCParamsKey).edtRange,
+      ))
+      topCrg.dfx.rstCtl := testCtrl.io.rstCtrl
+      topCrg.dfx.occ_shift := testCtrl.io.shiftOnlyMode
+      topCrg.dfx.edt.update := dft.edt.update
+      topCrg.dfx.scan_en := dft.scan_en
       sysRst := topCrg.io.sysReset
-      sysClock := topCrg.io.sysClock
+      miscClock := topCrg.io.miscClock
       periClock := topCrg.io.periClock
+      topCrg
     }
+    private val bapSib = if (p(SoCParamsKey).hasMbist) Some(Module(new SIB)) else None
+    private val sibIjtagChain = Seq(topCrg.ijtag, ctrlSib.ijtag, cdnDriver.ijtag) ++
+      bapSib.map(_.ijtag) ++ core_with_l2.map(_.module.ijtag)
+    makeChain(Seq(topSib.host) ++ sibIjtagChain)
+
+    testCtrl.io.ram_aux_clk := dft.ram_aux_clk
+    cdnDriver.io.scanEn := DontCare
+    cdnDriver.io.shiftOnlyMode := testCtrl.io.shiftOnlyMode
+    cdnDriver.io.atpgClk := dft.atpg_clock
+    cdnDriver.io.funcClk := io.clock
+    private val dfxRstCtl = testCtrl.io.rstCtrl
 
     private val jtag_reset_sync = withClockAndReset(io.systemjtag.jtag.TCK, io.systemjtag.reset) {
-      ResetGen(2, Some(dfx))
+      ResetGen(2, Some(dfxRstCtl))
     }
 
-    childClock := sysClock
+    childClock := miscClock
     childReset := sysRst
 
     // output
@@ -198,34 +230,41 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
     dontTouch(io)
     dontTouch(peripheral)
     dontTouch(memory)
-    dontTouch(scan_mode)
-    dontTouch(dft_lgc_rst_n)
-    dontTouch(dft_mode)
-    dontTouch(dfx)
     dontTouch(bootrom_disable)
     misc.module.extIntrs := io.extIntrs
-    misc.module.dfx := dfx
+    misc.module.dfx := dfxRstCtl
     misc.module.rtcClock := rtc_clock
     misc.module.periClock := periClock
 
     for ((core, i) <- core_with_l2.zipWithIndex) {
       core.module.io.hartId := i.U
-      core.module.io.dfx_reset := dfx
       core.module.io.reset_vector := io.riscv_rst_vec(i)
       //zdr: ROM init enable
-      core.module.io.XStileResetGate := !(misc.module.ROMInitEn | bootrom_disable)
+      core.module.io.xsTileResetGate := !(misc.module.ROMInitEn | bootrom_disable)
+      core.module.clock := cdnDriver.io.outClock
       io.riscv_halt(i) := core.module.io.cpu_halt
+      core.module.dft.scan_en := dft.scan_en
+      core.module.dft.occ_shift := testCtrl.io.shiftOnlyMode
+      core.module.dft.edt.update := dft.edt.update
+      core.module.dft.ram := testCtrl.io.sram
+      core.module.dft.rstCtl := dfxRstCtl
+      val start = tiles.take(i).map(_.edtCi).sum
+      core.module.dft.edt.in_channels := dft.edt.in_channels(tiles(i).edtCi - 1 + start, start)
     }
+    private val start = tiles.map(_.edtCi).sum
+    topCrg.dfx.edt.in_channels := dft.edt.in_channels(p(SoCParamsKey).edtCi - 1 + start, start)
+    dft.edt.out_channels := Cat((core_with_l2.map(_.module.dft.edt.out_channels) :+ topCrg.dfx.edt.out_channels).reverse)
+
     core_rst_nodes.foreach(_.out.head._1 := false.B.asAsyncReset)
 
     if (l3cacheOpt.isDefined) {
       if (l3cacheOpt.get.module.dfx_reset.isDefined) {
-        l3cacheOpt.get.module.dfx_reset.get := dfx
+        l3cacheOpt.get.module.dfx_reset.get := dfxRstCtl
       }
     }
 
-    misc.module.debug_module_io.resetCtrl.hartIsInReset := core_with_l2.map(_.module.ireset.asBool)
-    misc.module.debug_module_io.clock := io.clock.asBool
+    misc.module.debug_module_io.resetCtrl.hartIsInReset := core_with_l2.map(_.module.reset.asBool)
+    misc.module.debug_module_io.clock := miscClock.asBool
     misc.module.debug_module_io.reset := misc.module.reset
 
     misc.module.debug_module_io.debugIO.reset := misc.module.reset
@@ -241,76 +280,50 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
       x.version := io.systemjtag.version
     }
 
-    private val mbistBroadCastToTile = if (core_with_l2.head.module.dft.isDefined) {
-      val res = Some(Wire(new SramBroadcastBundle))
-      core_with_l2.foreach(_.module.dft.get := res.get)
-      res
-    } else {
-      None
-    }
-    private val mbistBroadCastToL3 = if (l3cacheOpt.isDefined) {
+    if (l3cacheOpt.isDefined) {
       if (l3cacheOpt.get.module.dft.isDefined) {
-        val res = Some(Wire(new SramBroadcastBundle))
-        l3cacheOpt.get.module.dft.get := res.get
-        res
-      } else {
-        None
+        l3cacheOpt.get.module.dft.get := testCtrl.io.sram
       }
-    } else {
-      None
-    }
-    private val mbistBroadCastToMisc = if (misc.module.dft.isDefined) {
-      val res = Some(Wire(new SramBroadcastBundle))
-      misc.module.dft.get := res.get
-      res
-    } else {
-      None
     }
 
-    val dft = if (mbistBroadCastToTile.isDefined || mbistBroadCastToL3.isDefined || mbistBroadCastToMisc.isDefined) {
-      Some(IO(new SramBroadcastBundle))
-    } else {
-      None
+    if (misc.module.dft.isDefined) {
+      misc.module.dft.get := testCtrl.io.sram
     }
-    dft.foreach(dontTouch(_))
-    (mbistBroadCastToTile ++ mbistBroadCastToL3 ++ mbistBroadCastToMisc).foreach(b => b := dft.get)
 
     /** ***************************************l3 & misc Mbist Share Bus************************************** */
-    withClockAndReset(sysClock, sysRst) {
-      val miscPipeLine = MbistPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_L3", p(SoCParamsKey).hasMbist)
-      val miscIntf = if (p(SoCParamsKey).hasMbist) {
-        Some(miscPipeLine.zipWithIndex.map({ case (pip, idx) => {
-          val params = pip.nodeParams
-          val intf = Module(new MbistInterface(
-            params = Seq(params),
-            ids = Seq(pip.childrenIds),
-            name = s"MBIST_intf_misc",
-            pipelineNum = 1
-          ))
-          intf.toPipeline.head <> pip.mbist
-          intf.mbist := DontCare
-          pip.registerCSV(intf.info, s"MBIST_MISC")
-          dontTouch(intf.mbist)
-          //TODO: add mbist controller connections here
-          intf
-        }
-        }))
-      } else {
-        None
+    withClockAndReset(miscClock, sysRst) {
+      val miscPipeLine = MbistPipeline.PlaceMbistPipeline(Int.MaxValue, s"MbistPipeMisc", p(SoCParamsKey).hasMbist)
+      if (p(SoCParamsKey).hasMbist) {
+        val params = miscPipeLine.get.nodeParams
+        val intf = Module(new MbistInterface(
+          params = Seq(params),
+          ids = Seq(miscPipeLine.get.childrenIds),
+          name = s"MbistIntfMisc",
+          pipelineNum = 1
+        ))
+        val mbistCtrl = Module(new MbistController(miscPipeLine.get.myNode))
+        val bap = Module(new BAP(mbistCtrl.param, "MiscBap"))
+        makeChain(Seq(bapSib.get.host, bap.ijtag))
+        intf.toPipeline.head <> miscPipeLine.get.mbist
+        miscPipeLine.get.registerCSV(intf.info, "MbistMisc")
+        intf.mbist <> mbistCtrl.io.mbist
+        mbistCtrl.io.bap <> bap.mbist
       }
 
       // Modules are reset one by one
       // reset ----> SYNC --> {SoCMisc, L3 Cache, Cores}
-      val coreResetChain: Seq[Reset] = core_with_l2.map(_.module.ireset)
+      val coreResetChain: Seq[Reset] = core_with_l2.map(_.module.reset)
       val resetChain = Seq(misc.module.reset) ++ l3cacheOpt.map(_.module.reset) ++ coreResetChain
       val resetDftSigs = ResetGen.applyOneLevel(resetChain, sysRst, !debugOpts.FPGAPlatform)
-      resetDftSigs := dfx
+      resetDftSigs := dfxRstCtl
     }
   }
 }
 
+
 object TopMain extends App {
   val (config, firrtlOpts) = ArgParser.parse(args)
+  val prefix = config(PrefixKey)
   xs.utils.GlobalData.prefix = config(PrefixKey)
   difftest.GlobalData.prefix = config(PrefixKey)
   val soc = DisableMonitors(p => LazyModule(new XSTop()(p)))(config)
@@ -329,5 +342,8 @@ object TopMain extends App {
       soc.module
     })
   ))
-  FileRegisters.write(filePrefix = config(PrefixKey) + "XSTop.")
+  xs.utils.dft.FileManager.rtlDir = s"../rtl"
+  xs.utils.dft.FileManager.macroDir = "../macros"
+  xs.utils.dft.FileManager.writeOut(prefix + "XSTop")
+  FileRegisters.write(filePrefix = prefix + "XSTop.")
 }

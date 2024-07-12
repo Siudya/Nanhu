@@ -250,7 +250,11 @@ case class XSCoreParameters
 
   //vector
   hasVector: Boolean = true,
-  vectorParameters: VectorParameters = VectorParameters()
+  vectorParameters: VectorParameters = VectorParameters(),
+  edtCi: Int = 16,
+  edtCo: Int = 16,
+  edtScan: Int = 1800,
+  edtRange: (Int, Int) = (250, 450)
 ){
   val allHistLens: Seq[Int] = SCHistLens ++ ITTageTableInfos.map(_._2) ++ TageTableInfos.map(_._2) :+ UbtbGHRLength
   val HistoryLength: Int = allHistLens.max + numBr * FtqSize + 9 // 256 for the predictor configs now

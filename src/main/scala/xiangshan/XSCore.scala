@@ -39,6 +39,8 @@ import xiangshan.backend.execute.fu.csr.CSRConst.ModeM
 import xiangshan.cache.mmu._
 import xiangshan.frontend._
 import xiangshan.vector.HasVectorParameters
+import xs.utils.dft.{BAP, HasIjtag, SIB}
+import xs.utils.mbist.controller.MbistController
 
 abstract class XSModule(implicit val p: Parameters) extends Module
   with HasXSParameter
@@ -78,7 +80,9 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
 
 class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
   with HasXSParameter
-  with HasSoCParameter {
+  with HasSoCParameter
+  with HasIjtag {
+  val mName = "XSCore"
   val io = IO(new Bundle {
     val hartId = Input(UInt(64.W))
     val reset_vector = Input(UInt(PAddrBits.W))
@@ -216,7 +220,7 @@ class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
   io.l2_pf_enable := csrioIn.customCtrl.l2_pf_enable
   io.l2_pf_ctrl := csrioIn.customCtrl.l2_pf_ctrl
 
-  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(Int.MaxValue, s"MBIST_Core", coreParams.hasMbist)
+  val mbistPipeline = MbistPipeline.PlaceMbistPipeline(Int.MaxValue, s"MbistPipeCore", coreParams.hasMbist)
 
   val sigFromSrams = if(coreParams.hasMbist) Some(SramHelper.genBroadCastBundleTop()) else None
   val dft = if(coreParams.hasMbist) Some(IO(sigFromSrams.get.cloneType)) else None
@@ -225,22 +229,23 @@ class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
     dontTouch(dft.get)
   }
 
-  val coreMbistIntf = if (outer.coreParams.hasMbist) {
+  if (outer.coreParams.hasMbist) {
     val params = mbistPipeline.get.nodeParams
-    val intf = Some(Module(new MbistInterface(
+    val intf = Module(new MbistInterface(
       params = Seq(params),
       ids = Seq(mbistPipeline.get.childrenIds),
-      name = s"MBIST_intf_core",
+      name = s"MbistIntfCore",
       pipelineNum = 1
-    )))
-    intf.get.toPipeline.head <> mbistPipeline.get.mbist
-    if(coreParams.HartId == 0) mbistPipeline.get.registerCSV(intf.get.info, "MBIST_Core")
-    intf.get.mbist := DontCare
-    dontTouch(intf.get.mbist)
-    //TODO: add mbist controller connections here
-    intf
-  } else {
-    None
+    ))
+    val sib = Module(new SIB)
+    val mbistCtrl = Module(new MbistController(mbistPipeline.get.myNode))
+    val bap = Module(new BAP(mbistCtrl.param, "CoreBap"))
+    makeChain(Seq(ijtag, sib.ijtag))
+    makeChain(Seq(sib.host, bap.ijtag))
+    intf.toPipeline.head <> mbistPipeline.get.mbist
+    if(coreParams.HartId == 0) mbistPipeline.get.registerCSV(intf.info, "MbistCore")
+    intf.mbist <> mbistCtrl.io.mbist
+    mbistCtrl.io.bap <> bap.mbist
   }
   // Modules are reset one by one
   private val resetTree = ResetGenNode(

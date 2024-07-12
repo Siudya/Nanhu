@@ -640,7 +640,7 @@ def export_sram_files(release_path, top_module):
       if e not in res:
         res.append(e)
     return res
-  
+
   def key_gen(cm_path):
     segments = cm_path.strip(".sv").split('_')
     segments.reverse()
@@ -654,7 +654,7 @@ def export_sram_files(release_path, top_module):
     os.makedirs(out_dir)
   sram_pattern = re.compile(r".*sram_array_.p.*v")
   combMem_list = []
-  
+
   for f in os.listdir(rtl_dir):
     if sram_pattern.search(f) != None:
       src_path = rtl_dir + '/' + f
@@ -673,7 +673,7 @@ def export_sram_files(release_path, top_module):
     for f in os.listdir(out_dir):
       if sram_pattern.search(f) != None:
         sram_flist_file.write("SRAM/" + f + '\n')
-    
+
   with open(flist_path,"w+") as flist_file:
     flist_lines = []
     for f in sorted(os.listdir(rtl_dir)):
@@ -720,7 +720,7 @@ if __name__ == "__main__":
     assert(build_path is not None)
 
 
-    
+
 
     top_module = args.top
     module_prefix = args.prefix
@@ -730,8 +730,8 @@ if __name__ == "__main__":
         top_module = f"{module_prefix}{top_module}"
         ignore_modules += list(map(lambda x: module_prefix + x, ignore_modules))
         ignore_modules.append(f"{module_prefix}TLROT_top")
-    else:  
-        ignore_modules.append("TLROT_top")  
+    else:
+        ignore_modules.append("TLROT_top")
 
     rot_path = build_path + '/../src/main/resources/TLROT/'
 
@@ -742,7 +742,7 @@ if __name__ == "__main__":
             file_name = os.path.basename(file_path)
             if 'sram_array' in file_name:
                 process_and_copy_file(file_path,build_path,module_prefix,'sram_array')
-    
+
     files = get_files(build_path)
     if args.include is not None:
         for inc_path in args.include.split(","):
@@ -761,12 +761,12 @@ if __name__ == "__main__":
     # add rot sram to cpu_sram.f
     if os.path.exists(rot_path):
         verilog_files = glob.glob(os.path.join(build_path, '*sram_array*.sv'), recursive=True)
-        with open(os.path.join(out_dir,"cpu_srams.f"),'a') as sram_file:        
+        with open(os.path.join(out_dir,"cpu_srams.f"),'a') as sram_file:
             for file_path in verilog_files:
                 file_name = os.path.basename(file_path)
                 sram_file.write(f"SRAM/{file_name}\n")
 
-    
+
     # copy rot files to out_dir/TLROT and out_dir/SRAM
     if os.path.exists(rot_path):
         rot_rtl_dir = os.path.join(out_dir, "TLROT")
@@ -795,7 +795,7 @@ if __name__ == "__main__":
         TLROT_filelist = os.path.join(out_dir, "TLROT.f")
 
         rot_basename = [os.path.basename(file_path) for file_path in verilog_files]
-        
+
         with open(VCS_filelist, 'r') as file:
             with open(TLROT_filelist, 'w') as new_file:
                 new_file.write(f'+incdir+$root_data_path_/TLROT\n')
@@ -811,7 +811,7 @@ if __name__ == "__main__":
                     new_file.write(f'$root_data_path_/TLROT/{module_prefix}TLROT_top.sv\n')
                 else:
                     new_file.write(f'$root_data_path_/TLROT/TLROT_top.sv\n')
-        
+
         print(f'TLROT processed file names have been written to {TLROT_filelist}')
 
     rtl_dirs = [top_module]
@@ -823,7 +823,7 @@ if __name__ == "__main__":
     if not args.no_mbist_files:
         copy_mbist_files(mbist_dir, build_path)
 
-    
+
             
 
 

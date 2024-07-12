@@ -53,7 +53,11 @@ case class SoCParameters
   )),
   periHalfFreq:Boolean = true,
   hasMbist:Boolean = false,
-  hasRot:Boolean = true
+  hasRot:Boolean = true,
+  edtCi: Int = 6,
+  edtCo: Int = 6,
+  edtScan: Int = 600,
+  edtRange: (Int, Int) = (250, 350)
 ){
   // L3 configurations
   val L3InnerBusWidth = 256

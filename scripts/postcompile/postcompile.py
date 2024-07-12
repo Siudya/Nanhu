@@ -11,7 +11,9 @@ import shutil
 
 macro_pat = [
   re.compile(r".*sram_array_\dp\d+x\d+m\d+.*"),
-  re.compile(r".*ClockGate(_\d*)?\.(v|sv)")
+  re.compile(r".*ClockGate(_\d*)?\.(v|sv)"),
+  re.compile(r".*PosedgeReg(_\d*)?\.(v|sv)"),
+  re.compile(r".*NegedgeReg(_\d*)?\.(v|sv)")
 ]
 
 def macro_match(line:str) -> bool:
