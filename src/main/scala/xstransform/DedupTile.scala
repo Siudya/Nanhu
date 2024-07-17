@@ -1,4 +1,4 @@
-package xsphase
+package xstransform
 import firrtl.AnnotationSeq
 import firrtl.annotations._
 import firrtl.ir._
@@ -6,17 +6,16 @@ import firrtl.options.Phase
 import firrtl.renamemap.MutableRenameMap
 import firrtl.stage.FirrtlCircuitAnnotation
 
-object PrefixHelper {
+object DedupHelper {
   val coreNamePat = "XSTile_?[0-9]+"
-  var prefix = "bosc_"
   def StatementsWalker(stmt:Statement):Statement = {
     stmt match {
       case s: DefInstance =>{
         if(s.module.matches(coreNamePat)){
           println(s"Rename ${s.module} calling to XSTile!")
-          s.copy(module = prefix + "XSTile")
+          s.copy(module = "XSTile")
         } else {
-          s.copy(module = prefix + s.module)
+          s
         }
       }
       case s: Conditionally => s.copy(conseq = StatementsWalker(s.conseq), alt = StatementsWalker(s.alt))
@@ -29,12 +28,12 @@ object PrefixHelper {
   }
 }
 
-class Prefix extends Phase {
+class DedupTile extends Phase {
   override def prerequisites: Seq[Nothing] = Seq.empty
   override def optionalPrerequisites: Seq[Nothing] = Seq.empty
   override def optionalPrerequisiteOf: Seq[Nothing] = Seq.empty
   override def invalidates(a: Phase) = false
-  private val prefix = PrefixHelper.prefix
+  private val prefix = ""
   private val renameMap = MutableRenameMap()
   def transform(annotations: AnnotationSeq): AnnotationSeq = {
     val prefixedAS = annotations.flatMap {
@@ -42,7 +41,7 @@ class Prefix extends Phase {
         val mods = a.circuit.modules.map {
           case mm@Module(_, name, _, body) => {
             renameMap.record(ModuleTarget(a.circuit.main, name), ModuleTarget(prefix + a.circuit.main, prefix + name))
-            val nst = PrefixHelper.StatementsWalker(body)
+            val nst = DedupHelper.StatementsWalker(body)
             mm.copy(name = prefix + name, body = nst)
           }
           case em@ExtModule(_, name, _, defname, _) => {

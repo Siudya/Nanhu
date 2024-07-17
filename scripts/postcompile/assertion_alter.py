@@ -1,7 +1,7 @@
 import os
 import argparse
 import re
-import queue
+from queue import Queue
 
 def match(line, pattern_c):
   res = pattern_c.search(line.strip())
@@ -15,12 +15,15 @@ def gen_spaces(str):
   first_letter = str.lstrip()[0]
   return str[0:str.find(first_letter)-2:1]
 
-def alter_print_info(file_queue):
-  rex_assert_begin = re.compile("\$error\(")
-  rex_assert_body = re.compile("Assertion failed")
-  rex_assert_end = re.compile("\);")
-  assertion_queue = queue.Queue()
-  res_queue = queue.Queue()
+rex_assert_begin = re.compile("\$error\(")
+rex_assert_body = re.compile("Assertion failed")
+rex_assert_end = re.compile("\);")
+
+def alter_print_info(file_queue:Queue[str]):
+  if(file_queue.empty()):
+    return Queue[str]()
+  assertion_queue = Queue()
+  res_queue = Queue()
 
   while(True):
     line = file_queue.get()
@@ -30,19 +33,19 @@ def alter_print_info(file_queue):
       res_queue.put(gen_spaces(line) + "begin\n")
       if(is_single_line):
         res_queue.put(gen_prefix(line) + "$fwrite(32'h80000002, \"Assertion failed: %m @ %t\", $time);\n")
-        line = line.replace("Assertion failed:", "").replace("$error(", "$fwrite(32'h80000002, ")
+        line = line.replace("Assertion failed", "").replace("$error(", "$fwrite(32'h80000002, ")
         res_queue.put(line)
         res_queue.put(gen_spaces(line) + "end\n")
       else:
         if(match(line, rex_assert_body)):
-          line = line.replace("$error(", "$fwrite(32'h80000002, ").replace("Assertion failed:", "")
+          line = line.replace("$error(", "$fwrite(32'h80000002, ").replace("Assertion failed", "")
         else:
           line = line.replace("$error(", "$fwrite(32'h80000002, ")
         assertion_queue.put(line)
         while(True):
           line = file_queue.get()
           if(match(line, rex_assert_body)):
-            line = line.replace("Assertion failed:", "")
+            line = line.replace("Assertion failed", "")
           assertion_queue.put(line)
           if(match(line, rex_assert_end)):
             ol = assertion_queue.get()
@@ -82,7 +85,7 @@ if __name__ == "__main__":
     print("Input file not exsist!")
     os._exit()
 
-  file_queue = queue.Queue()
+  file_queue = Queue()
   with open(file_path,"r") as f:
     file_lines = f.readlines()
     for line in file_lines:
