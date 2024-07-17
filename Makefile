@@ -19,7 +19,7 @@ SIM_TOP   = $(PREFIX)SimTop
 FPGATOP = top.TopMain
 BUILD_DIR ?= ./build
 
-TOP_V = $(BUILD_DIR)/$(TOP).sv
+TOP_V = $(BUILD_DIR)/rtl/$(TOP).sv
 SIM_TOP_V = $(BUILD_DIR)/$(SIM_TOP).sv
 
 SCALA_FILE = $(shell find ./src/main/scala -name '*.scala')
@@ -91,29 +91,20 @@ update-vmem-path:
 	     src/main/resources/TLROT/src/lowrisc_systems_rot_top_0.1/rtl/rot_top.sv
 	@echo "Change ROT vmem init file to $(ROT_VMEM_DIR)"
 
+POST_COMP_OPTS = $(BUILD_DIR) $(ARG_PREFIX)
+ifdef VCS
+	POST_COMP_OPTS += --vcs
+endif
+ifdef PACK
+	POST_COMP_OPTS += --pack-release
+endif
+
 $(TOP_V): $(SCALA_FILE) update-vmem-path
 	mkdir -p $(@D)
-	time -o $(@D)/time.log mill -i XiangShan.runMain $(FPGATOP) -td $(@D) \
+	mill -i XiangShan.runMain $(FPGATOP) -td $(@D) \
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
-		$(RELEASE_ARGS) --target systemverilog | tee build/make.log
-ifeq ($(VCS), 1)
-	@sed -i $$'s/$$fatal/assert(1\'b0)/g' $@
-else
-	@sed -i 's/$$fatal/xs_assert(`__LINE__)/g' $@
-endif
-	@python3 scripts/assertion_alter.py -o $@ $@
-	@sed -i "s/assign \([a-zA-Z0-9_]\+\) = .* ? \(.*\) : [0-9]\+'bx;/assign \1 = \2;/g" $@
-	@sed -i 's/_LOG_MODULE_PATH_/%m/g' $@
-	@sed -i 's/\(\b[a-zA-Z_0-9]\+_[0-9]\+x[0-9]\+\b\)/$(PREFIX)\1/g' $@
-	@sed -i '/\/\/ ----- 8< ----- FILE "firrtl_black_box_resource_files.f" ----- 8< -----/,$$d' $@
-	@sed -i -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_bits_/m_\1_\2_/g' \
-	-e 's/\(dma\)_0_\(aw\|ar\|w\|r\|b\)_bits_/s_\1_\2_/g' $@
-	@sed -i -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_/m_\1_\2_/g' \
-	-e 's/\(dma\)_0_\(aw\|ar\|w\|r\|b\)_\(ready\|valid\)/s_\1_\2_\3/g' $@
-	@sed -i -e '/^  .*DummyDPICWrapper/i\`ifndef SYNTHESIS' \
-	-e '/^  .*DummyDPICWrapper/{:a N; /;/!ba s/;/;\n`endif/ };' $@
-	@sed -i -E -e '/^  .*Delayer(_[0-9]*)? difftest/i\`ifndef SYNTHESIS' \
-	-e '/^  .*Delayer(_[0-9]*)? difftest/{:a N; /;/!ba s/;/;\n`endif/ };' $@
+		$(RELEASE_ARGS) --target systemverilog --split-verilog
+	@python3 scripts/postcompile/postcompile.py $(POST_COMP_OPTS)
 
 verilog: $(TOP_V)
 
@@ -132,25 +123,13 @@ endif
 		--config $(CONFIG) --full-stacktrace --num-cores $(NUM_CORES) \
 		$(SIM_ARGS) --target systemverilog | tee build/make.log
 ifeq ($(VCS), 1)
-	@sed -i $$'s/$$fatal/assert(1\'b0)/g' $@
+	@sed -i -E -f scripts/postcompile/vcs.sed $@
 else ifeq ($(PLDM),1)
 	@sed -i -e 's/$$fatal/$$finish/g' $@
 else
-	@sed -i -e 's/$$fatal/xs_assert(`__LINE__)/g' $@
+	@sed -i -E -f scripts/postcompile/verilator.sed $@
 endif
-	@python3 scripts/assertion_alter.py -o $@ $@
-	@sed -i "s/assign \([a-zA-Z0-9_]\+\) = .* ? \(.*\) : [0-9]\+'bx;/assign \1 = \2;/g" $@
-	@sed -i 's/_LOG_MODULE_PATH_/%m/g' $@
-	@sed -i 's/\(\b[a-zA-Z_0-9]\+_[0-9]\+x[0-9]\+\b\)/$(PREFIX)\1/g' $@
-	@sed -i '/\/\/ ----- 8< ----- FILE "firrtl_black_box_resource_files.f" ----- 8< -----/,$$d' $@
-	@sed -i -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_bits_/m_\1_\2_/g' \
-	-e 's/\(dma\)_0_\(aw\|ar\|w\|r\|b\)_bits_/s_\1_\2_/g' $@
-	@sed -i -e 's/\(peripheral\|memory\)_0_\(aw\|ar\|w\|r\|b\)_/m_\1_\2_/g' \
-	-e 's/\(dma\)_0_\(aw\|ar\|w\|r\|b\)_\(ready\|valid\)/s_\1_\2_\3/g' $@
-	@sed -i -e '/^  .*DummyDPICWrapper/i\`ifndef SYNTHESIS' \
-	-e '/^  .*DummyDPICWrapper/{:a N; /;/!ba s/;/;\n`endif/ };' $@
-	@sed -i -E -e '/^  .*Delayer(_[0-9]*)? difftest/i\`ifndef SYNTHESIS' \
-	-e '/^  .*Delayer(_[0-9]*)? difftest/{:a N; /;/!ba s/;/;\n`endif/ };' $@
+	@python3 scripts/postcompile/assertion_alter.py -o $@ $@
 
 FILELIST := $(ABS_WORK_DIR)/build/cpu_flist.f
 

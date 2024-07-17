@@ -17,6 +17,7 @@
 package top
 
 import chisel3._
+import chisel3.experimental.{ChiselAnnotation, annotate}
 import xiangshan._
 import utils._
 import system._
@@ -29,6 +30,7 @@ import freechips.rocketchip.jtag.JTAGIO
 import xs.utils.{DFTResetSignals, FileRegisters, ResetGen}
 import xs.utils.sram.SramBroadcastBundle
 import huancun.{HCCacheParamsKey, HuanCun}
+import sifive.enterprise.firrtl.NestedPrefixModulesAnnotation
 import xs.utils.mbist.{MbistInterface, MbistPipeline}
 import xs.utils.perf.DebugOptionsKey
 
@@ -124,10 +126,17 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
   lazy val module = new Impl
 
   class Impl extends LazyRawModuleImp(this) {
-    FileRegisters.add("dts", dts)
-    FileRegisters.add("graphml", graphML)
-    FileRegisters.add("json", json)
-    FileRegisters.add("plusArgs", freechips.rocketchip.util.PlusArgArtefacts.serialize_cHeader())
+    FileRegisters.add("misc", "dts", dts)
+    FileRegisters.add("misc", "graphml", graphML)
+    FileRegisters.add("misc", "json", json)
+    FileRegisters.add("misc", "plusArgs", freechips.rocketchip.util.PlusArgArtefacts.serialize_cHeader())
+    private val prefix = p(PrefixKey)
+    if(prefix != "") {
+      val mod = this.toNamed
+      annotate(new ChiselAnnotation {
+        def toFirrtl = NestedPrefixModulesAnnotation(mod, prefix, true)
+      })
+    }
 
     val dma = IO(Flipped(misc.dma.cloneType))
     val peripheral = IO(misc.peripheral.cloneType)
@@ -302,7 +311,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 
 object TopMain extends App {
   val (config, firrtlOpts) = ArgParser.parse(args)
-  xsphase.PrefixHelper.prefix = config(PrefixKey)
+  xs.utils.GlobalData.prefix = config(PrefixKey)
   val soc = DisableMonitors(p => LazyModule(new XSTop()(p)))(config)
   (new XiangShanStage).execute(firrtlOpts, Seq(
     FirtoolOption("-O=release"),
