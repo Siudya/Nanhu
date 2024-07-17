@@ -26,13 +26,14 @@ import xiangshan.backend.decode.{ImmUnion, Imm_LUI_LOAD}
 import xiangshan.backend.execute.exucx.ExuComplexParam
 import xiangshan.backend.execute.fu.jmp.JumpOpType
 import xs.utils.{SignExt, ZeroExt}
+import xiangshan.FuType
 
 object ImmExtractor {
   def apply(cfg: ExuComplexParam, in: ExuInput, pc: Option[UInt] = None, target: Option[UInt] = None, mmuEnable:Option[Bool] = None)
            (implicit p: Parameters): ExuInput = {
     if (cfg.hasJmp) {
       val res = Wire(new ExuInput)
-      res := JumpImmExtractor(in, pc.get, target.get, mmuEnable.get)
+      res := Mux(in.uop.ctrl.fuType === FuType.jmp, JumpImmExtractor(in, pc.get, target.get, mmuEnable.get), Mux(in.uop.ctrl.fuType === FuType.bku, BkuImmExtractor(in), AluImmExtractor(in)))
       res.uop.cf.pc := pc.get
       res
     } else if (cfg.hasMul) {

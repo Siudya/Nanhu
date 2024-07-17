@@ -54,7 +54,7 @@ class JmpExuImpl(outer:JmpExu, exuCfg:ExuConfig)(implicit p:Parameters) extends 
   private val finalIssueSignals = bypassSigGen(io.bypassIn, issuePort, outer.bypassInNum > 0)
 
   jmp.io.redirectIn := redirectIn
-  jmp.io.in.valid := finalIssueSignals.valid
+  jmp.io.in.valid := finalIssueSignals.valid && finalIssueSignals.bits.uop.ctrl.fuType === exuCfg.fuConfigs.head.fuType
   jmp.io.in.bits.uop := finalIssueSignals.bits.uop
   jmp.io.in.bits.src := finalIssueSignals.bits.src
   jmp.io.out.ready := true.B

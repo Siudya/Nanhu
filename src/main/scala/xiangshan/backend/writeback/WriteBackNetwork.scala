@@ -51,9 +51,9 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
     val vecFaultOnlyFirst = Flipped(ValidIO(new ExuOutput))
   })
   private val jmpCsrNum = wbSources.count(wb => wb._2.exuType == ExuType.jmp || wb._2.exuType == ExuType.misc)
-  private val aluNum = wbSources.count(_._2.exuType == ExuType.alu)
+  private val bruNum = wbSources.count(_._2.exuType == ExuType.bru)
   private val lduNum = wbSources.count(w => (w._2.exuType == ExuType.ldu || w._2.exuType == ExuType.sta) && w._2.writebackToRob)
-  private val redirectGen = Module(new RedirectGen(jmpCsrNum, aluNum, lduNum))
+  private val redirectGen = Module(new RedirectGen(jmpCsrNum, bruNum, lduNum))
   io.pcReadAddr := redirectGen.io.pcReadAddr
   redirectGen.io.pcReadData := io.pcReadData
   io.preWalk := redirectGen.io.preWalk
@@ -95,7 +95,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
       print(source._2)
       redirectGen.io.jmpWbIn(jmpRedirectIdx) := source._1
       jmpRedirectIdx = jmpRedirectIdx + 1
-    } else if (source._2.exuType == ExuType.alu) {
+    } else if (source._2.exuType == ExuType.bru) {
       print(source._2)
       redirectGen.io.aluWbIn(aluRedirectIdx) := source._1
       aluRedirectIdx = aluRedirectIdx + 1
@@ -107,6 +107,7 @@ class WriteBackNetworkImp(outer:WriteBackNetwork)(implicit p:Parameters) extends
       }
       memRedirectIdx = memRedirectIdx + 1
     } else {
+      println("exu is: " + source._2.exuType)
       require(false, "Unexpected redirect out exu!")
     }
   })

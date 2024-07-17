@@ -95,7 +95,7 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
     require(issueNode.in.count(_._2._1.isMemRs) <= 1)
     require(issueNode.in.count(_._2._1.isFpRs) <= 1)
     require(writebackNode.in.length == 1)
-    require(issueNode.out.count(_._2._2.hasJmp) == 1)
+    require(issueNode.out.count(_._2._2.hasJmp) == 2)
 
     private val wb = writebackNode.in.flatMap(i => i._1.zip(i._2._1))
     wb.zipWithIndex.foreach({ case ((_, cfg), idx) =>
@@ -161,16 +161,22 @@ class RegFileTop(extraScalarRfReadPort: Int)(implicit p:Parameters) extends Lazy
         val exuInBundle = WireInit(bi.issue.bits)
         exuInBundle.src := DontCare
 
-        if(exuComplexParam.hasJmp){
+        if(exuComplexParam.isAluBruJmp){
           val issueBundle = WireInit(bi.issue.bits)
-          intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
-          issueBundle.src(0) := intRf.io.read(intRfReadIdx).data
+          // intRf.io.read(intRfReadIdx).addr := bi.issue.bits.uop.psrc(0)
+          // issueBundle.src(0) := intRf.io.read(intRfReadIdx).data
+          val srcNum = exuComplexParam.intSrcNum
+          for((d, addr) <- issueBundle.src.zip(bi.issue.bits.uop.psrc).take(srcNum)){
+            intRf.io.read(intRfReadIdx).addr := addr
+            d := intRf.io.read(intRfReadIdx).data
+            intRfReadIdx = intRfReadIdx + 1
+          }
           io.pcReadAddr(pcReadPortIdx) := bi.issue.bits.uop.cf.ftqPtr.value
           io.pcReadAddr(pcReadPortIdx + 1) := (bi.issue.bits.uop.cf.ftqPtr + 1.U).value
           val instrPc = io.pcReadData(pcReadPortIdx).getPc(bi.issue.bits.uop.cf.ftqOffset)
           val jalrTarget = io.pcReadData(pcReadPortIdx + 1).startAddr
           exuInBundle := ImmExtractor(exuComplexParam, issueBundle, Some(instrPc), Some(jalrTarget), Some(io.mmuEnable))
-          intRfReadIdx = intRfReadIdx + 1
+          //intRfReadIdx = intRfReadIdx + 1
           pcReadPortIdx = pcReadPortIdx + 2
         } else if (exuComplexParam.isIntType) {
           val issueBundle = WireInit(bi.issue.bits)

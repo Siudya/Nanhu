@@ -228,41 +228,46 @@ class IntegerReservationStationImpl(outer:IntegerReservationStation, param:RsPar
       val finalSelectInfo = Wire(Decoupled(new SelectResp(param.bankNum, entriesNumPerBank)))
       val issueDriver = Module(new DecoupledPipeline(param.bankNum, entriesNumPerBank))
       issueDriver.io.earlyWakeUpCancel := io.earlyWakeUpCancel
-      if(iss._2.hasJmp) {
-        finalSelectInfo <> jmpSelectNetwork.io.issueInfo(jmpPortIdx)
+      if(iss._2.isAluMul) {
+        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2, false))
+        // selectRespArbiter.io.in(0) <> jmpSelectNetwork.io.issueInfo(jmpPortIdx)
+        finalSelectInfo <> selectRespArbiter.io.out
+        // internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(jmpSelectNetwork.io.issueInfo(jmpPortIdx), jmpSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
+        // jmpPortIdx = jmpPortIdx + 1
+        // aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
+        selectRespArbiter.io.in(0) <> mulSelectNetwork.io.issueInfo(mulPortIdx)
+        internalMulWakeupSignals(mulWkpPortIdx) := WakeupQueue(mulSelectNetwork.io.issueInfo(mulPortIdx), mulSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
+        mulPortIdx = mulPortIdx + 1
+        mulWkpPortIdx = mulWkpPortIdx + 1
+        selectRespArbiter.io.in(1) <> aluSelectNetwork.io.issueInfo(aluPortIdx)
+        internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(aluSelectNetwork.io.issueInfo(aluPortIdx), aluSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
+        aluPortIdx = aluPortIdx + 1
+        aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
+        XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_conflict", Cat(selectRespArbiter.io.in.map(_.valid)).andR)
+      } else if(iss._2.isAluBruJmp) {
+        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 3, false))
+        finalSelectInfo <> selectRespArbiter.io.out
+        selectRespArbiter.io.in(1) <> jmpSelectNetwork.io.issueInfo(jmpPortIdx)
         internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(jmpSelectNetwork.io.issueInfo(jmpPortIdx), jmpSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
         jmpPortIdx = jmpPortIdx + 1
         aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
+        selectRespArbiter.io.in(0) <> bruSelectNetwork.io.issueInfo(bruPortIdx)
+        bruPortIdx = bruPortIdx + 1
+        selectRespArbiter.io.in(2) <> aluSelectNetwork.io.issueInfo(aluPortIdx)
+        internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(aluSelectNetwork.io.issueInfo(aluPortIdx), aluSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
+        aluPortIdx = aluPortIdx + 1
+        aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
+        XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_conflict", Cat(selectRespArbiter.io.in.map(_.valid)).andR)
+      } else if(iss._2.isDivMisc) {
+        val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 2, false))
+        finalSelectInfo <> selectRespArbiter.io.out
+        selectRespArbiter.io.in(1) <> miscSelectNetwork.io.issueInfo(miscPortIdx)
+        miscPortIdx = miscPortIdx + 1
+        selectRespArbiter.io.in(0) <> divSelectNetwork.io.issueInfo(divPortIdx)
+        divPortIdx = divPortIdx + 1
+        XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_conflict", Cat(selectRespArbiter.io.in.map(_.valid)).andR)
       } else {
-        if(iss._2.isAluMulDivStd) {
-          val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 3, false))
-          finalSelectInfo <> selectRespArbiter.io.out
-          selectRespArbiter.io.in(2) <> aluSelectNetwork.io.issueInfo(aluPortIdx)
-          internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(aluSelectNetwork.io.issueInfo(aluPortIdx), aluSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
-          aluPortIdx = aluPortIdx + 1
-          aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
-          selectRespArbiter.io.in(0) <> mulSelectNetwork.io.issueInfo(mulPortIdx)
-          internalMulWakeupSignals(mulWkpPortIdx) := WakeupQueue(mulSelectNetwork.io.issueInfo(mulPortIdx), mulSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
-          mulPortIdx = mulPortIdx + 1
-          mulWkpPortIdx = mulWkpPortIdx + 1
-          selectRespArbiter.io.in(1) <> divSelectNetwork.io.issueInfo(divPortIdx)
-          divPortIdx = divPortIdx + 1
-          XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_conflict", Cat(selectRespArbiter.io.in.map(_.valid)).andR)
-        } else if(iss._2.isAluBruMisc) {
-          val selectRespArbiter = Module(new SelectRespArbiter(param.bankNum, entriesNumPerBank, 3, false))
-          finalSelectInfo <> selectRespArbiter.io.out
-          selectRespArbiter.io.in(1) <> aluSelectNetwork.io.issueInfo(aluPortIdx)
-          internalAluJmpWakeupSignals(aluJmpWkpPortIdx) := WakeupQueue(aluSelectNetwork.io.issueInfo(aluPortIdx), aluSelectNetwork.cfg.latency, io.redirect, io.earlyWakeUpCancel, p)
-          aluPortIdx = aluPortIdx + 1
-          aluJmpWkpPortIdx = aluJmpWkpPortIdx + 1
-          selectRespArbiter.io.in(0) <> bruSelectNetwork.io.issueInfo(bruPortIdx)
-          bruPortIdx = bruPortIdx + 1
-          selectRespArbiter.io.in(2) <> miscSelectNetwork.io.issueInfo(miscPortIdx)
-          miscPortIdx = miscPortIdx + 1
-          XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_conflict", Cat(selectRespArbiter.io.in.map(_.valid)).andR)
-        } else {
-          require(false, "Unknown Exu complex!")
-        }
+        require(false, "Unknown Exu complex!")
       }
       XSPerfAccumulate(s"iss_${issuePortIdx}_${iss._2.name}_issue", finalSelectInfo.fire)
 

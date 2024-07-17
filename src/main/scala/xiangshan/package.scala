@@ -49,22 +49,23 @@ package object xiangshan {
   }
 
   object FuType {
-    def jmp = "b0000".U
-    def i2f = "b0001".U
-    def csr = "b0010".U
-    def fence = "b0011".U
-    def mul = "b0100".U
-    def div = "b0101".U
-    def alu = "b0110".U
-    def bku = "b0111".U
-    def mou = "b1000".U // for amo, lr, sc, fence
-    def fmac = "b1001".U
-    def f2f = "b1010".U
-    def f2i = "b1011".U
-    def fDivSqrt = "b1100".U
-    def ldu = "b1101".U
-    def stu = "b1110".U
-    def std = "b1111".U
+    def jmp = "b00000".U
+    def i2f = "b00001".U
+    def csr = "b00010".U
+    def fence = "b00011".U
+    def mul = "b00100".U
+    def div = "b00101".U
+    def alu = "b00110".U
+    def bku = "b00111".U
+    def mou = "b01000".U // for amo, lr, sc, fence
+    def fmac = "b01001".U
+    def f2f = "b01010".U
+    def f2i = "b01011".U
+    def fDivSqrt = "b01100".U
+    def ldu = "b01101".U
+    def stu = "b01110".U
+    def std = "b01111".U
+    def bru = "b11000".U
 
     //vector
     def vmac = "b10000".U
@@ -96,6 +97,7 @@ package object xiangshan {
       stu.litValue -> "store",
       mou.litValue -> "mou",
       std.litValue -> "std",
+      bru.litValue -> "bru",
 
       vmac.litValue -> "vmac",
       valu.litValue -> "valu",
@@ -106,7 +108,7 @@ package object xiangshan {
       s2v.litValue -> "s2v",
     )
 
-    val integerTypes: Seq[UInt] = Seq(jmp, i2f, csr, alu, mul, div, fence, bku, mou)
+    val integerTypes: Seq[UInt] = Seq(jmp, i2f, csr, alu, mul, div, fence, bku, mou, bru)
     val floatingTypes: Seq[UInt] = Seq(fmac, f2f, f2i, fDivSqrt)
     val memoryTypes: Seq[UInt] = Seq(ldu, stu)
     val vectorTypes: Seq[UInt] = Seq(vmac, valu, vfp, vdiv, vmask, vreduc, vpermu, s2v, ldu, stu)
