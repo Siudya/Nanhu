@@ -109,6 +109,7 @@ object SimTop extends App {
   // Keep this the same as TopMain except that SimTop is used here instead of XSTop
   val (config, firrtlOpts) = ArgParser.parse(args)
   xs.utils.GlobalData.prefix = config(PrefixKey)
+  difftest.GlobalData.prefix = config(PrefixKey)
   (new XiangShanStage).execute(firrtlOpts, Seq(
     FirtoolOption("-O=release"),
     FirtoolOption("--disable-all-randomization"),

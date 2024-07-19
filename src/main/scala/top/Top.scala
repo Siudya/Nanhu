@@ -312,6 +312,7 @@ class XSTop()(implicit p: Parameters) extends BaseXSSoc() with HasSoCParameter {
 object TopMain extends App {
   val (config, firrtlOpts) = ArgParser.parse(args)
   xs.utils.GlobalData.prefix = config(PrefixKey)
+  difftest.GlobalData.prefix = config(PrefixKey)
   val soc = DisableMonitors(p => LazyModule(new XSTop()(p)))(config)
   (new XiangShanStage).execute(firrtlOpts, Seq(
     FirtoolOption("-O=release"),
