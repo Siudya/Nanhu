@@ -25,7 +25,7 @@ import chisel3.util._
 import firrtl.passes.InlineAnnotation
 import xiangshan.backend.issue.{BasicStatusArrayEntry, EarlyWakeUpInfo, SelectInfo, WakeUpInfo}
 import xiangshan.{FuType, Redirect, SrcState, SrcType, XSBundle, XSModule}
-import xs.utils.{LogicShiftLeft, LogicShiftRight}
+import xs.utils.{LogicShiftLeft, LogicShiftRight, PickOneLow}
 import xiangshan.backend.issue.MemRs.EntryState._
 import xiangshan.backend.issue.MemRs.UpdateNetworkHelper.{EarlyWkpToNormalWkp, WakeupLogics}
 import xiangshan.backend.rob.RobPtr
@@ -333,12 +333,10 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int, regWkpIdx:Seq
     val stdSelectInfo = Output(Vec(entryNum, Valid(new SelectInfo)))
     val lduSelectInfo = Output(Vec(entryNum, Valid(new SelectInfo)))
 
-    val allocateInfo = Output(UInt(entryNum.W))
+    val alloc = Output(Bool())
 
-    val enq = Input(Valid(new Bundle{
-      val addrOH = UInt(entryNum.W)
-      val data = new MemoryStatusArrayEntry
-    }))
+    val enq = Input(Valid(new MemoryStatusArrayEntry))
+    val enqAddr = Output(UInt(entryNum.W))
 
     val staLduIssue = Input(Valid(UInt(entryNum.W)))
     val stdIssue = Input(Valid(UInt(entryNum.W)))
@@ -352,7 +350,6 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int, regWkpIdx:Seq
 
   private val statusArray = Reg(Vec(entryNum, new MemoryStatusArrayEntry))
   private val statusArrayValid = RegInit(VecInit(Seq.fill(entryNum)(false.B)))
-  private val statusArrayValid_dup = RegInit(VecInit(Seq.fill(entryNum)(false.B)))
 
   //Start of select logic
   private val selInfoOut = Seq(io.staSelectInfo, io.stdSelectInfo, io.lduSelectInfo)
@@ -374,18 +371,23 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int, regWkpIdx:Seq
   //End of select logic
 
   //Start of allocate logic
-  io.allocateInfo := Cat(statusArrayValid_dup.reverse)
+  private val validNextWire = WireInit(statusArrayValid)
+  private val allocAddr = PickOneLow(validNextWire)
+  private val allocReg = RegNext(allocAddr.valid, false.B)
+  private val allocAddrReg = RegEnable(allocAddr.bits, allocAddr.valid)
+  io.alloc := allocReg
+  io.enqAddr := allocAddrReg
   //End of allocate logic
   for((((v, va), d), idx) <- statusArrayValid
-    .zip(statusArrayValid_dup)
+    .zip(validNextWire)
     .zip(statusArray)
     .zipWithIndex
       ){
     val updateNetwork = Module(new MemoryStatusArrayEntryUpdateNetwork(stuNum, wakeupWidth, regWkpIdx, fpWkpIdx, vecWkpIdx))
     updateNetwork.io.entry.valid := v
     updateNetwork.io.entry.bits := d
-    updateNetwork.io.enq.valid := io.enq.valid & io.enq.bits.addrOH(idx)
-    updateNetwork.io.enq.bits := io.enq.bits.data
+    updateNetwork.io.enq.valid := io.enq.valid & allocAddrReg(idx)
+    updateNetwork.io.enq.bits := io.enq.bits
     updateNetwork.io.staLduIssue := io.staLduIssue.valid && io.staLduIssue.bits(idx)
     updateNetwork.io.stdIssue := io.stdIssue.valid && io.stdIssue.bits(idx)
     updateNetwork.io.wakeups := io.wakeups
@@ -409,9 +411,8 @@ class MemoryStatusArray(entryNum:Int, stuNum:Int, wakeupWidth:Int, regWkpIdx:Seq
     }
   }
 
-  assert(Cat(statusArrayValid) === Cat(statusArrayValid_dup))
-  when(io.enq.valid){assert(PopCount(io.enq.bits.addrOH) === 1.U)}
-  assert((Mux(io.enq.valid, io.enq.bits.addrOH, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
+  when(io.enq.valid){assert(PopCount(allocAddrReg) === 1.U)}
+  assert((Mux(io.enq.valid, allocAddrReg, 0.U) & Cat(statusArrayValid.reverse)) === 0.U)
   private val issues = Seq(io.staLduIssue, io.stdIssue)
   for(iss <- issues){
     when(iss.valid){assert((PopCount(iss.bits & Cat(statusArrayValid.reverse)) <= 2.U) && (iss.bits & Cat(statusArrayValid.reverse)).orR)}

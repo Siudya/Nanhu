@@ -30,12 +30,9 @@ class FloatingReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loa
     val redirect = Input(Valid(new Redirect))
 
     val selectInfo = Output(Vec(entryNum, Valid(new SelectInfo)))
-    val allocateInfo = Output(UInt(entryNum.W))
+    val alloc = Output(Bool())
 
-    val enq = Input(Valid(new Bundle {
-      val addrOH = UInt(entryNum.W)
-      val data = new MicroOp
-    }))
+    val enq = Input(Valid(new MicroOp))
 
     val issueAddr = Input(Vec(issueWidth, Valid(UInt(entryNum.W))))
     val issueUop = Output(Vec(issueWidth, Valid(new MicroOp)))
@@ -69,18 +66,17 @@ class FloatingReservationBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loa
 
   statusArray.io.redirect := io.redirect
   io.selectInfo := statusArray.io.selectInfo
-  io.allocateInfo := statusArray.io.allocateInfo
+  io.alloc := statusArray.io.alloc
   statusArray.io.enq.valid := io.enq.valid
-  statusArray.io.enq.bits.addrOH := io.enq.bits.addrOH
-  statusArray.io.enq.bits.data := EnqToEntry(io.enq.bits.data)
+  statusArray.io.enq.bits := EnqToEntry(io.enq.bits)
   statusArray.io.issue := io.issueAddr
   statusArray.io.wakeup := io.wakeup
   statusArray.io.loadEarlyWakeup := io.loadEarlyWakeup
   statusArray.io.earlyWakeUpCancel := io.earlyWakeUpCancel
 
   payloadArray.io.write.en := io.enq.valid
-  payloadArray.io.write.addr := io.enq.bits.addrOH
-  payloadArray.io.write.data := io.enq.bits.data
+  payloadArray.io.write.addr := statusArray.io.enqAddr
+  payloadArray.io.write.data := io.enq.bits
   payloadArray.io.read.zip(io.issueAddr).zip(io.issueUop).foreach({
     case((port, iAddr), iData) =>{
       port.addr := RegEnable(iAddr.bits, iAddr.valid)

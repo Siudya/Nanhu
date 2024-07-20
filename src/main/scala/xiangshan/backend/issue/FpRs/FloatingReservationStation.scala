@@ -155,13 +155,12 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
 
   private val timer = GTimer()
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs
-    .zip(allocateNetwork.io.entriesValidBitVecList)
+    .zip(allocateNetwork.io.allocVec)
     .zip(rsBankSeq)){
-    toAllocate := rsBank.io.allocateInfo
+    toAllocate := rsBank.io.alloc
     rsBank.io.enq.valid := fromAllocate.valid && !io.redirect.valid
-    rsBank.io.enq.bits.data := fromAllocate.bits.uop
-    rsBank.io.enq.bits.data.debugInfo.enqRsTime := timer + 1.U
-    rsBank.io.enq.bits.addrOH := fromAllocate.bits.addrOH
+    rsBank.io.enq.bits:= fromAllocate.bits
+    rsBank.io.enq.bits.debugInfo.enqRsTime := timer + 1.U
   }
 
   private var fmaPortIdx = 0
@@ -236,5 +235,4 @@ class FloatingReservationStationImpl(outer:FloatingReservationStation, param:RsP
     println(s"Wake Port $idx ${cfg.name} of ${cfg.complexName} #${cfg.id}")
   })
   XSPerfHistogram("issue_num", PopCount(issue.map(_._1.issue.fire)), true.B, 1, issue.length, 1)
-  XSPerfHistogram("valid_entries_num", PopCount(Cat(allocateNetwork.io.entriesValidBitVecList)), true.B, 0, param.entriesNum, 4)
 }

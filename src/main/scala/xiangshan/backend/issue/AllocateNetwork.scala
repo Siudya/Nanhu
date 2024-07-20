@@ -182,19 +182,17 @@ class SqueezeCodeRom(addrWidth:Int, dataWidth:Int) extends Module{
   io.data := res
 }
 
-class SqueezeNetwork[T <: Valid[K], K <: Data](gen:T, channelNum:Int) extends Module{
+class SqueezeNetwork[T <: Data](gen:T, channelNum:Int) extends Module{
   //TODO: Width of control code should be calculated from channels number
   val ctrlCodeWidth = 6
   val io = IO(new Bundle {
-    val in = Input(Vec(channelNum, gen))
-    val out = Output(Vec(channelNum, gen))
+    val in = Input(Vec(channelNum, Valid(gen)))
+    val out = Output(Vec(channelNum, Valid(gen)))
   })
-  private val ctrlCode = Wire(UInt(ctrlCodeWidth.W))
   private val ctrlCodeRom = Module(new SqueezeCodeRom(channelNum, ctrlCodeWidth))
-  private val switchNetwork = Module(new SwitchNetwork(gen, channelNum))
+  private val switchNetwork = Module(new SwitchNetwork(Valid(gen), channelNum))
   ctrlCodeRom.io.addr := Cat(io.in.map(_.valid).reverse)
-  ctrlCode := ctrlCodeRom.io.data
-  switchNetwork.io.ctrl := ctrlCode
+  switchNetwork.io.ctrl := ctrlCodeRom.io.data
   switchNetwork.io.in := io.in
   io.out := switchNetwork.io.out
 }
@@ -231,39 +229,34 @@ class SqueezeNetwork[T <: Valid[K], K <: Data](gen:T, channelNum:Int) extends Mo
 
 class AllocateNetwork(bankNum:Int, entryNumPerBank:Int, name:Option[String] = None)(implicit p: Parameters) extends XSModule{
   private val entryIdxOHWidth = entryNumPerBank
-  private val bankIdxWidth = log2Ceil(bankNum)
+  private val bankIdxWidth = bankNum
   val io = IO(new Bundle {
-    val entriesValidBitVecList = Input(Vec(bankNum, UInt(entryNumPerBank.W)))
+    val allocVec = Input(Vec(bankNum, Bool()))
     val enqFromDispatch = Vec(bankNum, Flipped(DecoupledIO(new MicroOp)))
-    val enqToRs = Vec(bankNum, Valid(new Bundle{
-      val uop = new MicroOp
-      val addrOH = UInt(entryIdxOHWidth.W)
-    }))
+    val enqToRs = Vec(bankNum, Valid(new MicroOp))
   })
   override val desiredName:String = name.getOrElse("AllocateNetwork")
 
-  private val entryIdxList = io.entriesValidBitVecList.map(PickOneLow.apply)
-  private val bankIdxList = entryIdxList.map(_.valid).zipWithIndex.map({ case(bankValid, bankIdx) =>
-    val res = Wire(Valid(UInt(bankIdxWidth.W)))
-    res.bits := bankIdx.U(bankIdxWidth.W)
-    res.valid := bankValid
-    res
-  })
+  for((disp, idx) <- io.enqFromDispatch.zipWithIndex) {
+    disp.ready := PopCount(io.allocVec) > idx.U
+  }
 
   private val randomizer = Module(new RandomizationNetwork(Valid(UInt(bankIdxWidth.W)), bankNum))
   randomizer.io.enqFire := io.enqFromDispatch.map(_.fire).reduce(_|_)
-  for((s,m) <- (randomizer.io.in zip bankIdxList)){s := m}
-
-  for((port, sig) <- io.enqToRs.map(_.bits.addrOH) zip entryIdxList.map(_.bits)) {port := sig}
-
-  private val enqPortSelOHList = Seq.tabulate(bankNum)(idx => randomizer.io.out.map(_.bits === idx.U))
-  private val portDataList = enqPortSelOHList.map(Mux1H(_,io.enqFromDispatch))
-  for((port, data) <- io.enqToRs.zip(portDataList)) {
-    port.bits.uop := data.bits
-    port.valid := data.fire
+  for((in, idx) <- randomizer.io.in.zipWithIndex){
+    in.valid := io.allocVec(idx)
+    in.bits := (1 << idx).U(bankIdxWidth.W)
   }
 
-  io.enqFromDispatch.foreach(e => e.ready := entryIdxList.map(_.valid).reduce(_&_))
+  private val squeezer = Module(new SqueezeNetwork(UInt(bankIdxWidth.W), bankNum))
+  squeezer.io.in := randomizer.io.out
+
+  for(idx <- io.enqToRs.indices) {
+    val sel = squeezer.io.out.map(_.bits(idx))
+    io.enqToRs(idx).valid := Mux1H(sel, io.enqFromDispatch.map(_.fire))
+    io.enqToRs(idx).bits := Mux1H(sel, io.enqFromDispatch.map(_.bits))
+  }
+
   //Start of randomization network function points assertions
   assert(randomizer.io.out(0).bits =/= randomizer.io.out(1).bits)
   assert(randomizer.io.out(0).bits =/= randomizer.io.out(2).bits)
@@ -282,4 +275,15 @@ class AllocateNetwork(bankNum:Int, entryNumPerBank:Int, name:Option[String] = No
   assert(riv(2) === rov(0) || riv(2) === rov(1) || riv(2) === rov(2) || riv(2) === rov(3))
   assert(riv(3) === rov(0) || riv(3) === rov(1) || riv(3) === rov(2) || riv(3) === rov(3))
   //End of randomization network function points assertions
+
+  //Start of squeeze network function points assertions
+  private val validVec = squeezer.io.out.map(_.valid)
+  private val selVec = squeezer.io.out.map(_.bits)
+  for(i <- squeezer.io.out.indices) {
+    when(validVec(i)) {
+      assert(PopCount(validVec.take(i + 1)) === (i + 1).U)
+      assert(Mux1H(selVec(i), io.allocVec))
+    }
+  }
+  //End of squeeze network function points assertions
 }

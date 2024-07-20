@@ -144,12 +144,11 @@ class VectorReservationStationImpl(outer:VectorReservationStation, param:RsParam
   })
 
   for(((fromAllocate, toAllocate), rsBank) <- allocateNetwork.io.enqToRs
-    .zip(allocateNetwork.io.entriesValidBitVecList)
+    .zip(allocateNetwork.io.allocVec)
     .zip(rsBankSeq)){
-    toAllocate := rsBank.io.allocateInfo
+    toAllocate := rsBank.io.alloc
     rsBank.io.enq.valid := fromAllocate.valid && !io.redirect.valid
-    rsBank.io.enq.bits.data := fromAllocate.bits.uop
-    rsBank.io.enq.bits.addrOH := fromAllocate.bits.addrOH
+    rsBank.io.enq.bits := fromAllocate.bits
   }
 
   private var orderedPortIdx = 0

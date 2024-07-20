@@ -11,12 +11,9 @@ class VrsBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(im
     val redirect = Input(Valid(new Redirect))
 
     val selectInfo = Output(Vec(entryNum, Valid(new VrsSelectInfo)))
-    val allocateInfo = Output(UInt(entryNum.W))
+    val alloc = Output(Bool())
 
-    val enq = Input(Valid(new Bundle {
-      val addrOH = UInt(entryNum.W)
-      val data = new MicroOp
-    }))
+    val enq = Input(Valid(new MicroOp))
 
     val issueAddr = Input(Vec(issueWidth, Valid(UInt(entryNum.W))))
     val issueUop = Output(Vec(issueWidth, Valid(new MicroOp)))
@@ -59,17 +56,16 @@ class VrsBank(entryNum:Int, issueWidth:Int, wakeupWidth:Int, loadUnitNum:Int)(im
 
   statusArray.io.redirect := io.redirect
   io.selectInfo := statusArray.io.selectInfo
-  io.allocateInfo := statusArray.io.allocateInfo
+  io.alloc := statusArray.io.alloc
   statusArray.io.enq.valid := io.enq.valid
-  statusArray.io.enq.bits.addrOH := io.enq.bits.addrOH
-  statusArray.io.enq.bits.data := EnqToEntry(io.enq.bits.data)
-  when(io.enq.valid){assert(statusArray.io.enq.bits.data.uopIdx <= 7.U)}
+  statusArray.io.enq.bits := EnqToEntry(io.enq.bits)
+  when(io.enq.valid){assert(statusArray.io.enq.bits.uopIdx <= 7.U)}
   statusArray.io.issue := io.issueAddr
   statusArray.io.wakeup := io.wakeup
 
   payloadArray.io.write.en := io.enq.valid
-  payloadArray.io.write.addr := io.enq.bits.addrOH
-  payloadArray.io.write.data := io.enq.bits.data
+  payloadArray.io.write.addr := statusArray.io.enqAddr
+  payloadArray.io.write.data := io.enq.bits
   payloadArray.io.read.zip(io.issueAddr).zip(io.issueUop).foreach({
     case((port, iAddr), iData) =>{
       port.addr := iAddr.bits
