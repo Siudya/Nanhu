@@ -116,6 +116,9 @@ else
 	@sed -i 's/\(soc\.bootrom_disable\s*:=\s*\).*\.B/\1true.B/' src/test/scala/top/SimTop.scala
 	@echo "Run in Bootrom disable mode"
 endif
+	@sed -i 's|parameter RomCtrlBootRomInitFile = ".*"|parameter RomCtrlBootRomInitFile = "$(ROT_VMEM_DIR)"|' \
+	     src/main/resources/TLROT/src/lowrisc_systems_rot_top_0.1/rtl/rot_top.sv
+	@echo "Change ROT vmem init file to $(ROT_VMEM_DIR)"
 	mkdir -p $(@D)
 	@echo "\n[mill] Generating Verilog files..." > $(@D)/time.log
 	@date -R | tee -a $(@D)/time.log
