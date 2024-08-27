@@ -22,6 +22,7 @@ import chisel3.util._
 import xiangshan.backend.execute.fu.FUWithRedirect
 import xiangshan.{FuOpType, RedirectLevel, XSModule}
 import xs.utils.{LookupTree, SignExt, ZeroExt}
+import xiangshan.backend.execute.fu.alu.ALUOpType.czero_eqz
 
 class AddModule(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
@@ -98,7 +99,7 @@ class RightShiftWordModule(implicit p: Parameters) extends XSModule {
 class MiscResultSelect(implicit p: Parameters) extends XSModule {
   val io = IO(new Bundle() {
     val func = Input(UInt(6.W))
-    val and, or, xor, orcb, orh48, sextb, packh, sexth, packw, revb, rev8, pack = Input(UInt(XLEN.W))
+    val and, or, xor, orcb, orh48, sextb, packh, sexth, packw, revb, rev8, pack, czero_eqz, czero_nez = Input(UInt(XLEN.W))
     val src = Input(UInt(XLEN.W))
     val miscRes = Output(UInt(XLEN.W))
   })
@@ -123,7 +124,9 @@ class MiscResultSelect(implicit p: Parameters) extends XSModule {
   val mask = Cat(Fill(15, io.func(0)), 1.U(1.W))
   val maskedLogicRes = mask & logicRes
 
-  io.miscRes := Mux(io.func(5), maskedLogicRes, Mux(io.func(4), logicAdv, logicBase))
+  val cond = Mux(io.func(0), io.czero_nez, io.czero_eqz)
+
+  io.miscRes := Mux(io.func(5) && !io.func(3), maskedLogicRes, Mux(io.func(3) && io.func(5), cond, Mux(io.func(4), logicAdv, logicBase)))
 }
 
 class ShiftResultSelect(implicit p: Parameters) extends XSModule {
@@ -295,6 +298,9 @@ class AluDataModule(implicit p: Parameters) extends XSModule {
   val orcb    = Cat((0 until 8).map(i => Fill(8, src1(i * 8 + 7, i * 8).orR)).reverse)
   val orh48   = Cat(src1(63, 8), 0.U(8.W)) | src2
 
+  val czero_eqz = Mux(src2 === 0.U, 0.U, src1)
+  val czero_nez = Mux(src2 === 0.U, src1, 0.U)
+
   val sextb = SignExt(src1(7, 0), XLEN)
   val packh = Cat(src2(7,0), src1(7,0))
   val sexth = SignExt(src1(15, 0), XLEN)
@@ -340,6 +346,8 @@ class AluDataModule(implicit p: Parameters) extends XSModule {
   miscResSel.io.revb    := revb
   miscResSel.io.rev8    := rev8
   miscResSel.io.pack    := pack
+  miscResSel.io.czero_eqz := czero_eqz
+  miscResSel.io.czero_nez := czero_nez
   miscResSel.io.src     := src1
   val miscRes = miscResSel.io.miscRes
 

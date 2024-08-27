@@ -168,6 +168,10 @@ object XDecode extends DecodeConstants {
     BLT     -> List(SrcType.reg, SrcType.reg, SrcType.DC, FuType.alu, ALUOpType.blt,    N, N, N, N, N, N, N, N, VstartType.hold, SelImm.IMM_SB),
     BLTU    -> List(SrcType.reg, SrcType.reg, SrcType.DC, FuType.alu, ALUOpType.bltu,   N, N, N, N, N, N, N, N, VstartType.hold, SelImm.IMM_SB),
 
+    // Zicond
+    CZERO_EQZ -> List(SrcType.reg, SrcType.reg, SrcType.DC, FuType.alu, ALUOpType.czero_eqz, Y, N, N, N, N, N, N, N, VstartType.hold, SelImm.IMM_X),
+    CZERO_NEZ -> List(SrcType.reg, SrcType.reg, SrcType.DC, FuType.alu, ALUOpType.czero_nez, Y, N, N, N, N, N, N, N, VstartType.hold, SelImm.IMM_X),
+
     // I-type, the immediate12 holds the CSR register.
     CSRRW   -> List(SrcType.reg, SrcType.imm, SrcType.DC, FuType.csr, CSROpType.wrt, Y, N, N, N, Y, Y, N, N, VstartType.hold, SelImm.IMM_I),
     CSRRS   -> List(SrcType.reg, SrcType.imm, SrcType.DC, FuType.csr, CSROpType.set, Y, N, N, N, Y, Y, N, N, VstartType.hold, SelImm.IMM_I),

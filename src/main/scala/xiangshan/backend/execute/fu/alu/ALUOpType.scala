@@ -78,14 +78,19 @@ object ALUOpType {
   def szewl2: UInt = "b101_1001".U
   def szewl3: UInt = "b101_1010".U
   def byte2: UInt = "b101_1011".U
-  def andlsb: UInt = "b110_0000".U
-  def andzexth: UInt = "b110_0001".U
-  def orlsb: UInt = "b110_0010".U
-  def orzexth: UInt = "b110_0011".U
-  def xorlsb: UInt = "b110_0100".U
-  def xorzexth: UInt = "b110_0101".U
-  def orcblsb: UInt = "b110_0110".U
+
+  def andlsb: UInt    = "b110_0000".U
+  def andzexth: UInt  = "b110_0001".U
+  def orlsb: UInt     = "b110_0010".U
+  def orzexth: UInt   = "b110_0011".U
+  def xorlsb: UInt    = "b110_0100".U
+  def xorzexth: UInt  = "b110_0101".U
+  def orcblsb: UInt   = "b110_0110".U
   def orcbzexth: UInt = "b110_0111".U
+
+  //zicond
+  def czero_eqz: UInt = "b110_1000".U
+  def czero_nez: UInt = "b110_1001".U
 
   def isAddw(func: UInt): Bool = func(6, 4) === "b001".U && !func(3) && !func(1)
   def isSimpleLogic(func: UInt): Bool = func(6, 4) === "b100".U && !func(0)
