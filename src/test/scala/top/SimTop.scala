@@ -69,6 +69,7 @@ class SimTop(implicit p: Parameters) extends Module {
     soc.dft.get.ram_hold := false.B
     soc.dft.get.ram_bypass := false.B
     soc.dft.get.ram_bp_clken := false.B
+    soc.dft.get.ram_mcp_hold := false.B
   }
 
   val success = Wire(Bool())
