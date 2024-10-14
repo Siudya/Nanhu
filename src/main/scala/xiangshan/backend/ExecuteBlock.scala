@@ -45,6 +45,7 @@ import xiangshan.vector.vbackend.vissue.vrs.VectorReservationStation
 import xiangshan.vector.vbackend.vregfile.VRegfileTop
 import xs.utils.{DFTResetSignals, ModuleNode, RegNextN, ResetGen, ResetGenNode}
 import xiangshan.mem._
+import xs.utils.perf.DebugOptionsKey
 class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter with HasVectorParameters {
   val integerReservationStation: IntegerReservationStation = LazyModule(new IntegerReservationStation)
   val floatingReservationStation: FloatingReservationStation = LazyModule(new FloatingReservationStation)
@@ -94,7 +95,7 @@ class ExecuteBlock(implicit p:Parameters) extends LazyModule with HasXSParameter
 }
 
 class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
-  with HasSoCParameter with HasVectorParameters{
+  with HasXSParameter with HasVectorParameters{
   val io = IO(new Bundle {
     val hartId = Input(UInt(64.W))
     //Mem Block
@@ -302,5 +303,5 @@ class ExecuteBlockImp(outer:ExecuteBlock) extends LazyModuleImp(outer)
       ))
     )
   )
-  ResetGen(resetTree, reset, Some(io.dfx_reset), !debugOpts.FPGAPlatform)
+  ResetGen(resetTree, reset, Some(io.dfx_reset), !p(DebugOptionsKey).FPGAPlatform)
 }

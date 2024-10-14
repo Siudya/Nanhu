@@ -39,6 +39,7 @@ import xiangshan.backend.execute.fu.csr.CSRConst.ModeM
 import xiangshan.cache.mmu._
 import xiangshan.frontend._
 import xiangshan.vector.HasVectorParameters
+import xs.utils.perf.DebugOptionsKey
 
 abstract class XSModule(implicit val p: Parameters) extends Module
   with HasXSParameter
@@ -77,8 +78,7 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
 }
 
 class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
-  with HasXSParameter
-  with HasSoCParameter {
+  with HasXSParameter {
   val io = IO(new Bundle {
     val hartId = Input(UInt(64.W))
     val reset_vector = Input(UInt(PAddrBits.W))
@@ -266,6 +266,6 @@ class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
     )
   )
 
-  ResetGen(resetTree, reset, Some(io.dfx_reset), !debugOpts.FPGAPlatform)
+  ResetGen(resetTree, reset, Some(io.dfx_reset), !p(DebugOptionsKey).FPGAPlatform)
 
 }

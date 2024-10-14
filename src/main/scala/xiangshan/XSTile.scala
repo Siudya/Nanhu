@@ -13,14 +13,14 @@ import xs.utils.mbist.MbistInterface
 import huancun.{HCCacheParamsKey, HuanCun}
 import coupledL2.{CoupledL2, L2ParamKey}
 import xs.utils.{DFTResetSignals, ResetGen}
-import system.HasSoCParameter
+import system.{HasSoCParameter, SoCParamsKey}
 import top.BusPerfMonitor
 import utils.{IntBuffer, TLClientsMerger, TLEdgeBuffer}
 import xs.utils.perf.DebugOptionsKey
 import xs.utils.sram.SramBroadcastBundle
 
-class L1BusErrorUnitInfo(implicit val p: Parameters) extends Bundle with HasSoCParameter {
-  val ecc_error = Valid(UInt(soc.PAddrBits.W))
+class L1BusErrorUnitInfo(implicit val p: Parameters) extends Bundle {
+  val ecc_error = Valid(UInt(p(SoCParamsKey).PAddrBits.W))
 }
 
 class XSL1BusErrors()(implicit val p: Parameters) extends BusErrors {
