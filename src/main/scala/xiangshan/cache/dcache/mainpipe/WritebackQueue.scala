@@ -21,7 +21,6 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink.{TLArbiter, TLBundleC, TLBundleD, TLEdgeOut}
-import coupledL2.DirtyKey
 import utils.{HasPerfEvents, HasTLDump}
 import xs.utils.perf.HasPerfLogging
 
@@ -310,7 +309,6 @@ class WritebackEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModu
     data = beat_data(beat)
   )._2
 
-  voluntaryReleaseData.echo.lift(DirtyKey).foreach(_ := req.dirty)
   when(busy) {
     assert(!req.dirty || req.hasData)
   }

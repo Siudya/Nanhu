@@ -24,14 +24,13 @@ import xiangshan._
 import utils._
 import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp, TransferSizes}
 import freechips.rocketchip.tilelink._
-import freechips.rocketchip.util.{BundleFieldBase, UIntToOH1}
-import difftest.common.DifftestMem
+import freechips.rocketchip.util.BundleFieldBase
 import xs.utils._
-import coupledL2.{AliasField, AliasKey, DirtyField, PrefetchField}
 import xs.utils.FastArbiter
 import mem.AddPipelineReg
 import xiangshan.backend.rob.RobPtr
 import xs.utils.perf.HasPerfLogging
+import xs.utils.tl.{TLNanhuBusField, TLNanhuBusKey}
 
 import scala.math.max
 
@@ -52,14 +51,8 @@ case class DCacheParameters
   blockBytes: Int = 64,
   alwaysReleaseData: Boolean = true
 ) extends L1CacheParameters {
-  // if sets * blockBytes > 4KB(page size),
-  // cache alias will happen,
-  // we need to avoid this by recoding additional bits in L2 cache
   val setBytes = nSets * blockBytes
   val aliasBitsOpt = if(setBytes > pageSize) Some(log2Ceil(setBytes / pageSize)) else None
-  val reqFields: Seq[BundleFieldBase] = Nil
-  val echoFields: Seq[BundleFieldBase] = Nil
-
   def tagCode: Code = Code.fromString(tagECC)
 
   def dataCode: Code = Code.fromString(dataECC)
@@ -436,15 +429,13 @@ class DCache(implicit p: Parameters) extends LazyModule with HasDCacheParameters
       sourceId = IdRange(0, nEntries + 1),
       supportsProbe = TransferSizes(cfg.blockBytes)
     )),
-    requestFields = cacheParams.reqFields,
-    echoFields = cacheParams.echoFields
+    requestFields = Seq(new TLNanhuBusField)
   )
 
   val clientNode = TLClientNode(Seq(clientParameters))
 
   lazy val module = new DCacheImp(this)
 }
-
 
 class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParameters with HasPerfEvents with HasPerfLogging {
 

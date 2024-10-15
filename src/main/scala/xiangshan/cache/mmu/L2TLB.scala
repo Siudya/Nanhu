@@ -21,12 +21,10 @@ import chisel3._
 import chisel3.experimental.ExtModule
 import chisel3.util._
 import xiangshan._
-import xiangshan.cache.{HasDCacheParameters, MemoryOpConstants}
 import utils._
 import freechips.rocketchip.diplomacy.{IdRange, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tilelink._
 import xs.utils.mbist.MbistPipeline
-import huancun.{PreferCacheField, PreferCacheKey}
 import xiangshan.backend.execute.fu.{PMP, PMPChecker, PMPReqBundle, PMPRespBundle}
 import xiangshan.backend.execute.fu.csr.HasCSRConst
 import xs.utils.{DataHoldBypass, DelayN, TimeOutAssert}
@@ -246,7 +244,6 @@ class PTWImp(outer: PTW)(implicit p: Parameters) extends PtwModule(outer) with H
   mem.a.bits := memRead
   mem.a.valid := mem_arb.io.out.valid && !flush
   mem.a.bits.user := DontCare
-  mem.a.bits.user.lift(PreferCacheKey).foreach(_ := RegNext(io.csr.prefercache, true.B))
   mem.d.ready := true.B
   // mem -> data buffer
   val refill_data = Reg(Vec(blockBits / l1BusDataWidth, UInt(l1BusDataWidth.W)))

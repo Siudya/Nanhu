@@ -595,8 +595,8 @@ class L1CacheErrorInfo(implicit p: Parameters) extends XSBundle {
   // l1 cache error will always be report to CACHE_ERROR csr
   val valid = Output(Bool())
 
-  def toL1BusErrorUnitInfo(): L1BusErrorUnitInfo = {
-    val beu_info = Wire(new L1BusErrorUnitInfo)
+  def toBusErrorUnitInfo: BusErrorUnitInfo = {
+    val beu_info = Wire(new BusErrorUnitInfo)
     beu_info.ecc_error.valid := report_to_beu
     beu_info.ecc_error.bits := paddr
     beu_info

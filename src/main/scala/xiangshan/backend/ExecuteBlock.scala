@@ -24,8 +24,7 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import regfile.{PcMem, PcWritePort, RegFileTop}
-import system.HasSoCParameter
-import utils.{HPerfMonitor, HasPerfEvents, PerfEvent}
+import utils.PerfEvent
 import xiangshan.backend.execute.exu.FenceIO
 import xiangshan.{CommitType, DistributedCSRUpdateReq, ExuInput, ExuOutput, HasXSParameter, L1CacheErrorInfo, MemPredUpdateReq, MicroOp, Redirect, XSCoreParamsKey}
 import xiangshan.backend.execute.exublock.{FloatingBlock, IntegerBlock, MemBlock}
