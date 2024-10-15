@@ -21,22 +21,14 @@ import chisel3._
 import chisel3.util._
 import xiangshan.backend.execute.exublock.ExuParameters
 import xiangshan.cache.DCacheParameters
-import xiangshan.cache.prefetch._
 import xiangshan.frontend.{BasePredictor, BranchPredictionResp, FTB, FakePredictor, FauFTB, ITTage, RAS, Tage, Tage_SC}
 import xiangshan.frontend.icache.ICacheParameters
 import xiangshan.cache.mmu.{L2TLBParameters, TLBParameters}
-import freechips.rocketchip.diplomacy.AddressSet
-import system.SoCParamsKey
-import huancun._
-import coupledL2._
-import huancun.debug._
 import xiangshan.mem.prefetch.{PrefetcherParams, SMSParams}
 
 import scala.math.{max, min}
 import xiangshan.vector.VectorParameters
 import xs.utils.perf.DebugOptionsKey
-
-case object XSTileKey extends Field[Seq[XSCoreParameters]]
 
 case object XSCoreParamsKey extends Field[XSCoreParameters]
 
@@ -45,6 +37,7 @@ case class XSCoreParameters
   HasPrefetch: Boolean = false,
   HartId: Int = 0,
   XLEN: Int = 64,
+  PAddrBits:Int = 37,
   HasMExtension: Boolean = true,
   HasCExtension: Boolean = true,
   HasFDI: Boolean = true,
@@ -161,6 +154,7 @@ case class XSCoreParameters
   EnableAccurateLoadError: Boolean = true,
   MMUAsidLen: Int = 16, // max is 16, 0 is not supported now
   UseOneDtlb: Boolean = false,
+  pmParams:PMParameters = PMParameters(),
   itlbParameters: TLBParameters = TLBParameters(
     name = "itlb",
     fetchi = true,
@@ -235,14 +229,6 @@ case class XSCoreParameters
     nProbeEntries = 8,
     nReleaseEntries = 18
   )),
-  L2CacheParamsOpt: Option[L2Param] = Some(L2Param(
-    name = "l2",
-    // level = 2,
-    ways = 8,
-    sets = 1024,// default 512KB L2
-    // hasShareBus = true,
-    prefetch = Some(coupledL2.prefetch.PrefetchReceiverParams())
-  )),
   L2NBanks: Int = 1,
   usePTWRepeater: Boolean = false,
   softPTW: Boolean = false, // dpi-c debug only
@@ -261,10 +247,9 @@ trait HasXSParameter {
 
   implicit val p: Parameters
 
-  val PAddrBits = p(SoCParamsKey).PAddrBits // PAddrBits is Phyical Memory addr bits
-
   val coreParams = p(XSCoreParamsKey)
   val env = p(DebugOptionsKey)
+  val PAddrBits = coreParams.PAddrBits
 
   val XLEN = coreParams.XLEN
   val minFLen = 32
@@ -426,7 +411,7 @@ trait HasXSParameter {
 
   val PCntIncrStep: Int = 6
   val numPCntPtw: Int = 19
-  val numPCntL2: Int = coreParams.L2CacheParamsOpt.get.getPCntAll
+  val numPCntL2: Int = 0
 
   val numCSRPCntFrontend = 8
   val numCSRPCntCtrl     = 8

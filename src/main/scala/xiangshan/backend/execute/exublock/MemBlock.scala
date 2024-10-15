@@ -21,8 +21,6 @@ import chisel3._
 import chisel3.util._
 import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
 import freechips.rocketchip.tile.HasFPUParameters
-import coupledL2.PrefetchRecv
-import coupledL2.prefetch.PrefetchReceiverParams
 import utils._
 import xiangshan._
 import xiangshan.backend.execute.exu.{ExuConfig, ExuInputNode, ExuOutputMultiSinkNode, ExuOutputNode, ExuType}
@@ -185,11 +183,6 @@ class MemBlock(implicit p: Parameters) extends BasicExuBlock
 
   val dcache = LazyModule(new DCacheWrapper)
   val uncache = LazyModule(new Uncache())
-  val pf_sender_opt = coreParams.prefetcher match  {
-    case Some(receive : SMSParams) => Some(BundleBridgeSource(() => new PrefetchRecv))
-    // case sms_sender_hyper : HyperPrefetchParams => Some(BundleBridgeSource(() => new PrefetchRecv))
-    case _ => None
-  }
 
   lazy val module = new MemBlockImp(this)
 
@@ -306,32 +299,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
   private val storeUnits = Seq.fill(exuParameters.StuCnt)(Module(new StoreUnit))
   private val stdUnits = Seq.fill(exuParameters.StuCnt)(Module(new Std))
   private val stData = stdUnits.map(_.io.out)
-  val prefetcherOpt: Option[BasePrefecher] = coreParams.prefetcher match {
-    case Some(sms_sender: SMSParams) =>
-      val sms = Module(new SMSPrefetcher)
-      sms.io_agt_en := RegNextN(io.csrCtrl.l1D_pf_enable_agt, 2, Some(false.B))
-      sms.io_pht_en := RegNextN(io.csrCtrl.l1D_pf_enable_pht, 2, Some(false.B))
-      sms.io_act_threshold := RegNextN(io.csrCtrl.l1D_pf_active_threshold, 2, Some(12.U))
-      sms.io_act_stride := RegNextN(io.csrCtrl.l1D_pf_active_stride, 2, Some(30.U))
-      sms.io_stride_en := RegNextN(io.csrCtrl.l1D_pf_enable_stride, 2, Some(true.B))
-      Some(sms)
-    case _ => None
-  }
-  prefetcherOpt match {
-    case Some(sms) => // memblock can only have sms or not
-      outer.pf_sender_opt match{
-        case Some(sender) =>
-        val pf_to_l2 = Pipe(sms.io.pf_addr, 2)
-        sender.out.head._1.addr_valid := pf_to_l2.valid
-        sender.out.head._1.addr := pf_to_l2.bits
-        sender.out.head._1.l2_pf_en := RegNextN(io.csrCtrl.l2_pf_enable, 2, Some(true.B))
-        sender.out.head._1.l2_pf_ctrl := RegNextN(io.csrCtrl.l2_pf_ctrl,2,Some(0.U(Csr_PfCtrlBits.W)))
-        sms.io.enable := RegNextN(io.csrCtrl.l1D_pf_enable, 2, Some(false.B))
-        case None => assert(cond = false, "Maybe from Config fault: Open SMS but dont have sms sender&recevier")
-      }
-    case None =>
-  }
-  private val pf_train_on_hit = RegNextN(io.csrCtrl.l1D_pf_train_on_hit, 2, Some(true.B))
 
   loadUnits.zipWithIndex.map(x => x._1.suggestName("LoadUnit_"+x._2))
   storeUnits.zipWithIndex.map(x => x._1.suggestName("StoreUnit_"+x._2))
@@ -590,20 +557,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     loadUnits(i).io.pmp <> pmp_check(i).resp
     //cancel
     io.earlyWakeUpCancel.foreach(w => w(i) := RegNext(loadUnits(i).io.cancel,false.B))
-    // prefetch
-    val pcDelay1Valid = RegNext(loadUnits(i).io.ldin.fire, false.B)
-    val pcDelay1Bits = RegEnable(loadUnits(i).io.ldin.bits.uop.cf.pc, loadUnits(i).io.ldin.fire)
-    val pcDelay2Bits = RegEnable(pcDelay1Bits, pcDelay1Valid)
-    prefetcherOpt.foreach(pf => {
-      pf.io.ld_in(i).valid := Mux(pf_train_on_hit,
-        loadUnits(i).io.prefetch_train.valid,
-        loadUnits(i).io.prefetch_train.valid && loadUnits(i).io.prefetch_train.bits.miss
-      )
-      pf.io.ld_in(i).bits := loadUnits(i).io.prefetch_train.bits
-      pf.io.ld_in(i).bits.uop.cf.pc := Mux(loadUnits(i).io.s2IsPointerChasing,
-        pcDelay1Bits,
-        pcDelay2Bits)
-    })
 
     // load to load fast forward: load(i) prefers data(i)
     val fastPriority = (i until exuParameters.LduCnt) ++ (0 until i)
@@ -667,10 +620,6 @@ class MemBlockImp(outer: MemBlock) extends BasicExuBlockImp(outer)
     XSDebug(lduWritebacks(i).bits.uop.cf.trigger.getBackendCanFire && lduWritebacks(i).valid, p"Debug Mode: Load Inst No.${i}" +
     p"has trigger fire vec ${lduWritebacks(i).bits.uop.cf.trigger.backendCanFire}\n")
   }
-  // Prefetcher
-  prefetcherOpt.foreach(pf => {
-    dtlb_reqs(ld_tlb_ports - 1) <> pf.io.tlb_req
-  })
 
   // StoreUnit
   for (i <- 0 until exuParameters.StuCnt) {

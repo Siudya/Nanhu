@@ -6,13 +6,6 @@
 	path = difftest
 	url = https://github.com/OpenXiangShan/difftest
 	branch = nh3
-[submodule "ready-to-run"]
-	path = ready-to-run
-	url = https://github.com/Siudya/ready-to-run
-[submodule "huancun"]
-	path = huancun
-	url = https://github.com/Siudya/huancun
-	branch = chisel5
 [submodule "fudian"]
 	path = fudian
 	url = https://github.com/Siudya/fudian
@@ -21,11 +14,3 @@
 	path = xs-utils
 	url = https://github.com/Siudya/xs-utils
 	branch = chisel5
-[submodule "coupledL2"]
-	path = coupledL2
-	url = https://github.com/cyril0124/CoupledL2
-	branch = chisel5
-[submodule "src/main/resources/TLROT"]
-	path = src/main/resources/TLROT
-	url = https://github.com/PENGLAI-ZGC-TEE/TLROT.git
-	branch = master
