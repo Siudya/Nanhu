@@ -27,10 +27,9 @@ import freechips.rocketchip.tilelink.ClientStates._
 import freechips.rocketchip.tilelink.MemoryOpCategories._
 import freechips.rocketchip.tilelink.TLPermissions._
 import difftest._
-import coupledL2.{AliasKey, DirtyKey, PrefetchKey}
-import xs.utils.FastArbiter
 import mem.AddPipelineReg
 import xs.utils.perf.HasPerfLogging
+import xs.utils.tl.{TLNanhuBusKey, TLNanhuUserBundle, TLUserKey}
 
 class MissReqWoStoreData(implicit p: Parameters) extends DCacheBundle {
   val source = UInt(sourceTypeWidth.W)
@@ -320,7 +319,7 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
     error := io.mem_grant.bits.denied || io.mem_grant.bits.corrupt || error
 
     refill_data_raw(refill_count) := io.mem_grant.bits.data
-    isDirty := io.mem_grant.bits.echo.lift(DirtyKey).getOrElse(false.B)
+    isDirty := false.B
   }
 
   when (io.mem_finish.fire) {
@@ -440,7 +439,9 @@ class MissEntry(edge: TLEdgeOut)(implicit p: Parameters) extends DCacheModule wi
   )._2
   io.mem_acquire.bits := Mux(full_overwrite, acquirePerm, acquireBlock)
   private val prefecthBit = Mux(io.l2_pf_store_only, req.isStore, true.B)
-  io.mem_acquire.bits.data := Cat(req.vaddr(13, 12), prefecthBit)
+  private val userField = io.mem_acquire.bits.user.lift(TLNanhuBusKey).getOrElse(new TLNanhuUserBundle)
+  userField.alias.foreach(_ := req.vaddr(p(TLUserKey).aliasBits + 11, 12))
+  userField.pfHint := prefecthBit
   require(nSets <= 256)
 
   io.mem_grant.ready := !w_grantlast && s_acquire

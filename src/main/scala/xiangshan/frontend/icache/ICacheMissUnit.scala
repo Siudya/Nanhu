@@ -19,13 +19,9 @@ package xiangshan.frontend.icache
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.tilelink.ClientStates._
-import freechips.rocketchip.tilelink.TLPermissions._
 import freechips.rocketchip.tilelink._
 import xiangshan._
-import huancun.{AliasKey, DirtyKey}
 import xiangshan.cache._
-import utils._
 import xs.utils._
 import difftest._
 import xs.utils.perf.HasPerfLogging
@@ -198,7 +194,6 @@ class ICacheMissEntry(edge: TLEdgeOut, id: Int)(implicit p: Parameters) extends 
   )._2
   io.mem_acquire.bits := acquireBlock
   // resolve cache alias by L2
-  io.mem_acquire.bits.user.lift(AliasKey).foreach(_ := req.vaddr(12))
   require(nSets <= 256) // icache size should not be more than 128KB
 
   //resp to ifu

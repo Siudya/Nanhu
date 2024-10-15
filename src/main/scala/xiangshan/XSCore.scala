@@ -24,15 +24,14 @@ import org.chipsalliance.cde.config
 import org.chipsalliance.cde.config.Parameters
 import chisel3._
 import chisel3.util._
-import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
+import freechips.rocketchip.diplomacy.{LazyModule, LazyModuleImp}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
 import freechips.rocketchip.tile.HasFPUParameters
 import freechips.rocketchip.tilelink.{TLBuffer, TLXbar}
 import xs.utils.mbist.{MbistInterface, MbistPipeline}
-import xs.utils.sram.{SRAMTemplate, SramHelper}
+import xs.utils.sram.SramHelper
 
 import xs.utils.{DFTResetSignals, ModuleNode, RegNextN, ResetGen, ResetGenNode}
-import system.HasSoCParameter
 import utils._
 import xiangshan.backend._
 import xiangshan.backend.execute.fu.csr.CSRConst.ModeM
@@ -51,7 +50,7 @@ abstract class XSBundle(implicit val p: Parameters) extends Bundle
   with HasXSParameter with HasVectorParameters
 
 class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) extends LazyModule
-  with HasXSParameter with HasXSDts {
+  with HasXSParameter {
   // interrupt sinks
   val clint_int_sink = IntSinkNode(IntSinkPortSimple(1, 2))
   val debug_int_sink = IntSinkNode(IntSinkPortSimple(1, 1))
@@ -79,6 +78,10 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
   lazy val module = new XSCoreImp(this)
 }
 
+class BusErrorUnitInfo(implicit p: Parameters) extends XSBundle {
+  val ecc_error = Valid(UInt(coreParams.PAddrBits.W))
+}
+
 class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
   with HasXSParameter {
   val io = IO(new Bundle {
@@ -88,7 +91,8 @@ class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
     val l2_pf_enable = Output(Bool())
     val l2_pf_ctrl = Output(UInt(Csr_PfCtrlBits.W))
     val perfEvents = Input(Vec(numPCntL2 * coreParams.L2NBanks, new PerfEvent))
-    val beu_errors = Output(new XSL1BusErrors())
+    val l1iErr = Output(new BusErrorUnitInfo)
+    val l1dErr = Output(new BusErrorUnitInfo)
     val dfx_reset = Input(new DFTResetSignals())
   })
 
@@ -114,9 +118,8 @@ class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
   frontend.io.reset_vector := io.reset_vector
 
 
-  io.beu_errors := DontCare
-  io.beu_errors.icache := frontend.io.error.toL1BusErrorUnitInfo()
-  io.beu_errors.dcache := exuBlock.io.l1Error.toL1BusErrorUnitInfo()
+  io.l1iErr := frontend.io.error.toBusErrorUnitInfo
+  io.l1dErr := exuBlock.io.l1Error.toBusErrorUnitInfo
 
   frontend.io.backend <> ctrlBlock.io.frontend
   frontend.io.sfence := fenceio.sfence
