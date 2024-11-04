@@ -233,7 +233,7 @@ class ICacheMetaArray(implicit p: Parameters) extends ICacheArray {
   //Parity Decode
   val read_metas = Wire(Vec(2,Vec(nWays,new ICacheMetadata())))
   for((tagArray,i) <- tagArrays.zipWithIndex){
-    val read_meta_bits = tagArray.io.r.resp.asTypeOf(Vec(nWays,UInt(metaEntryBits.W)))
+    val read_meta_bits = tagArray.io.r.resp.data
     val read_meta_decoded = read_meta_bits.map{ way_bits => cacheParams.tagCode.decode(way_bits)}
     val read_meta_wrong = read_meta_decoded.map{ way_bits_decoded => way_bits_decoded.error}
     val read_meta_corrected = VecInit(read_meta_decoded.map{ way_bits_decoded => way_bits_decoded.corrected})
@@ -308,7 +308,7 @@ class ICacheMetaArray(implicit p: Parameters) extends ICacheArray {
   }
   io.cacheOp.resp.valid := RegNext(io.cacheOp.req.valid && cacheOpShouldResp)
   io.cacheOp.resp.bits.read_tag_low := Mux(io.cacheOp.resp.valid, 
-    tagArrays(0).io.r.resp.asTypeOf(Vec(nWays, UInt(tagBits.W)))(io.cacheOp.req.bits.wayNum),
+    tagArrays(0).io.r.resp.data(io.cacheOp.req.bits.wayNum),
     0.U
   )
   io.cacheOp.resp.bits.read_tag_ecc := DontCare // TODO
@@ -704,6 +704,6 @@ class ICachePartWayArray[T <: Data](gen: T, pWay: Int)(implicit p: Parameters) e
 
   io.read.req.map(_.ready := !io.write.valid && srams.map(_.io.r.req.ready).reduce(_&&_))
 
-  io.read.resp.rdata := VecInit(srams.map(bank => bank.io.r.resp.asTypeOf(Vec(pWay,gen))))
+  io.read.resp.rdata := VecInit(srams.map(bank => bank.io.r.resp.data))
 
 }
