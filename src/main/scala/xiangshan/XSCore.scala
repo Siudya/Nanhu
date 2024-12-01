@@ -78,8 +78,8 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
   lazy val module = new XSCoreImp(this)
 }
 
-class BusErrorUnitInfo(implicit p: Parameters) extends XSBundle {
-  val ecc_error = Valid(UInt(coreParams.PAddrBits.W))
+class BusErrorUnitInfo(implicit p: Parameters) extends Bundle {
+  val ecc_error = Valid(UInt(64.W))
 }
 
 class XSCoreImp(outer: XSCore) extends LazyModuleImp(outer)
