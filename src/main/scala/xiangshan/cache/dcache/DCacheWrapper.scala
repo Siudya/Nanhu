@@ -461,8 +461,6 @@ class DCacheImp(outer: DCache) extends LazyModuleImp(outer) with HasDCacheParame
   val metaArray = Module(new AsynchronousMetaArray(readPorts = 3, writePorts = 2))
   val errorArray = Module(new ErrorArray(readPorts = 3, writePorts = 2)) // TODO: add it to meta array
   val tagArray = Module(new DuplicatedTagArray(readPorts = LoadPipelineWidth + 1))
-  bankedDataArray.dump()
-
   //----------------------------------------
   // core modules
   val ldu = Seq.tabulate(LoadPipelineWidth)({ i => Module(new LoadPipe(i))})

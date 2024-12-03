@@ -625,4 +625,5 @@ class BankedDataArray(implicit p: Parameters) extends AbstractBankedDataArray {
   //   eccReadResult(RegNext(io.cacheOp.req.bits.bank_num)),
   //   0.U
   // )
+  dump()
 }
