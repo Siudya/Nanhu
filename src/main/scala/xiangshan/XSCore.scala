@@ -27,10 +27,10 @@ import chisel3.util._
 import freechips.rocketchip.diplomacy.{BundleBridgeSource, LazyModule, LazyModuleImp}
 import freechips.rocketchip.interrupts.{IntSinkNode, IntSinkPortSimple}
 import freechips.rocketchip.tile.HasFPUParameters
-import freechips.rocketchip.tilelink.TLBuffer
+import freechips.rocketchip.tilelink.{TLBuffer, TLXbar}
 import xs.utils.mbist.{MbistInterface, MbistPipeline}
 import xs.utils.sram.{SRAMTemplate, SramHelper}
-import xs.utils.tl.TLUStoreBuffer
+
 import xs.utils.{DFTResetSignals, ModuleNode, RegNextN, ResetGen, ResetGenNode}
 import system.HasSoCParameter
 import utils._
@@ -62,7 +62,8 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
   val ptw_to_l2_buffer = LazyModule(new TLBuffer)
   val exuBlock = LazyModule(new ExecuteBlock)
   val ctrlBlock = LazyModule(new CtrlBlock)
-  val uncacheBuffer = LazyModule(new TLUStoreBuffer(coreParams.uncacheOustanding))
+  val uncacheXbar = LazyModule(new TLXbar)
+  val uncacheBuffer = LazyModule(new TLBuffer)
   exuBlock.integerReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   exuBlock.floatingReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
   exuBlock.memoryReservationStation.dispatchNode :*= ctrlBlock.dispatchNode
@@ -71,8 +72,9 @@ class XSCore(val parentName: String = "Core_")(implicit p: config.Parameters) ex
   ctrlBlock.rob.writebackNode :=* exuBlock.writebackNetwork.node
   ctrlBlock.wbMergeBuffer.writebackNode :=* exuBlock.writebackNetwork.node
   ptw_to_l2_buffer.node := ptw.node
-  uncacheBuffer.node :=* frontend.instrUncache.clientNode
-  uncacheBuffer.node :=* exuBlock.memoryBlock.uncache.clientNode
+  uncacheXbar.node :=* frontend.instrUncache.clientNode
+  uncacheXbar.node :=* exuBlock.memoryBlock.uncache.clientNode
+  uncacheBuffer.node :=* uncacheXbar.node
 
   lazy val module = new XSCoreImp(this)
 }
