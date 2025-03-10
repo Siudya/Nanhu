@@ -77,7 +77,7 @@ class SCTable(val nRows: Int, val ctrBits: Int, val histLen: Int)(implicit p: Pa
 
   // val table = Module(new SRAMTemplate(SInt(ctrBits.W), set=nRows, way=2*TageBanks, shouldReset=true, holdRead=true, singlePort=false))
   val table = Module(new SRAMTemplate(SInt(ctrBits.W), set=nRows, way=2*TageBanks, shouldReset=true,
-    holdRead=true, singlePort=false, bypassWrite=true,
+    holdRead=true, singlePort=false, bypassWrite=false,
     hasMbist = coreParams.hasMbist
   ))
   val mbistPipeline = MbistPipeline.PlaceMbistPipeline(1, place = coreParams.hasMbist)
