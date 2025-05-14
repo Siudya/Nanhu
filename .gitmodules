@@ -2,10 +2,6 @@
 	path = rocket-chip
 	url = https://github.com/Siudya/rocket-chip
 	branch = master
-[submodule "difftest"]
-	path = difftest
-	url = https://github.com/OpenXiangShan/difftest
-	branch = nh3
 [submodule "ready-to-run"]
 	path = ready-to-run
 	url = https://github.com/Siudya/ready-to-run
@@ -29,3 +25,7 @@
 	path = src/main/resources/TLROT
 	url = https://github.com/PENGLAI-ZGC-TEE/TLROT.git
 	branch = master
+[submodule "difftest"]
+	path = difftest
+	url = https://github.com/OpenXiangShan-Nanhu/difftest
+	branch = nh3
